@@ -423,3 +423,186 @@ document.addEventListener('DOMContentLoaded', initTimeline);
 window.closeModal = closeModal;
 window.navigatePhoto = navigatePhoto;
 window.scrollToAge = scrollToAge;
+
+// =====================================================
+// UPLOAD MODAL FUNCTIONS
+// =====================================================
+
+// Upload state
+const UploadState = {
+    files: [],
+    isUploading: false
+};
+
+/**
+ * 打開上傳 Modal
+ */
+function openUploadModal() {
+    const modal = document.getElementById('uploadModal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Update album upload link based on current child
+    updateAlbumUploadLink();
+
+    // Setup dropzone events
+    setupDropzone();
+}
+
+/**
+ * 關閉上傳 Modal
+ */
+function closeUploadModal() {
+    const modal = document.getElementById('uploadModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+
+    // Clear upload queue
+    clearUploadQueue();
+}
+
+/**
+ * 更新相簿上傳連結
+ */
+function updateAlbumUploadLink() {
+    const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
+    const albumLink = document.getElementById('albumUploadLink');
+
+    if (child.albumId) {
+        // Link to specific album
+        albumLink.href = `https://www.flickr.com/photos/${CONFIG.FLICKR_USER_ID}/albums/${child.albumId}`;
+        albumLink.textContent = `前往 ${child.name} 相簿`;
+    } else {
+        // Link to general upload
+        albumLink.href = `https://www.flickr.com/photos/${CONFIG.FLICKR_USER_ID}/`;
+        albumLink.textContent = '前往 Flickr 相簿';
+    }
+}
+
+/**
+ * 設置拖放區域
+ */
+function setupDropzone() {
+    const dropzone = document.getElementById('uploadDropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    // Click to select files
+    dropzone.onclick = () => fileInput.click();
+
+    // Drag events
+    dropzone.ondragover = (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    };
+
+    dropzone.ondragleave = () => {
+        dropzone.classList.remove('dragover');
+    };
+
+    dropzone.ondrop = (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    };
+
+    // File input change
+    fileInput.onchange = (e) => {
+        handleFiles(e.target.files);
+    };
+}
+
+/**
+ * 處理選擇的檔案
+ * @param {FileList} files - 檔案列表
+ */
+function handleFiles(files) {
+    const validFiles = Array.from(files).filter(file =>
+        file.type.startsWith('image/')
+    );
+
+    if (validFiles.length === 0) {
+        alert('請選擇圖片檔案');
+        return;
+    }
+
+    UploadState.files = [...UploadState.files, ...validFiles];
+    renderUploadQueue();
+}
+
+/**
+ * 渲染上傳佇列
+ */
+function renderUploadQueue() {
+    const queueContainer = document.getElementById('uploadQueue');
+    const queueList = document.getElementById('queueList');
+
+    if (UploadState.files.length === 0) {
+        queueContainer.style.display = 'none';
+        return;
+    }
+
+    queueContainer.style.display = 'block';
+    queueList.innerHTML = '';
+
+    UploadState.files.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'queue-item';
+
+        // Create thumbnail
+        const img = document.createElement('img');
+        img.className = 'queue-thumbnail';
+        img.src = URL.createObjectURL(file);
+
+        item.innerHTML = `
+            <span class="queue-filename">${file.name}</span>
+            <button class="queue-remove" onclick="removeFromQueue(${index})">✕</button>
+        `;
+        item.prepend(img);
+
+        queueList.appendChild(item);
+    });
+}
+
+/**
+ * 從佇列移除檔案
+ * @param {number} index - 檔案索引
+ */
+function removeFromQueue(index) {
+    UploadState.files.splice(index, 1);
+    renderUploadQueue();
+}
+
+/**
+ * 清空上傳佇列
+ */
+function clearUploadQueue() {
+    UploadState.files = [];
+    renderUploadQueue();
+
+    // Reset file input
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) fileInput.value = '';
+}
+
+/**
+ * 開始上傳 - 由於 Flickr 需要 OAuth，這裡引導用戶到 Flickr
+ */
+function startUpload() {
+    if (UploadState.files.length === 0) return;
+
+    // Since we can't directly upload to Flickr without OAuth,
+    // we'll show a message and open Flickr upload page
+    const message = `您選擇了 ${UploadState.files.length} 張照片。\n\n由於安全限制，需要在 Flickr 網站上傳照片。\n\n提示：您可以在 Flickr 上傳頁面選擇相同的照片進行上傳。`;
+
+    if (confirm(message)) {
+        window.open('https://www.flickr.com/photos/upload/', '_blank');
+        closeUploadModal();
+    }
+}
+
+// Make upload functions globally available
+window.openUploadModal = openUploadModal;
+window.closeUploadModal = closeUploadModal;
+window.clearUploadQueue = clearUploadQueue;
+window.startUpload = startUpload;
+window.removeFromQueue = removeFromQueue;

@@ -34,6 +34,10 @@
             </div>
         </div>
         <div class="header-right">
+            <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
+                <span>📤</span>
+                <span class="upload-text">上傳照片</span>
+            </button>
             <button class="header-btn" id="settingsBtn" title="設定">⚙️</button>
         </div>
     </header>
@@ -87,6 +91,74 @@
             </div>
         </aside>
     </main>
+
+    <!-- Upload Modal -->
+    <div class="upload-modal" id="uploadModal">
+        <div class="modal-overlay" onclick="closeUploadModal()"></div>
+        <div class="upload-modal-content">
+            <button class="modal-close" onclick="closeUploadModal()">✕</button>
+            <div class="upload-header">
+                <h2>📤 上傳新照片</h2>
+                <p>將照片上傳到 Flickr 相簿</p>
+            </div>
+
+            <div class="upload-options">
+                <!-- Option 1: Quick Upload via Flickr -->
+                <div class="upload-option">
+                    <div class="option-icon">🚀</div>
+                    <div class="option-info">
+                        <h3>快速上傳</h3>
+                        <p>直接前往 Flickr 上傳照片，完成後刷新頁面即可看到</p>
+                    </div>
+                    <a href="https://www.flickr.com/photos/upload/" target="_blank" class="option-btn primary"
+                        id="flickrUploadLink">
+                        前往 Flickr 上傳
+                    </a>
+                </div>
+
+                <!-- Option 2: Upload to specific album -->
+                <div class="upload-option">
+                    <div class="option-icon">📁</div>
+                    <div class="option-info">
+                        <h3>上傳到相簿</h3>
+                        <p>直接上傳到目前選擇的小孩相簿</p>
+                    </div>
+                    <a href="#" target="_blank" class="option-btn" id="albumUploadLink">
+                        前往相簿上傳
+                    </a>
+                </div>
+
+                <!-- Drag and Drop Zone -->
+                <div class="upload-dropzone" id="uploadDropzone">
+                    <div class="dropzone-content">
+                        <span class="dropzone-icon">🖼️</span>
+                        <p>拖放照片到這裡</p>
+                        <span class="dropzone-hint">或點擊選擇檔案</span>
+                    </div>
+                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+                </div>
+
+                <!-- Upload Queue -->
+                <div class="upload-queue" id="uploadQueue" style="display: none;">
+                    <h4>待上傳檔案</h4>
+                    <div class="queue-list" id="queueList"></div>
+                    <div class="queue-actions">
+                        <button class="queue-btn cancel" onclick="clearUploadQueue()">取消</button>
+                        <button class="queue-btn upload" onclick="startUpload()" id="startUploadBtn">
+                            開始上傳到 Flickr
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="upload-tips">
+                <p>💡 小提示：上傳完成後點擊「刷新」按鈕即可看到新照片</p>
+                <button class="refresh-btn" onclick="location.reload()">
+                    🔄 刷新頁面
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Photo Modal -->
     <div class="photo-modal" id="photoModal">
