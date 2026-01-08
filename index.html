@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="時光小屋 - 記錄寶貝成長的每一刻">
+    <title>時光小屋 - 家庭相簿</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <!-- Logo Section -->
+        <div class="logo-section">
+            <div class="logo-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2"/>
+                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333"/>
+                    <circle cx="24" cy="14" r="4" fill="#333"/>
+                </svg>
+            </div>
+            <h1 class="logo-text">時光小屋</h1>
+            <p class="logo-subtitle">記錄寶貝成長的每一刻</p>
+        </div>
+
+        <!-- Child Selection -->
+        <div class="child-selection">
+            <h2 class="selection-title">選擇寶貝的時光相簿</h2>
+            
+            <div class="child-cards">
+                <button class="child-card" onclick="selectChild(0)">
+                    <div class="child-avatar">
+                        <span class="avatar-emoji">👶</span>
+                    </div>
+                    <div class="child-info">
+                        <span class="child-name">大寶</span>
+                        <span class="child-age" id="child-age-0"></span>
+                    </div>
+                    <div class="card-arrow">→</div>
+                </button>
+
+                <button class="child-card" onclick="selectChild(1)">
+                    <div class="child-avatar">
+                        <span class="avatar-emoji">👼</span>
+                    </div>
+                    <div class="child-info">
+                        <span class="child-name">小寶</span>
+                        <span class="child-age" id="child-age-1"></span>
+                    </div>
+                    <div class="card-arrow">→</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Photo Tags Section -->
+        <div class="features-section">
+            <h3 class="features-title">📸 照片標籤</h3>
+            <p class="features-subtitle">標記寶寶成長的重要瞬間</p>
+            
+            <div class="feature-tags">
+                <div class="feature-tag">
+                    <span class="tag-icon">📅</span>
+                    <span class="tag-text">每日一拍</span>
+                </div>
+                <div class="feature-tag">
+                    <span class="tag-icon">📏</span>
+                    <span class="tag-text">身高體重</span>
+                </div>
+                <div class="feature-tag">
+                    <span class="tag-icon">🌟</span>
+                    <span class="tag-text">各種第一次</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="login-footer">
+            <p>Powered by Flickr • © 2026 時光小屋</p>
+        </footer>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        // Calculate and display current ages
+        document.addEventListener('DOMContentLoaded', function() {
+            CONFIG.CHILDREN.forEach((child, index) => {
+                const age = calculateAge(child.birthDate, new Date());
+                const ageEl = document.getElementById(`child-age-${index}`);
+                if (ageEl) {
+                    ageEl.textContent = formatAgeString(age.years, age.months, age.days);
+                }
+            });
+        });
+
+        function selectChild(childIndex) {
+            // Store selected child in sessionStorage
+            sessionStorage.setItem('selectedChild', childIndex);
+            // Navigate to timeline
+            window.location.href = 'timeline.html';
+        }
+    </script>
+</body>
+</html>

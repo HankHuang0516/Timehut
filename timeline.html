@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="時光小屋 - 寶貝成長時間軸">
+    <title>時光小屋 - 時間軸</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="timeline-page">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="index.html" class="header-logo">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
+                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
+                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
+                    <circle cx="24" cy="14" r="4" fill="#333" />
+                </svg>
+                <span class="header-title">時光小屋</span>
+            </a>
+        </div>
+        <div class="header-center">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" placeholder="搜尋照片..." id="searchInput">
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn" id="settingsBtn" title="設定">⚙️</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Left Sidebar - Child Profiles -->
+        <aside class="sidebar-left">
+            <div class="child-profiles">
+                <button class="profile-btn" data-child="0" title="大寶">
+                    <span class="profile-emoji">👶</span>
+                </button>
+                <button class="profile-btn" data-child="1" title="小寶">
+                    <span class="profile-emoji">👼</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Center - Timeline -->
+        <section class="timeline-section">
+            <div class="timeline-header">
+                <h2 class="current-child-name" id="currentChildName">大寶</h2>
+                <p class="current-child-age" id="currentChildAge">6歲1個月</p>
+            </div>
+
+            <div class="timeline-container" id="timelineContainer">
+                <!-- Timeline items will be dynamically inserted here -->
+                <div class="loading-indicator" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <p>載入照片中...</p>
+                </div>
+
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">📷</div>
+                    <h3>還沒有照片</h3>
+                    <p>請在 Flickr 相簿中上傳照片</p>
+                    <a href="https://www.flickr.com/photos/twopiggyhavefun/albums" target="_blank" class="upload-btn">
+                        前往 Flickr 上傳
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar - Age Navigation -->
+        <aside class="sidebar-right">
+            <div class="age-nav">
+                <h3 class="age-nav-title">⏰ 時光旅行</h3>
+                <div class="age-list" id="ageList">
+                    <!-- Age navigation items will be dynamically inserted -->
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Photo Modal -->
+    <div class="photo-modal" id="photoModal">
+        <div class="modal-overlay" onclick="closeModal()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <button class="modal-nav modal-prev" onclick="navigatePhoto(-1)">‹</button>
+            <img src="" alt="" class="modal-image" id="modalImage">
+            <button class="modal-nav modal-next" onclick="navigatePhoto(1)">›</button>
+            <div class="modal-info">
+                <h3 id="modalTitle"></h3>
+                <p id="modalDate"></p>
+                <p id="modalAge"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/flickr.js"></script>
+    <script src="js/timeline.js"></script>
+</body>
+
+</html>
