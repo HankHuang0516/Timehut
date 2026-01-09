@@ -531,6 +531,7 @@ function buildBaseString(method, url, params) {
 
 // 刪除 Flickr 照片
 async function deletePhotoFromFlickr(photoId) {
+    console.log(`[DELETE] Starting delete for photo: ${photoId}`);
     return new Promise((resolve, reject) => {
         const url = new URL('https://api.flickr.com/services/rest/');
         const timestamp = Math.floor(Date.now() / 1000);
@@ -550,6 +551,9 @@ async function deletePhotoFromFlickr(photoId) {
             oauth_version: '1.0'
         };
 
+        console.log(`[DELETE] OAuth token present: ${!!oauthTokens.accessToken}`);
+        console.log(`[DELETE] OAuth secret present: ${!!oauthTokens.accessTokenSecret}`);
+
         // 建立簽名
         const crypto = require('crypto');
         const baseString = buildBaseString('POST', 'https://api.flickr.com/services/rest/', params);
@@ -564,20 +568,31 @@ async function deletePhotoFromFlickr(photoId) {
             formData.append(key, value);
         });
 
+        console.log(`[DELETE] Sending request to Flickr API...`);
+
         fetch('https://api.flickr.com/services/rest/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: formData
         })
-            .then(res => res.json())
+            .then(res => {
+                console.log(`[DELETE] Response status: ${res.status}`);
+                return res.json();
+            })
             .then(data => {
+                console.log(`[DELETE] Flickr API response:`, JSON.stringify(data));
                 if (data.stat === 'ok') {
+                    console.log(`[DELETE] Photo ${photoId} deleted successfully`);
                     resolve(true);
                 } else {
+                    console.error(`[DELETE] Flickr API error: ${data.message || JSON.stringify(data)}`);
                     reject(new Error(data.message || '刪除照片失敗'));
                 }
             })
-            .catch(reject);
+            .catch(err => {
+                console.error(`[DELETE] Fetch error:`, err);
+                reject(err);
+            });
     });
 }
 

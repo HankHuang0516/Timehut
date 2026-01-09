@@ -213,7 +213,16 @@ const FlickrAPI = {
 
         return photos.filter(photo => {
             const title = (photo.title || '').toLowerCase();
-            const description = (photo.description?._content || photo.description || '').toLowerCase();
+            // Handle Flickr description which can be { _content: "..." } or string
+            let descStr = '';
+            if (photo.description) {
+                if (typeof photo.description === 'object' && photo.description._content) {
+                    descStr = photo.description._content;
+                } else if (typeof photo.description === 'string') {
+                    descStr = photo.description;
+                }
+            }
+            const description = descStr.toLowerCase();
             const tags = (photo.tags || '').toLowerCase();
 
             return title.includes(lowerQuery) ||
