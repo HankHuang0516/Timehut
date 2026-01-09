@@ -101,6 +101,7 @@ const UploadUI = {
     fileInput: null,
     fileList: [],
     albumSelect: null,
+    taggingMode: 'batch', // 'batch' or 'individual'
 
     init() {
         this.modal = document.getElementById('uploadModal');
@@ -165,12 +166,18 @@ const UploadUI = {
             const icon = isVideo ? '🎬' : '🖼️';
             const size = this.formatFileSize(file.size);
 
+            // P1: In individual mode, show per-file tag input
+            const tagInput = this.taggingMode === 'individual'
+                ? `<input type="text" class="queue-item-tags" data-file-index="${index}" placeholder="此照片的標籤...">`
+                : '';
+
             return `
                 <div class="queue-item" data-index="${index}">
                     <span class="queue-icon">${icon}</span>
                     <span class="queue-filename">${file.name}</span>
                     <span class="queue-size">${size}</span>
                     <button class="queue-remove" onclick="UploadUI.removeFile(${index})">✕</button>
+                    ${tagInput}
                 </div>
             `;
         }).join('');
@@ -261,19 +268,45 @@ const UploadUI = {
                 }
             }
 
-            const tagsInput = document.getElementById('tagsInput');
-            let tags = tagsInput ? tagsInput.value : '';
-
             // P1: Add uploader to tags for attribution
             const uploaderSelect = document.getElementById('uploaderSelect');
             const uploader = uploaderSelect ? uploaderSelect.value : '爸爸';
-            tags = `uploader:${uploader} ${tags}`.trim();
+            const uploaderTag = `uploader:${uploader}`;
 
-            const result = await Uploader.uploadFiles(this.fileList, { albumId, tags });
+            let successCount = 0;
+            let failCount = 0;
+
+            if (this.taggingMode === 'individual') {
+                // P1: Individual mode - upload each file with its own tags
+                for (let i = 0; i < this.fileList.length; i++) {
+                    const file = this.fileList[i];
+                    const tagInput = document.querySelector(`input[data-file-index="${i}"]`);
+                    const fileTags = tagInput ? tagInput.value : '';
+                    const tags = `${uploaderTag} ${fileTags}`.trim();
+
+                    uploadBtn.textContent = `上傳中... (${i + 1}/${this.fileList.length})`;
+
+                    try {
+                        await Uploader.uploadFiles([file], { albumId, tags });
+                        successCount++;
+                    } catch (error) {
+                        console.error(`Failed to upload ${file.name}:`, error);
+                        failCount++;
+                    }
+                }
+            } else {
+                // Batch mode - all files use the same tags
+                const tagsInput = document.getElementById('tagsInput');
+                const batchTags = tagsInput ? tagsInput.value : '';
+                const tags = `${uploaderTag} ${batchTags}`.trim();
+
+                const result = await Uploader.uploadFiles(this.fileList, { albumId, tags });
+                successCount = result.results.filter(r => r.success).length;
+                failCount = result.results.length - successCount;
+            }
 
             // 顯示結果
-            const successCount = result.results.filter(r => r.success).length;
-            alert(`上傳完成！\n成功：${successCount} 個\n失敗：${result.results.length - successCount} 個`);
+            alert(`上傳完成！\n成功：${successCount} 個\n失敗：${failCount} 個`);
 
             // 清空檔案列表
             this.fileList = [];
@@ -314,4 +347,36 @@ function startUpload() {
     UploadUI.startUpload();
 }
 
+// P1: Switch tagging mode (batch/individual)
+function setTaggingMode(mode) {
+    UploadUI.taggingMode = mode;
+
+    // Update button states
+    const batchBtn = document.getElementById('batchModeBtn');
+    const individualBtn = document.getElementById('individualModeBtn');
+    const hint = document.getElementById('taggingModeHint');
+    const tagsInput = document.getElementById('tagsInput');
+
+    if (batchBtn && individualBtn) {
+        batchBtn.classList.toggle('active', mode === 'batch');
+        individualBtn.classList.toggle('active', mode === 'individual');
+    }
+
+    // Update hint text
+    if (hint) {
+        hint.textContent = mode === 'batch'
+            ? '目前：所有照片使用相同標籤'
+            : '目前：每張照片可設定不同標籤';
+    }
+
+    // Show/hide batch tags input
+    if (tagsInput) {
+        tagsInput.parentElement.style.display = mode === 'batch' ? 'block' : 'none';
+    }
+
+    // Re-render file list to show/hide individual inputs
+    UploadUI.renderFileList();
+}
+
 window.UploadUI = UploadUI;
+window.setTaggingMode = setTaggingMode;

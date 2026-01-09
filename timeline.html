@@ -154,6 +154,22 @@
                         style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
 
+                <!-- Tagging Mode Toggle (P1) -->
+                <div class="tagging-mode-container" style="margin-top: 10px;">
+                    <label>標籤模式：</label>
+                    <div class="tagging-mode-toggle">
+                        <button type="button" class="mode-btn active" id="batchModeBtn"
+                            onclick="setTaggingMode('batch')">
+                            📦 批量
+                        </button>
+                        <button type="button" class="mode-btn" id="individualModeBtn"
+                            onclick="setTaggingMode('individual')">
+                            📝 單張
+                        </button>
+                    </div>
+                    <small id="taggingModeHint" style="color: #888; font-size: 11px;">目前：所有照片使用相同標籤</small>
+                </div>
+
                 <!-- Upload Queue -->
                 <div class="upload-queue" id="uploadQueue" style="display: none;">
                     <h4>待上傳檔案</h4>
