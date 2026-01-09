@@ -250,7 +250,16 @@ const UploadUI = {
 
         try {
             const albumSelect = document.getElementById('albumSelect');
-            const albumId = albumSelect ? albumSelect.value : '';
+            let albumId = albumSelect ? albumSelect.value : '';
+
+            // Fallback to current child's album if dropdown is empty or default
+            if (!albumId && typeof CONFIG !== 'undefined' && typeof TimelineState !== 'undefined') {
+                const currentChild = CONFIG.CHILDREN[TimelineState.currentChildIndex];
+                if (currentChild && currentChild.albumId) {
+                    albumId = currentChild.albumId;
+                    console.log('Using current child albumId:', albumId);
+                }
+            }
 
             const tagsInput = document.getElementById('tagsInput');
             const tags = tagsInput ? tagsInput.value : '';
