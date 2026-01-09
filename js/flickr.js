@@ -179,9 +179,12 @@ const FlickrAPI = {
      * @returns {Promise<Object>} 搜尋結果
      */
     async searchPhotos(query, options = {}) {
+        // Flickr photos.search with text searches title, description, and tags
         const data = await this.call('flickr.photos.search', {
             user_id: CONFIG.FLICKR_USER_ID,
             text: query,
+            tags: query.replace(/\s+/g, ','), // Also search as tags (comma-separated)
+            tag_mode: 'any',
             extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l',
             page: options.page || 1,
             per_page: options.perPage || CONFIG.PHOTOS_PER_PAGE
@@ -195,6 +198,28 @@ const FlickrAPI = {
             pages: parseInt(photos.pages, 10),
             page: parseInt(photos.page, 10)
         };
+    },
+
+    /**
+     * 本地過濾照片（搜尋標題、描述、標籤）
+     * @param {Array} photos - 照片陣列
+     * @param {string} query - 搜尋關鍵字
+     * @returns {Array} 過濾後的照片
+     */
+    filterPhotosLocally(photos, query) {
+        if (!query) return photos;
+
+        const lowerQuery = query.toLowerCase();
+
+        return photos.filter(photo => {
+            const title = (photo.title || '').toLowerCase();
+            const description = (photo.description?._content || photo.description || '').toLowerCase();
+            const tags = (photo.tags || '').toLowerCase();
+
+            return title.includes(lowerQuery) ||
+                description.includes(lowerQuery) ||
+                tags.includes(lowerQuery);
+        });
     }
 };
 

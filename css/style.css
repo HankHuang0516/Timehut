@@ -1601,3 +1601,132 @@ img {
     color: var(--color-text-muted);
     white-space: nowrap;
 }
+
+/* =====================================================
+   BATCH DELETE / SELECTION MODE STYLES
+   ===================================================== */
+
+/* Selection Bar */
+.selection-bar {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    height: 50px;
+    background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--spacing-lg);
+    z-index: 99;
+    box-shadow: var(--shadow-md);
+}
+
+.selection-bar.hidden {
+    display: none;
+}
+
+.selection-info {
+    font-weight: var(--font-weight-bold);
+    font-size: 1rem;
+}
+
+.selection-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.btn-danger {
+    background: white;
+    color: #ff6b6b;
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-danger:hover {
+    background: #fff5f5;
+    transform: scale(1.02);
+}
+
+.btn-secondary {
+    background: transparent;
+    color: white;
+    border: 2px solid white;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Select Mode - Photo Card Checkbox Overlay */
+body.select-mode .photo-card {
+    position: relative;
+    cursor: pointer;
+}
+
+body.select-mode .photo-card::before {
+    content: '○';
+    position: absolute;
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: var(--color-text-muted);
+    z-index: 10;
+}
+
+body.select-mode .photo-card.selected::before {
+    content: '✓';
+    background: var(--color-primary);
+    border-color: var(--color-primary-dark);
+    color: var(--color-secondary);
+}
+
+body.select-mode .photo-card.selected {
+    outline: 3px solid var(--color-primary);
+    outline-offset: -3px;
+}
+
+/* Main content offset when selection bar is visible */
+body.select-mode .main-content {
+    margin-top: 50px;
+}
+
+/* Photo Tags on Card (P1) */
+.photo-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 var(--spacing-md) var(--spacing-md);
+}
+
+.photo-tag {
+    font-size: 0.7rem;
+    color: var(--color-primary-dark);
+    background: var(--color-primary-light);
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.photo-tag:hover {
+    background: var(--color-primary);
+}

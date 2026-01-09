@@ -38,9 +38,21 @@
                 <span>📤</span>
                 <span class="upload-text">上傳照片</span>
             </button>
+            <button class="header-btn" id="selectModeBtn" title="選擇模式">☑️</button>
             <button class="header-btn" id="settingsBtn" title="設定">⚙️</button>
         </div>
     </header>
+
+    <!-- Selection Bar for Batch Operations -->
+    <div class="selection-bar hidden" id="selectionBar">
+        <div class="selection-info">
+            <span id="selectedCount">0</span> 張已選
+        </div>
+        <div class="selection-actions">
+            <button class="btn-danger" id="deleteSelectedBtn">🗑️ 刪除選取</button>
+            <button class="btn-secondary" id="cancelSelectBtn">取消</button>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="main-content">

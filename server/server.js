@@ -255,6 +255,58 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
     });
 });
 
+// 刪除照片 API
+app.delete('/api/photo/:photoId', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { photoId } = req.params;
+    console.log(`[DELETE] Deleting photo: ${photoId}`);
+
+    try {
+        const result = await deletePhotoFromFlickr(photoId);
+        console.log(`[DELETE] Photo ${photoId} deleted successfully`);
+        res.json({ success: true, photoId });
+    } catch (error) {
+        console.error(`[DELETE] Failed to delete photo ${photoId}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 批量刪除照片 API
+app.post('/api/photos/delete', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { photoIds } = req.body;
+
+    if (!photoIds || !Array.isArray(photoIds) || photoIds.length === 0) {
+        return res.status(400).json({ error: '請提供要刪除的照片 ID 陣列' });
+    }
+
+    console.log(`[DELETE] Batch deleting ${photoIds.length} photos`);
+
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            await deletePhotoFromFlickr(photoId);
+            results.push({ photoId, success: true });
+        } catch (error) {
+            results.push({ photoId, success: false, error: error.message });
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    console.log(`[DELETE] Batch delete complete: ${successCount}/${photoIds.length} succeeded`);
+
+    res.json({
+        message: `刪除完成：${successCount}/${photoIds.length} 張成功`,
+        results
+    });
+});
+
 // 取得相簿列表
 app.get('/api/albums', async (req, res) => {
     // ... (保持原樣)
@@ -475,6 +527,58 @@ function buildBaseString(method, url, params) {
         .join('&');
 
     return `${method}&${encodeURIComponent(url)}&${encodeURIComponent(sortedParams)}`;
+}
+
+// 刪除 Flickr 照片
+async function deletePhotoFromFlickr(photoId) {
+    return new Promise((resolve, reject) => {
+        const url = new URL('https://api.flickr.com/services/rest/');
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = Math.random().toString(36).substring(2);
+
+        const params = {
+            method: 'flickr.photos.delete',
+            api_key: process.env.FLICKR_API_KEY,
+            photo_id: photoId,
+            format: 'json',
+            nojsoncallback: '1',
+            oauth_consumer_key: process.env.FLICKR_API_KEY,
+            oauth_token: oauthTokens.accessToken,
+            oauth_signature_method: 'HMAC-SHA1',
+            oauth_timestamp: timestamp,
+            oauth_nonce: nonce,
+            oauth_version: '1.0'
+        };
+
+        // 建立簽名
+        const crypto = require('crypto');
+        const baseString = buildBaseString('POST', 'https://api.flickr.com/services/rest/', params);
+        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+
+        params.oauth_signature = signature;
+
+        // 建立 form data
+        const formData = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            formData.append(key, value);
+        });
+
+        fetch('https://api.flickr.com/services/rest/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.stat === 'ok') {
+                    resolve(true);
+                } else {
+                    reject(new Error(data.message || '刪除照片失敗'));
+                }
+            })
+            .catch(reject);
+    });
 }
 
 // ==================== 啟動伺服器 ====================

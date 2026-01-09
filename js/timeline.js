@@ -15,6 +15,12 @@ const TimelineState = {
     allPhotosFlat: []
 };
 
+// Selection state for batch operations
+const SelectionState = {
+    isSelectMode: false,
+    selectedPhotos: new Set()
+};
+
 /**
  * 初始化時間軸頁面
  */
@@ -89,6 +95,25 @@ function setupEventListeners() {
 
     // Keyboard navigation for modal
     document.addEventListener('keydown', handleKeyboard);
+
+    // Selection mode buttons
+    const selectModeBtn = document.getElementById('selectModeBtn');
+    if (selectModeBtn) {
+        selectModeBtn.addEventListener('click', toggleSelectMode);
+    }
+
+    const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.addEventListener('click', deleteSelectedPhotos);
+    }
+
+    const cancelSelectBtn = document.getElementById('cancelSelectBtn');
+    if (cancelSelectBtn) {
+        cancelSelectBtn.addEventListener('click', () => {
+            SelectionState.selectedPhotos.clear();
+            toggleSelectMode();
+        });
+    }
 
     // Infinite scroll (optional)
     // window.addEventListener('scroll', throttle(handleScroll, 200));
@@ -230,9 +255,18 @@ function renderTimeline() {
 function createPhotoCard(photo, index) {
     const card = document.createElement('article');
     card.className = 'photo-card';
+    card.dataset.id = photo.id; // Add data-id for selection
+
     card.onclick = (e) => {
         // Don't open modal if clicking on a tag
         if (e.target.classList.contains('photo-tag')) return;
+
+        // Handle selection mode
+        if (SelectionState.isSelectMode) {
+            togglePhotoSelection(photo.id);
+            return;
+        }
+
         openModal(index);
     };
 
@@ -240,10 +274,11 @@ function createPhotoCard(photo, index) {
     const title = photo.title || '未命名';
     const date = formatDate(photo.datetaken || photo.dateupload);
 
-    // Process tags
-    const tagsHtml = photo.tags ? photo.tags.split(' ').map(tag =>
+    // Process tags (P1: Display tags on cards)
+    const tagsArray = photo.tags ? photo.tags.split(' ').filter(t => t).slice(0, 3) : [];
+    const tagsHtml = tagsArray.map(tag =>
         `<span class="photo-tag" onclick="filterByTag('${tag}')">#${tag}</span>`
-    ).join('') : '';
+    ).join('');
 
     card.innerHTML = `
         <div class="photo-wrapper">
@@ -413,7 +448,7 @@ function handleKeyboard(event) {
 }
 
 /**
- * 處理搜尋
+ * 處理搜尋（含標籤）
  * @param {Event} event - 輸入事件
  */
 async function handleSearch(event) {
@@ -429,6 +464,7 @@ async function handleSearch(event) {
 
     const loadingEl = document.getElementById('loadingIndicator');
     const containerEl = document.getElementById('timelineContainer');
+    const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
     // Show loading
     loadingEl.style.display = 'block';
@@ -441,8 +477,23 @@ async function handleSearch(event) {
     });
 
     try {
+        // First, try to filter locally loaded photos (instant results)
+        let filteredPhotos = [];
+
+        if (TimelineState.photos.length > 0) {
+            filteredPhotos = FlickrAPI.filterPhotosLocally(TimelineState.photos, query);
+        }
+
+        // If local filter found results, show them
+        if (filteredPhotos.length > 0) {
+            TimelineState.groupedPhotos = groupPhotosByAge(filteredPhotos, child.birthDate);
+            loadingEl.style.display = 'none';
+            renderTimeline();
+            return;
+        }
+
+        // Fallback to API search for broader results
         const result = await FlickrAPI.searchPhotos(query);
-        const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
         if (result.photos.length === 0) {
             loadingEl.style.display = 'none';
@@ -461,6 +512,112 @@ async function handleSearch(event) {
         loadingEl.style.display = 'none';
     }
 }
+
+// =====================================================
+// BATCH DELETE / SELECTION MODE FUNCTIONS
+// =====================================================
+
+/**
+ * 切換選擇模式
+ */
+function toggleSelectMode() {
+    SelectionState.isSelectMode = !SelectionState.isSelectMode;
+    document.body.classList.toggle('select-mode', SelectionState.isSelectMode);
+    document.getElementById('selectionBar').classList.toggle('hidden', !SelectionState.isSelectMode);
+
+    if (!SelectionState.isSelectMode) {
+        // Clear selections when exiting select mode
+        SelectionState.selectedPhotos.clear();
+        document.querySelectorAll('.photo-card.selected').forEach(card => {
+            card.classList.remove('selected');
+        });
+    }
+
+    updateSelectionUI();
+}
+
+/**
+ * 切換照片選擇狀態
+ * @param {string} photoId - 照片 ID
+ */
+function togglePhotoSelection(photoId) {
+    if (!SelectionState.isSelectMode) return;
+
+    if (SelectionState.selectedPhotos.has(photoId)) {
+        SelectionState.selectedPhotos.delete(photoId);
+    } else {
+        SelectionState.selectedPhotos.add(photoId);
+    }
+
+    // Update card visual
+    const card = document.querySelector(`.photo-card[data-id="${photoId}"]`);
+    if (card) {
+        card.classList.toggle('selected', SelectionState.selectedPhotos.has(photoId));
+    }
+
+    updateSelectionUI();
+}
+
+/**
+ * 更新選擇狀態 UI
+ */
+function updateSelectionUI() {
+    const count = SelectionState.selectedPhotos.size;
+    document.getElementById('selectedCount').textContent = count;
+
+    // Disable delete button if nothing selected
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = count === 0;
+        deleteBtn.style.opacity = count === 0 ? '0.5' : '1';
+    }
+}
+
+/**
+ * 刪除選取的照片
+ */
+async function deleteSelectedPhotos() {
+    const count = SelectionState.selectedPhotos.size;
+
+    if (count === 0) {
+        alert('請先選擇要刪除的照片');
+        return;
+    }
+
+    if (!confirm(`確定要刪除 ${count} 張照片嗎？\n\n⚠️ 此操作無法復原！`)) {
+        return;
+    }
+
+    const photoIds = Array.from(SelectionState.selectedPhotos);
+
+    try {
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            const successCount = result.results?.filter(r => r.success).length || 0;
+            alert(`刪除完成！\n成功：${successCount} 張\n失敗：${count - successCount} 張`);
+
+            // Exit select mode and reload photos
+            SelectionState.selectedPhotos.clear();
+            toggleSelectMode();
+            await loadPhotos();
+        } else {
+            alert(`刪除失敗：${result.error}`);
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('刪除時發生錯誤，請稍後再試');
+    }
+}
+
+// Make selection functions globally available
+window.togglePhotoSelection = togglePhotoSelection;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', initTimeline);
