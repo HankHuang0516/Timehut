@@ -1807,3 +1807,123 @@ body.select-mode .main-content {
     flex-wrap: wrap;
     align-items: center;
 }
+
+/* P0: Tag Editing in Modal */
+.modal-tags-edit {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+}
+
+.tags-edit-row {
+    display: flex;
+    gap: 8px;
+}
+
+#editTagsInput {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    background: var(--color-background);
+}
+
+#editTagsInput:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.save-tags-btn {
+    padding: 8px 16px;
+    background: var(--color-primary);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all var(--transition-fast);
+}
+
+.save-tags-btn:hover {
+    background: var(--color-primary-dark);
+}
+
+/* P0: Photo Batch Group Badge */
+.photo-batch-badge {
+    position: absolute;
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    z-index: 5;
+}
+
+.photo-batch-badge:hover {
+    background: var(--color-primary);
+    color: var(--color-secondary);
+}
+
+/* P0: Batch View Modal */
+.batch-view-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.batch-view-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(4px);
+}
+
+.batch-view-content {
+    position: relative;
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.batch-view-close {
+    position: absolute;
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+    font-size: 1.5rem;
+    color: var(--color-text);
+    z-index: 10;
+}
+
+.batch-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    overflow-y: auto;
+    padding: var(--spacing-md) 0;
+    margin-top: var(--spacing-md);
+}
+
+.batch-gallery img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform var(--transition-fast);
+}
+
+.batch-gallery img:hover {
+    transform: scale(1.05);
+}

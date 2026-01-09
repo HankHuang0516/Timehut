@@ -186,6 +186,9 @@ async function loadPhotos() {
             // Show empty state
             emptyEl.style.display = 'block';
         } else {
+            // P0: Calculate photo batches
+            TimelineState.photoBatches = calculatePhotoBatches(TimelineState.photos);
+
             // Group photos by age and render
             TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, child.birthDate);
             renderTimeline();
@@ -258,8 +261,9 @@ function createPhotoCard(photo, index) {
     card.dataset.id = photo.id; // Add data-id for selection
 
     card.onclick = (e) => {
-        // Don't open modal if clicking on a tag
-        if (e.target.classList.contains('photo-tag')) return;
+        // Don't open modal if clicking on a tag or batch badge
+        if (e.target.classList.contains('photo-tag') ||
+            e.target.classList.contains('photo-batch-badge')) return;
 
         // Handle selection mode
         if (SelectionState.isSelectMode) {
@@ -280,6 +284,13 @@ function createPhotoCard(photo, index) {
     const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : null;
     const uploaderEmoji = getUploaderEmoji(uploader);
 
+    // P0: Check for photo batch
+    let batchHtml = '';
+    const batchInfo = TimelineState.photoBatches ? TimelineState.photoBatches.get(photo.id) : null;
+    if (batchInfo && batchInfo.batchSize > 1 && batchInfo.batchPhotoIds[0] === photo.id) {
+        batchHtml = `<span class="photo-batch-badge" onclick="openBatchView(TimelineState.photoBatches.get('${photo.id}'))">進入相集 (${batchInfo.batchSize})</span>`;
+    }
+
     // Process tags (P1: Display tags on cards, excluding uploader tag)
     const displayTags = allTags.filter(t => !t.startsWith('uploader:')).slice(0, 3);
     const tagsHtml = displayTags.map(tag =>
@@ -290,6 +301,7 @@ function createPhotoCard(photo, index) {
         <div class="photo-wrapper">
             <img src="${imgUrl}" alt="${title}" loading="lazy">
             ${uploader ? `<span class="photo-uploader" title="${uploader}上傳">${uploaderEmoji}</span>` : ''}
+            ${batchHtml}
         </div>
         <div class="photo-info">
             <h3 class="photo-title">${title}</h3>
@@ -438,6 +450,13 @@ function openModal(index) {
         } else {
             modalUploader.style.display = 'none';
         }
+    }
+
+    // P0: Populate tag editing input (excluding uploader tag)
+    const displayTags = allTags.filter(t => !t.startsWith('uploader:')).join(' ');
+    const editTagsInput = document.getElementById('editTagsInput');
+    if (editTagsInput) {
+        editTagsInput.value = displayTags;
     }
 
     modal.classList.add('active');
@@ -666,6 +685,168 @@ document.addEventListener('DOMContentLoaded', initTimeline);
 window.closeModal = closeModal;
 window.navigatePhoto = navigatePhoto;
 window.scrollToAge = scrollToAge;
+
+// =====================================================
+// P0: TAG EDITING FUNCTION
+// =====================================================
+
+/**
+ * 儲存照片標籤
+ */
+async function savePhotoTags() {
+    const photo = TimelineState.allPhotosFlat[TimelineState.currentModalIndex];
+    if (!photo) return;
+
+    const editTagsInput = document.getElementById('editTagsInput');
+    const newTags = editTagsInput ? editTagsInput.value.trim() : '';
+
+    // Get existing uploader tag to preserve it
+    const existingTags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
+    const uploaderTag = existingTags.find(t => t.startsWith('uploader:'));
+
+    // Combine uploader tag with new user tags
+    const finalTags = uploaderTag ? `${uploaderTag} ${newTags}` : newTags;
+
+    const saveBtn = document.querySelector('.save-tags-btn');
+    const originalEmoji = saveBtn ? saveBtn.textContent : '💾';
+
+    try {
+        if (saveBtn) saveBtn.textContent = '⏳';
+
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/tags`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags: finalTags })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            // Update local photo object
+            photo.tags = finalTags;
+            if (saveBtn) saveBtn.textContent = '✅';
+            setTimeout(() => { if (saveBtn) saveBtn.textContent = originalEmoji; }, 1500);
+        } else {
+            throw new Error(result.error || '儲存失敗');
+        }
+    } catch (error) {
+        console.error('Save tags error:', error);
+        alert('儲存標籤失敗：' + error.message);
+        if (saveBtn) saveBtn.textContent = originalEmoji;
+    }
+}
+
+// Make savePhotoTags globally available
+window.savePhotoTags = savePhotoTags;
+
+// =====================================================
+// P0: PHOTO BATCH GROUPING (進入相集)
+// =====================================================
+
+/**
+ * 計算照片的批次分組
+ * 條件：同一上傳者 + 上傳時間間隔不超過 30 分鐘
+ */
+function calculatePhotoBatches(photos) {
+    if (!photos || photos.length === 0) return new Map();
+
+    // Sort by upload time descending
+    const sortedPhotos = [...photos].sort((a, b) => {
+        const timeA = parseInt(a.dateupload, 10) || 0;
+        const timeB = parseInt(b.dateupload, 10) || 0;
+        return timeB - timeA;
+    });
+
+    const batches = new Map(); // photoId -> batchId
+    let currentBatchId = 0;
+    let batchPhotos = []; // Track photos in each batch for size calculation
+
+    sortedPhotos.forEach((photo, idx) => {
+        const uploader = extractUploader(photo);
+        const uploadTime = parseInt(photo.dateupload, 10) * 1000;
+
+        if (idx === 0) {
+            // First photo starts a new batch
+            currentBatchId++;
+            batchPhotos[currentBatchId] = [photo.id];
+            batches.set(photo.id, { batchId: currentBatchId, uploader, time: uploadTime });
+        } else {
+            const prevPhoto = sortedPhotos[idx - 1];
+            const prevBatch = batches.get(prevPhoto.id);
+            const prevUploader = extractUploader(prevPhoto);
+            const prevTime = parseInt(prevPhoto.dateupload, 10) * 1000;
+            const timeDiff = Math.abs(uploadTime - prevTime) / 60000; // in minutes
+
+            if (uploader === prevUploader && timeDiff <= 30) {
+                // Same batch
+                batches.set(photo.id, { batchId: prevBatch.batchId, uploader, time: uploadTime });
+                batchPhotos[prevBatch.batchId].push(photo.id);
+            } else {
+                // New batch
+                currentBatchId++;
+                batchPhotos[currentBatchId] = [photo.id];
+                batches.set(photo.id, { batchId: currentBatchId, uploader, time: uploadTime });
+            }
+        }
+    });
+
+    // Add batch size info
+    batches.forEach((value, key) => {
+        value.batchSize = batchPhotos[value.batchId].length;
+        value.batchPhotoIds = batchPhotos[value.batchId];
+    });
+
+    return batches;
+}
+
+/**
+ * 從照片標籤中提取上傳者
+ */
+function extractUploader(photo) {
+    const tags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
+    const uploaderTag = tags.find(t => t.startsWith('uploader:'));
+    return uploaderTag ? uploaderTag.replace('uploader:', '') : 'unknown';
+}
+
+/**
+ * 顯示批次相集視圖
+ */
+function openBatchView(batchInfo) {
+    const photos = batchInfo.batchPhotoIds.map(id =>
+        TimelineState.allPhotosFlat.find(p => p.id === id)
+    ).filter(p => p);
+
+    if (photos.length === 0) return;
+
+    // Create batch view modal (simplified - shows photos in a gallery)
+    const batchModal = document.createElement('div');
+    batchModal.className = 'batch-view-modal';
+    batchModal.innerHTML = `
+        <div class="batch-view-overlay" onclick="closeBatchView()"></div>
+        <div class="batch-view-content">
+            <button class="batch-view-close" onclick="closeBatchView()">✕</button>
+            <h3>📷 ${batchInfo.uploader}的相集 (${photos.length}張)</h3>
+            <div class="batch-gallery">
+                ${photos.map((p, idx) => `
+                    <img src="${FlickrAPI.getPhotoUrl(p, 'm')}" 
+                         alt="${p.title || ''}" 
+                         onclick="closeBatchView(); openModal(${TimelineState.allPhotosFlat.indexOf(p)})">
+                `).join('')}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(batchModal);
+    document.body.style.overflow = 'hidden';
+}
+
+function closeBatchView() {
+    const modal = document.querySelector('.batch-view-modal');
+    if (modal) modal.remove();
+    document.body.style.overflow = '';
+}
+
+window.openBatchView = openBatchView;
+window.closeBatchView = closeBatchView;
 
 // =====================================================
 // UPLOAD MODAL FUNCTIONS
