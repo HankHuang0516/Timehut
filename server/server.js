@@ -118,7 +118,7 @@ app.get('/api/auth/start', (req, res) => {
         tempRequestTokens[token] = tokenSecret;
 
         // 回傳授權 URL
-        const authUrl = `https://www.flickr.com/services/oauth/authorize?oauth_token=${token}&perms=write`;
+        const authUrl = `https://www.flickr.com/services/oauth/authorize?oauth_token=${token}&perms=delete`;
         res.json({ authUrl });
     });
 });
