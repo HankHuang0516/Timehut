@@ -7,3 +7,4 @@ node_modules/
 # Server environment and uploads
 server/.env
 server/uploads/
+download/
