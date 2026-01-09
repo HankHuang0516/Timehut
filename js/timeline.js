@@ -274,15 +274,22 @@ function createPhotoCard(photo, index) {
     const title = photo.title || '未命名';
     const date = formatDate(photo.datetaken || photo.dateupload);
 
-    // Process tags (P1: Display tags on cards)
-    const tagsArray = photo.tags ? photo.tags.split(' ').filter(t => t).slice(0, 3) : [];
-    const tagsHtml = tagsArray.map(tag =>
+    // P1: Extract uploader from tags
+    const allTags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
+    const uploaderTag = allTags.find(t => t.startsWith('uploader:'));
+    const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : null;
+    const uploaderEmoji = getUploaderEmoji(uploader);
+
+    // Process tags (P1: Display tags on cards, excluding uploader tag)
+    const displayTags = allTags.filter(t => !t.startsWith('uploader:')).slice(0, 3);
+    const tagsHtml = displayTags.map(tag =>
         `<span class="photo-tag" onclick="filterByTag('${tag}')">#${tag}</span>`
     ).join('');
 
     card.innerHTML = `
         <div class="photo-wrapper">
             <img src="${imgUrl}" alt="${title}" loading="lazy">
+            ${uploader ? `<span class="photo-uploader" title="${uploader}上傳">${uploaderEmoji}</span>` : ''}
         </div>
         <div class="photo-info">
             <h3 class="photo-title">${title}</h3>
@@ -295,6 +302,24 @@ function createPhotoCard(photo, index) {
     `;
 
     return card;
+}
+
+/**
+ * 取得上傳者的 Emoji
+ * @param {string} uploader - 上傳者名稱
+ * @returns {string} Emoji
+ */
+function getUploaderEmoji(uploader) {
+    const emojiMap = {
+        '爸爸': '👨',
+        '媽媽': '👩',
+        '爺爺': '👴',
+        '奶奶': '👵',
+        '外公': '👴',
+        '外婆': '👵',
+        '其他': '👤'
+    };
+    return emojiMap[uploader] || '👤';
 }
 
 /**
@@ -399,6 +424,21 @@ function openModal(index) {
     modalTitle.textContent = photo.title || '未命名';
     modalDate.textContent = formatDate(photo.datetaken || photo.dateupload);
     modalAge.textContent = photo.ageString;
+
+    // P1: Extract and display uploader
+    const allTags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
+    const uploaderTag = allTags.find(t => t.startsWith('uploader:'));
+    const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : null;
+
+    const modalUploader = document.getElementById('modalUploader');
+    if (modalUploader) {
+        if (uploader) {
+            modalUploader.textContent = `${getUploaderEmoji(uploader)} ${uploader}上傳`;
+            modalUploader.style.display = 'inline';
+        } else {
+            modalUploader.style.display = 'none';
+        }
+    }
 
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';

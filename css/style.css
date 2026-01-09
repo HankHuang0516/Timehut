@@ -1730,3 +1730,35 @@ body.select-mode .main-content {
 .photo-tag:hover {
     background: var(--color-primary);
 }
+
+/* P1: Uploader Badge on Photo Cards */
+.photo-uploader {
+    position: absolute;
+    bottom: var(--spacing-sm);
+    right: var(--spacing-sm);
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: var(--shadow-sm);
+    z-index: 5;
+    cursor: help;
+}
+
+.photo-uploader:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background: var(--color-secondary);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    margin-bottom: 4px;
+}

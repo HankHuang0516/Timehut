@@ -133,6 +133,21 @@
                     </select>
                 </div>
 
+                <!-- Uploader Selection (P1) -->
+                <div class="uploader-selection-container" style="margin-top: 15px;">
+                    <label for="uploaderSelect">上傳者：</label>
+                    <select id="uploaderSelect" class="uploader-select"
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="爸爸">👨 爸爸</option>
+                        <option value="媽媽">👩 媽媽</option>
+                        <option value="爺爺">👴 爺爺</option>
+                        <option value="奶奶">👵 奶奶</option>
+                        <option value="外公">👴 外公</option>
+                        <option value="外婆">👵 外婆</option>
+                        <option value="其他">👤 其他</option>
+                    </select>
+                </div>
+
                 <div class="tags-input-container" style="margin-top: 15px;">
                     <label for="tagsInput">標籤（用空格分隔）：</label>
                     <input type="text" id="tagsInput" class="tags-input" placeholder="例如：生日 快樂 戶外"
@@ -173,6 +188,7 @@
                 <h3 id="modalTitle"></h3>
                 <p id="modalDate"></p>
                 <p id="modalAge"></p>
+                <p id="modalUploader" class="modal-uploader" style="display: none;"></p>
             </div>
         </div>
     </div>

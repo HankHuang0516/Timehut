@@ -262,7 +262,12 @@ const UploadUI = {
             }
 
             const tagsInput = document.getElementById('tagsInput');
-            const tags = tagsInput ? tagsInput.value : '';
+            let tags = tagsInput ? tagsInput.value : '';
+
+            // P1: Add uploader to tags for attribution
+            const uploaderSelect = document.getElementById('uploaderSelect');
+            const uploader = uploaderSelect ? uploaderSelect.value : '爸爸';
+            tags = `uploader:${uploader} ${tags}`.trim();
 
             const result = await Uploader.uploadFiles(this.fileList, { albumId, tags });
 
