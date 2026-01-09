@@ -477,6 +477,46 @@ img {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: var(--spacing-lg);
+    position: relative;
+}
+
+/* P0: Vertical Timeline Line - Timehut Style */
+.timeline-container::before {
+    content: '';
+    position: absolute;
+    left: 40px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--color-primary), var(--color-primary-light));
+    z-index: 0;
+}
+
+/* P0: Date Badge - Timehut Style */
+.date-badge {
+    position: absolute;
+    left: 10px;
+    background: var(--color-surface);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    text-align: center;
+    z-index: 1;
+    min-width: 50px;
+}
+
+.date-badge .month {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.date-badge .day {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary-dark);
 }
 
 /* Photo Cards */
@@ -496,18 +536,15 @@ img {
 
 .photo-wrapper {
     position: relative;
-    padding-top: 100%;
-    /* 1:1 Aspect Ratio */
+    /* P0: Preserve original aspect ratio instead of forcing 1:1 */
     overflow: hidden;
 }
 
 .photo-wrapper img {
-    position: absolute;
-    top: 0;
-    left: 0;
+    /* P0: Static positioning for natural aspect ratio */
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
+    object-fit: contain;
     transition: transform var(--transition-slow);
 }
 
@@ -826,7 +863,8 @@ img {
     }
 
     .timeline-container {
-        grid-template-columns: repeat(2, 1fr);
+        /* P0: Single column layout on mobile for immersive viewing */
+        grid-template-columns: 1fr;
         gap: var(--spacing-md);
     }
 

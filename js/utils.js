@@ -54,7 +54,8 @@ function formatAgeString(years, months, days) {
         parts.push(`${months}個月`);
     }
 
-    if (years === 0 && months === 0 && days >= 0) {
+    // P1: Always show days for Timehut-style precision
+    if (days > 0 || (years === 0 && months === 0)) {
         parts.push(`${days}天`);
     }
 
