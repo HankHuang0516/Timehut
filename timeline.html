@@ -221,11 +221,25 @@
         </div>
     </div>
 
+    <!-- Confirmation Modal (Card Style) -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="confirm-card">
+            <div class="confirm-icon">⚠️</div>
+            <h3 class="confirm-title" id="confirmTitle">確認操作</h3>
+            <p class="confirm-message" id="confirmMessage">確定要執行此操作嗎？</p>
+            <div class="confirm-actions">
+                <button class="btn-secondary" id="confirmCancelBtn">取消</button>
+                <button class="btn-danger" id="confirmOkBtn">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/flickr.js"></script>
-    <script src="js/timeline.js"></script>
     <script src="js/uploader.js"></script>
+    <script src="js/timeline.js"></script>
     <script>
         // Auth check - redirect if not authenticated
         (function () {

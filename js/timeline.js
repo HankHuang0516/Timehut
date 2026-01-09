@@ -577,6 +577,45 @@ async function handleSearch(event) {
 // =====================================================
 
 /**
+ * 顯示確認對話框 (Promise-based)
+ * @param {string} title - 標題
+ * @param {string} message - 訊息
+ * @param {string} confirmText - 確認按鈕文字
+ * @returns {Promise<boolean>}
+ */
+function showConfirmModal(title, message, confirmText = '確認') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirmModal');
+        const titleEl = document.getElementById('confirmTitle');
+        const msgEl = document.getElementById('confirmMessage');
+        const okBtn = document.getElementById('confirmOkBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+
+        titleEl.textContent = title;
+        msgEl.innerHTML = message.replace(/\n/g, '<br>');
+        okBtn.textContent = confirmText;
+
+        modal.classList.remove('hidden');
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            okBtn.onclick = null;
+            cancelBtn.onclick = null;
+        };
+
+        okBtn.onclick = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        cancelBtn.onclick = () => {
+            cleanup();
+            resolve(false);
+        };
+    });
+}
+
+/**
  * 切換選擇模式
  */
 function toggleSelectMode() {
@@ -608,7 +647,7 @@ function togglePhotoSelection(photoId) {
         SelectionState.selectedPhotos.add(photoId);
     }
 
-    // Update card visual
+    // Update UI for this card
     const card = document.querySelector(`.photo-card[data-id="${photoId}"]`);
     if (card) {
         card.classList.toggle('selected', SelectionState.selectedPhotos.has(photoId));
@@ -618,18 +657,15 @@ function togglePhotoSelection(photoId) {
 }
 
 /**
- * 更新選擇狀態 UI
+ * 更新選擇 UI
  */
 function updateSelectionUI() {
-    const count = SelectionState.selectedPhotos.size;
-    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('selectedCount').textContent = SelectionState.selectedPhotos.size;
 
-    // Disable delete button if nothing selected
-    const deleteBtn = document.getElementById('deleteSelectedBtn');
-    if (deleteBtn) {
-        deleteBtn.disabled = count === 0;
-        deleteBtn.style.opacity = count === 0 ? '0.5' : '1';
-    }
+    // Enable/disable buttons based on selection
+    const count = SelectionState.selectedPhotos.size;
+    const buttons = document.querySelectorAll('.selection-actions button:not(#cancelSelectBtn)');
+    buttons.forEach(btn => btn.disabled = count === 0);
 }
 
 /**
@@ -644,9 +680,14 @@ async function deleteSelectedPhotos() {
         return;
     }
 
-    if (!confirm(`確定要刪除 ${count} 張照片嗎？\n\n⚠️ 此操作無法復原！`)) {
-        return;
-    }
+    // Use custom modal instead of native confirm
+    const confirmed = await showConfirmModal(
+        '確認刪除',
+        `確定要刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
+        '🗑️ 確認刪除'
+    );
+
+    if (!confirmed) return;
 
     const photoIds = Array.from(SelectionState.selectedPhotos);
     console.log('[DELETE] Deleting IDs:', photoIds);
@@ -668,6 +709,8 @@ async function deleteSelectedPhotos() {
 
         if (response.ok) {
             const successCount = result.results?.filter(r => r.success).length || 0;
+            // Maybe show success modal? For now alert is fine or toast.
+            // Let's us a simple alert but maybe style it later.
             alert(`刪除完成！\n成功：${successCount} 張\n失敗：${count - successCount} 張`);
 
             // Exit select mode and reload photos
