@@ -1,5 +1,5 @@
 /**
- * 時光小屋 - 時間軸邏輯
+ * 黃家小屋 - 時間軸邏輯
  * Timeline logic for Timehut Clone
  */
 
@@ -18,7 +18,15 @@ const TimelineState = {
 /**
  * 初始化時間軸頁面
  */
+/**
+ * 初始化時間軸頁面
+ */
 async function initTimeline() {
+    // Check for URL params (e.g. tag filter)
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    const tagName = urlParams.get('tag_name');
+    const q = urlParams.get('q');
+
     // Get selected child from session storage
     const selectedChild = sessionStorage.getItem('selectedChild');
     TimelineState.currentChildIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
@@ -29,8 +37,17 @@ async function initTimeline() {
     // Setup event listeners
     setupEventListeners();
 
-    // Load photos
-    await loadPhotos();
+    // Load initial data
+    if (tagName) {
+        // Switch to search mode for tag
+        document.getElementById('searchInput').value = tagName;
+        await handleSearch({ target: { value: tagName } }, true);
+    } else if (q) {
+        document.getElementById('searchInput').value = q;
+        await handleSearch({ target: { value: q } }, true);
+    } else {
+        await loadPhotos();
+    }
 }
 
 /**
@@ -114,10 +131,12 @@ async function loadPhotos() {
     if (TimelineState.currentPage === 1) {
         // Remove photo cards but keep loading/empty elements
         Array.from(containerEl.children).forEach(child => {
-            if (!child.id?.includes('loading') && !child.id?.includes('empty')) {
+            if (!child.id?.includes('loading') && !child.id?.includes('empty') && !child.classList.contains('age-group-header')) {
                 child.remove();
             }
         });
+        const headers = containerEl.querySelectorAll('.age-group-header');
+        headers.forEach(h => h.remove());
     }
 
     try {
@@ -178,15 +197,18 @@ function renderTimeline() {
 
     TimelineState.groupedPhotos.forEach(group => {
         // Add age group header
-        const headerEl = document.createElement('div');
-        headerEl.className = 'age-group-header';
-        headerEl.id = `age-${group.sortKey}`;
-        headerEl.innerHTML = `
-            <div class="age-group-line"></div>
-            <span class="age-group-label">${group.label}</span>
-            <div class="age-group-line"></div>
-        `;
-        containerEl.insertBefore(headerEl, containerEl.querySelector('#loadingIndicator'));
+        let headerEl = document.getElementById(`age-${group.sortKey}`);
+        if (!headerEl) {
+            headerEl = document.createElement('div');
+            headerEl.className = 'age-group-header';
+            headerEl.id = `age-${group.sortKey}`;
+            headerEl.innerHTML = `
+                <div class="age-group-line"></div>
+                <span class="age-group-label">${group.label}</span>
+                <div class="age-group-line"></div>
+            `;
+            containerEl.insertBefore(headerEl, containerEl.querySelector('#loadingIndicator'));
+        }
 
         // Add photo cards
         group.photos.forEach((photo, photoIndex) => {
@@ -208,11 +230,20 @@ function renderTimeline() {
 function createPhotoCard(photo, index) {
     const card = document.createElement('article');
     card.className = 'photo-card';
-    card.onclick = () => openModal(index);
+    card.onclick = (e) => {
+        // Don't open modal if clicking on a tag
+        if (e.target.classList.contains('photo-tag')) return;
+        openModal(index);
+    };
 
     const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm');
     const title = photo.title || '未命名';
     const date = formatDate(photo.datetaken || photo.dateupload);
+
+    // Process tags
+    const tagsHtml = photo.tags ? photo.tags.split(' ').map(tag =>
+        `<span class="photo-tag" onclick="filterByTag('${tag}')">#${tag}</span>`
+    ).join('') : '';
 
     card.innerHTML = `
         <div class="photo-wrapper">
@@ -224,10 +255,25 @@ function createPhotoCard(photo, index) {
                 <span class="photo-date">${date}</span>
                 <span class="photo-age">${photo.ageString}</span>
             </div>
+            ${tagsHtml ? `<div class="photo-tags">${tagsHtml}</div>` : ''}
         </div>
     `;
 
     return card;
+}
+
+/**
+ * 依標籤過濾
+ * @param {string} tag - 標籤名稱
+ */
+async function filterByTag(tag) {
+    const searchInput = document.getElementById('searchInput');
+    searchInput.value = tag;
+    await handleSearch({ target: { value: tag } }, true);
+
+    // Update URL without reloading
+    const newUrl = `${window.location.pathname}#/timeline/tagDetail?tag_name=${encodeURIComponent(tag)}`;
+    history.pushState({ path: newUrl }, '', newUrl);
 }
 
 /**
@@ -437,10 +483,25 @@ const UploadState = {
 /**
  * 打開上傳 Modal
  */
-function openUploadModal() {
+async function openUploadModal() {
     const modal = document.getElementById('uploadModal');
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
+
+    // Initialize uploader and load albums
+    if (window.UploadUI) {
+        await window.UploadUI.checkAndPrepare();
+
+        // Auto-select current child's album
+        const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
+        const albumSelect = document.getElementById('albumSelect');
+        if (albumSelect && child.albumId) {
+            // Wait a tick to ensure options are rendered
+            setTimeout(() => {
+                albumSelect.value = child.albumId;
+            }, 0);
+        }
+    }
 
     // Update album upload link based on current child
     updateAlbumUploadLink();

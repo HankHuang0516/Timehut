@@ -1,5 +1,5 @@
 /* =====================================================
-   時光小屋 - 樣式設計系統
+   黃家小屋 - 樣式設計系統
    Timehut Clone Stylesheet
    ===================================================== */
 
@@ -1187,4 +1187,379 @@ img {
         flex-direction: column;
         text-align: center;
     }
+}
+
+/* =====================================================
+   PASSWORD PROTECTION & MEMBER SELECTION STYLES
+   ===================================================== */
+
+/* Password Form */
+.password-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.form-group {
+    position: relative;
+}
+
+.password-input {
+    width: 100%;
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 1.1rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    transition: all var(--transition-fast);
+    text-align: center;
+    letter-spacing: 4px;
+}
+
+.password-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+}
+
+.password-input::placeholder {
+    letter-spacing: normal;
+    color: var(--color-text-muted);
+}
+
+/* Shake Animation */
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+        transform: translateX(-8px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+        transform: translateX(8px);
+    }
+}
+
+.password-input.shake {
+    animation: shake 0.5s ease-in-out;
+    border-color: #ef4444;
+}
+
+/* Submit Button */
+.submit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: var(--color-secondary);
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-bold);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.submit-btn:active {
+    transform: scale(0.98);
+}
+
+.btn-icon {
+    font-size: 1.3rem;
+}
+
+/* Error Message */
+.error-message {
+    color: #ef4444;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: var(--spacing-sm);
+    background: #fee2e2;
+    border-radius: var(--radius-sm);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Remember Checkbox */
+.remember-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--color-text-light);
+}
+
+.remember-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.checkbox-text {
+    user-select: none;
+}
+
+/* Selection Subtitle */
+.selection-subtitle {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin-top: calc(-1 * var(--spacing-sm));
+    margin-bottom: var(--spacing-lg);
+}
+
+/* Member Cards */
+.member-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    justify-content: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.member-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    border: 2px solid transparent;
+    transition: all var(--transition-normal);
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.member-card:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+    transform: translateY(-4px);
+}
+
+.member-card:active {
+    transform: scale(0.95);
+}
+
+.member-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.member-card .avatar-emoji {
+    font-size: 1.5rem;
+}
+
+.member-name {
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text);
+}
+
+/* Skip Button */
+.skip-btn {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.skip-btn:hover {
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+/* Current User Badge */
+.current-user-badge {
+    position: fixed;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    z-index: 500;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.current-user-badge span {
+    font-size: 1rem;
+}
+
+.logout-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    background: var(--color-background);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    transition: all var(--transition-fast);
+}
+
+.logout-btn:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+/* Photo Tags */
+.photo-tags {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.photo-tag {
+    font-size: 12px;
+    color: var(--primary-color);
+    background-color: rgba(255, 204, 0, 0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.photo-tag:hover {
+    background-color: var(--primary-color);
+    color: #333;
+}
+
+/* Modal Response */
+/* Mobile responsive for password/member */
+@media (max-width: 480px) {
+    .member-cards {
+        gap: var(--spacing-sm);
+    }
+
+    .member-card {
+        min-width: 70px;
+        padding: var(--spacing-sm);
+    }
+
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .member-card .avatar-emoji {
+        font-size: 1.2rem;
+    }
+
+    .current-user-badge {
+        bottom: var(--spacing-md);
+        right: var(--spacing-md);
+    }
+}
+
+/* =====================================================
+   UPLOAD ENHANCEMENTS
+   ===================================================== */
+
+/* Album Select */
+.album-select {
+    width: 100%;
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    background: var(--color-background);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.album-select:hover {
+    border-color: var(--color-primary);
+}
+
+.album-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* Queue Item Enhancements */
+.queue-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+}
+
+.queue-icon {
+    font-size: 1.2rem;
+}
+
+.queue-size {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
 }

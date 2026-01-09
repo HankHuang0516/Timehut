@@ -1,56 +1,76 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="時光小屋 - 記錄寶貝成長的每一刻">
-    <title>時光小屋 - 家庭相簿</title>
+    <meta name="description" content="黃家小屋 - 記錄寶貝成長的每一刻">
+    <title>黃家小屋 - 家庭相簿</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body class="login-page">
     <div class="login-container">
         <!-- Logo Section -->
         <div class="logo-section">
             <div class="logo-icon">
                 <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2"/>
-                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333"/>
-                    <circle cx="24" cy="14" r="4" fill="#333"/>
+                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
+                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
+                    <circle cx="24" cy="14" r="4" fill="#333" />
                 </svg>
             </div>
-            <h1 class="logo-text">時光小屋</h1>
+            <h1 class="logo-text">黃家小屋</h1>
             <p class="logo-subtitle">記錄寶貝成長的每一刻</p>
         </div>
 
-        <!-- Child Selection -->
-        <div class="child-selection">
-            <h2 class="selection-title">選擇寶貝的時光相簿</h2>
-            
-            <div class="child-cards">
-                <button class="child-card" onclick="selectChild(0)">
-                    <div class="child-avatar">
-                        <span class="avatar-emoji">👶</span>
-                    </div>
-                    <div class="child-info">
-                        <span class="child-name">大寶</span>
-                        <span class="child-age" id="child-age-0"></span>
-                    </div>
-                    <div class="card-arrow">→</div>
-                </button>
+        <!-- Password Login Form (Step 1) -->
+        <div id="password-section" class="child-selection">
+            <h2 class="selection-title">🔐 請輸入家庭密碼</h2>
 
-                <button class="child-card" onclick="selectChild(1)">
-                    <div class="child-avatar">
-                        <span class="avatar-emoji">👼</span>
-                    </div>
-                    <div class="child-info">
-                        <span class="child-name">小寶</span>
-                        <span class="child-age" id="child-age-1"></span>
-                    </div>
-                    <div class="card-arrow">→</div>
+            <form id="password-form" class="password-form">
+                <div class="form-group">
+                    <input type="password" id="password-input" class="password-input" placeholder="輸入密碼..."
+                        autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="submit-btn">
+                    <span class="btn-icon">🏠</span>
+                    <span class="btn-text">進入黃家小屋</span>
                 </button>
+                <p id="password-error" class="error-message" style="display: none;">
+                    密碼錯誤，請再試一次
+                </p>
+            </form>
+
+            <label class="remember-checkbox">
+                <input type="checkbox" id="remember-me" checked>
+                <span class="checkbox-text">記住這台裝置</span>
+            </label>
+        </div>
+
+        <!-- Member Selection (Step 2) -->
+        <div id="member-section" class="child-selection" style="display: none;">
+            <h2 class="selection-title">👋 你是誰？</h2>
+            <p class="selection-subtitle">選擇你的身份（可選）</p>
+
+            <div id="member-cards" class="member-cards">
+                <!-- 動態生成 -->
+            </div>
+
+            <button id="skip-member" class="skip-btn">跳過，直接進入</button>
+        </div>
+
+        <!-- Child Selection (Step 3) -->
+        <div id="child-section" class="child-selection" style="display: none;">
+            <h2 class="selection-title">選擇寶貝的時光相簿</h2>
+
+            <div id="child-cards" class="child-cards">
+                <!-- 動態生成 -->
             </div>
         </div>
 
@@ -58,7 +78,7 @@
         <div class="features-section">
             <h3 class="features-title">📸 照片標籤</h3>
             <p class="features-subtitle">標記寶寶成長的重要瞬間</p>
-            
+
             <div class="feature-tags">
                 <div class="feature-tag">
                     <span class="tag-icon">📅</span>
@@ -75,32 +95,224 @@
             </div>
         </div>
 
+        <!-- Current User Display -->
+        <div id="current-user-badge" class="current-user-badge" style="display: none;">
+            <span id="current-user-emoji">👤</span>
+            <span id="current-user-name">訪客</span>
+            <button id="logout-btn" class="logout-btn" title="登出">✕</button>
+        </div>
+
         <!-- Footer -->
         <footer class="login-footer">
-            <p>Powered by Flickr • © 2026 時光小屋</p>
+            <p>Powered by Flickr • © 2026 黃家小屋</p>
         </footer>
     </div>
 
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script>
-        // Calculate and display current ages
-        document.addEventListener('DOMContentLoaded', function() {
-            CONFIG.CHILDREN.forEach((child, index) => {
-                const age = calculateAge(child.birthDate, new Date());
-                const ageEl = document.getElementById(`child-age-${index}`);
-                if (ageEl) {
-                    ageEl.textContent = formatAgeString(age.years, age.months, age.days);
+        // Auth keys for localStorage
+        const AUTH_KEY = 'timehut_authenticated';
+        const MEMBER_KEY = 'timehut_current_member';
+        const AUTH_EXPIRY_KEY = 'timehut_auth_expiry';
+
+        // DOM Elements
+        const passwordSection = document.getElementById('password-section');
+        const memberSection = document.getElementById('member-section');
+        const childSection = document.getElementById('child-section');
+        const passwordForm = document.getElementById('password-form');
+        const passwordInput = document.getElementById('password-input');
+        const passwordError = document.getElementById('password-error');
+        const rememberMe = document.getElementById('remember-me');
+        const memberCards = document.getElementById('member-cards');
+        const childCards = document.getElementById('child-cards');
+        const skipMemberBtn = document.getElementById('skip-member');
+        const currentUserBadge = document.getElementById('current-user-badge');
+        const currentUserEmoji = document.getElementById('current-user-emoji');
+        const currentUserName = document.getElementById('current-user-name');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Check if already authenticated
+        function checkAuth() {
+            const isAuth = localStorage.getItem(AUTH_KEY);
+            const expiry = localStorage.getItem(AUTH_EXPIRY_KEY);
+
+            if (isAuth === 'true') {
+                // Check expiry (30 days)
+                if (expiry && Date.now() > parseInt(expiry)) {
+                    localStorage.removeItem(AUTH_KEY);
+                    localStorage.removeItem(AUTH_EXPIRY_KEY);
+                    return false;
                 }
+                return true;
+            }
+            return false;
+        }
+
+        // Initialize page
+        function init() {
+            if (checkAuth()) {
+                // Already logged in - show member or child selection
+                const currentMember = localStorage.getItem(MEMBER_KEY);
+                if (currentMember) {
+                    showCurrentUser(currentMember);
+                    showChildSelection();
+                } else {
+                    passwordSection.style.display = 'none';
+                    showMemberSelection();
+                }
+            }
+
+            // Generate children cards
+            generateChildCards();
+            // Generate member cards
+            generateMemberCards();
+        }
+
+        // Generate member selection cards
+        function generateMemberCards() {
+            if (!CONFIG.FAMILY_MEMBERS || CONFIG.FAMILY_MEMBERS.length === 0) {
+                return;
+            }
+
+            memberCards.innerHTML = CONFIG.FAMILY_MEMBERS.map(member => `
+                <button class="member-card" data-member-id="${member.id}">
+                    <div class="member-avatar">
+                        <span class="avatar-emoji">${member.emoji}</span>
+                    </div>
+                    <span class="member-name">${member.name}</span>
+                </button>
+            `).join('');
+
+            // Add click handlers
+            memberCards.querySelectorAll('.member-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const memberId = card.dataset.memberId;
+                    selectMember(memberId);
+                });
             });
+        }
+
+        // Generate child selection cards
+        function generateChildCards() {
+            childCards.innerHTML = CONFIG.CHILDREN.map((child, index) => {
+                const age = calculateAge(child.birthDate, new Date());
+                const ageStr = formatAgeString(age.years, age.months, age.days);
+                return `
+                    <button class="child-card" data-child-index="${index}">
+                        <div class="child-avatar">
+                            <span class="avatar-emoji">${child.emoji}</span>
+                        </div>
+                        <div class="child-info">
+                            <span class="child-name">${child.name}</span>
+                            <span class="child-age">${ageStr}</span>
+                        </div>
+                        <div class="card-arrow">→</div>
+                    </button>
+                `;
+            }).join('');
+
+            // Add click handlers
+            childCards.querySelectorAll('.child-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const childIndex = card.dataset.childIndex;
+                    selectChild(parseInt(childIndex));
+                });
+            });
+        }
+
+        // Handle password submit
+        passwordForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const password = passwordInput.value;
+
+            if (password === CONFIG.FAMILY_PASSWORD) {
+                // Correct password
+                localStorage.setItem(AUTH_KEY, 'true');
+
+                if (rememberMe.checked) {
+                    // Set 30 day expiry
+                    const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
+                    localStorage.setItem(AUTH_EXPIRY_KEY, expiry.toString());
+                }
+
+                passwordError.style.display = 'none';
+                passwordSection.style.display = 'none';
+
+                // Show member selection
+                showMemberSelection();
+            } else {
+                // Wrong password
+                passwordError.style.display = 'block';
+                passwordInput.value = '';
+                passwordInput.focus();
+
+                // Shake animation
+                passwordInput.classList.add('shake');
+                setTimeout(() => passwordInput.classList.remove('shake'), 500);
+            }
         });
 
+        // Show member selection
+        function showMemberSelection() {
+            // If no family members configured, skip to child selection
+            if (!CONFIG.FAMILY_MEMBERS || CONFIG.FAMILY_MEMBERS.length === 0) {
+                showChildSelection();
+                return;
+            }
+
+            memberSection.style.display = 'block';
+            childSection.style.display = 'none';
+        }
+
+        // Show child selection
+        function showChildSelection() {
+            memberSection.style.display = 'none';
+            childSection.style.display = 'block';
+        }
+
+        // Select member
+        function selectMember(memberId) {
+            const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
+            if (member) {
+                localStorage.setItem(MEMBER_KEY, memberId);
+                showCurrentUser(memberId);
+            }
+            showChildSelection();
+        }
+
+        // Skip member selection
+        skipMemberBtn.addEventListener('click', () => {
+            showChildSelection();
+        });
+
+        // Show current user badge
+        function showCurrentUser(memberId) {
+            const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
+            if (member) {
+                currentUserEmoji.textContent = member.emoji;
+                currentUserName.textContent = member.name;
+                currentUserBadge.style.display = 'flex';
+            }
+        }
+
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem(AUTH_KEY);
+            localStorage.removeItem(AUTH_EXPIRY_KEY);
+            localStorage.removeItem(MEMBER_KEY);
+            location.reload();
+        });
+
+        // Select child and navigate
         function selectChild(childIndex) {
-            // Store selected child in sessionStorage
             sessionStorage.setItem('selectedChild', childIndex);
-            // Navigate to timeline
             window.location.href = 'timeline.html';
         }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
+
 </html>

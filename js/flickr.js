@@ -1,5 +1,5 @@
 /**
- * 時光小屋 - Flickr API 整合
+ * 黃家小屋 - Flickr API 整合
  * Flickr API Integration for Timehut Clone
  */
 
@@ -64,23 +64,39 @@ const FlickrAPI = {
      * @param {number} perPage - 每頁數量
      * @returns {Promise<Object>} { photos, total, pages }
      */
+    /**
+     * 取得相簿中的照片 (透過後端 Proxy 以存取私有照片)
+     * @param {string} albumId - 相簿 ID
+     * @param {number} page - 頁碼
+     * @param {number} perPage - 每頁數量
+     * @returns {Promise<Object>} { photos, total, pages }
+     */
     async getAlbumPhotos(albumId, page = 1, perPage = CONFIG.PHOTOS_PER_PAGE) {
-        const data = await this.call('flickr.photosets.getPhotos', {
-            photoset_id: albumId,
-            user_id: CONFIG.FLICKR_USER_ID,
-            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,url_o',
-            page,
-            per_page: perPage
-        });
+        // Use backend proxy to access private photos
+        const url = `${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/photos?page=${page}&per_page=${perPage}`;
 
-        const photoset = data.photoset;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
 
-        return {
-            photos: photoset.photo || [],
-            total: parseInt(photoset.total, 10),
-            pages: parseInt(photoset.pages, 10),
-            page: parseInt(photoset.page, 10)
-        };
+            if (data.stat !== 'ok') {
+                throw new Error(data.message || 'Flickr API error');
+            }
+
+            const photoset = data.photoset;
+            return {
+                photos: photoset.photo || [],
+                total: parseInt(photoset.total, 10),
+                pages: parseInt(photoset.pages, 10),
+                page: parseInt(photoset.page, 10)
+            };
+        } catch (error) {
+            console.error('API Proxy Error:', error);
+            throw error;
+        }
     },
 
     /**

@@ -3,3 +3,7 @@ api_key.txt
 .DS_Store
 node_modules/
 .vscode/
+
+# Server environment and uploads
+server/.env
+server/uploads/

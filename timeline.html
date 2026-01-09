@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="時光小屋 - 寶貝成長時間軸">
-    <title>時光小屋 - 時間軸</title>
+    <meta name="description" content="黃家小屋 - 寶貝成長時間軸">
+    <title>黃家小屋 - 時間軸</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -24,7 +24,7 @@
                     <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
                     <circle cx="24" cy="14" r="4" fill="#333" />
                 </svg>
-                <span class="header-title">時光小屋</span>
+                <span class="header-title">黃家小屋</span>
             </a>
         </div>
         <div class="header-center">
@@ -47,10 +47,10 @@
         <!-- Left Sidebar - Child Profiles -->
         <aside class="sidebar-left">
             <div class="child-profiles">
-                <button class="profile-btn" data-child="0" title="大寶">
+                <button class="profile-btn" data-child="0" title="漢堡">
                     <span class="profile-emoji">👶</span>
                 </button>
-                <button class="profile-btn" data-child="1" title="小寶">
+                <button class="profile-btn" data-child="1" title="涵涵">
                     <span class="profile-emoji">👼</span>
                 </button>
             </div>
@@ -59,7 +59,7 @@
         <!-- Center - Timeline -->
         <section class="timeline-section">
             <div class="timeline-header">
-                <h2 class="current-child-name" id="currentChildName">大寶</h2>
+                <h2 class="current-child-name" id="currentChildName">漢堡</h2>
                 <p class="current-child-age" id="currentChildAge">6歲1個月</p>
             </div>
 
@@ -103,39 +103,28 @@
             </div>
 
             <div class="upload-options">
-                <!-- Option 1: Quick Upload via Flickr -->
-                <div class="upload-option">
-                    <div class="option-icon">🚀</div>
-                    <div class="option-info">
-                        <h3>快速上傳</h3>
-                        <p>直接前往 Flickr 上傳照片，完成後刷新頁面即可看到</p>
-                    </div>
-                    <a href="https://www.flickr.com/photos/upload/" target="_blank" class="option-btn primary"
-                        id="flickrUploadLink">
-                        前往 Flickr 上傳
-                    </a>
-                </div>
-
-                <!-- Option 2: Upload to specific album -->
-                <div class="upload-option">
-                    <div class="option-icon">📁</div>
-                    <div class="option-info">
-                        <h3>上傳到相簿</h3>
-                        <p>直接上傳到目前選擇的小孩相簿</p>
-                    </div>
-                    <a href="#" target="_blank" class="option-btn" id="albumUploadLink">
-                        前往相簿上傳
-                    </a>
-                </div>
-
                 <!-- Drag and Drop Zone -->
                 <div class="upload-dropzone" id="uploadDropzone">
                     <div class="dropzone-content">
                         <span class="dropzone-icon">🖼️</span>
-                        <p>拖放照片到這裡</p>
-                        <span class="dropzone-hint">或點擊選擇檔案</span>
+                        <p>拖放照片或影片到這裡</p>
+                        <span class="dropzone-hint">或點擊選擇檔案（支援批量上傳）</span>
                     </div>
-                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display: none;">
+                </div>
+
+                <!-- Album Selection (Optional) -->
+                <div class="album-selection-container">
+                    <label for="albumSelect">選擇相簿（可選）：</label>
+                    <select id="albumSelect" class="album-select">
+                        <option value="">預設（自動加入當前小孩相簿）</option>
+                    </select>
+                </div>
+
+                <div class="tags-input-container" style="margin-top: 15px;">
+                    <label for="tagsInput">標籤（用空格分隔）：</label>
+                    <input type="text" id="tagsInput" class="tags-input" placeholder="例如：生日 快樂 戶外"
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
 
                 <!-- Upload Queue -->
@@ -180,6 +169,55 @@
     <script src="js/utils.js"></script>
     <script src="js/flickr.js"></script>
     <script src="js/timeline.js"></script>
+    <script src="js/uploader.js"></script>
+    <script>
+        // Auth check - redirect if not authenticated
+        (function () {
+            const AUTH_KEY = 'timehut_authenticated';
+            const AUTH_EXPIRY_KEY = 'timehut_auth_expiry';
+            const isAuth = localStorage.getItem(AUTH_KEY);
+            const expiry = localStorage.getItem(AUTH_EXPIRY_KEY);
+
+            // Check if authenticated
+            if (isAuth !== 'true') {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Check expiry
+            if (expiry && Date.now() > parseInt(expiry)) {
+                localStorage.removeItem(AUTH_KEY);
+                localStorage.removeItem(AUTH_EXPIRY_KEY);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Show current user badge
+            const MEMBER_KEY = 'timehut_current_member';
+            const memberId = localStorage.getItem(MEMBER_KEY);
+            if (memberId && CONFIG.FAMILY_MEMBERS) {
+                const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
+                if (member) {
+                    // Create and show user badge
+                    const badge = document.createElement('div');
+                    badge.className = 'current-user-badge';
+                    badge.innerHTML = `
+                        <span>${member.emoji}</span>
+                        <span>${member.name}</span>
+                        <button class="logout-btn" title="登出" onclick="doLogout()">✕</button>
+                    `;
+                    document.body.appendChild(badge);
+                }
+            }
+        })();
+
+        function doLogout() {
+            localStorage.removeItem('timehut_authenticated');
+            localStorage.removeItem('timehut_auth_expiry');
+            localStorage.removeItem('timehut_current_member');
+            window.location.href = 'index.html';
+        }
+    </script>
 </body>
 
 </html>

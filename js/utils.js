@@ -1,5 +1,5 @@
 /**
- * 時光小屋 - 工具函數
+ * 黃家小屋 - 工具函數
  * Utility functions for Timehut Clone
  */
 
