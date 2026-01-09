@@ -636,6 +636,7 @@ function updateSelectionUI() {
  * 刪除選取的照片
  */
 async function deleteSelectedPhotos() {
+    console.log('[DELETE] deleteSelectedPhotos called');
     const count = SelectionState.selectedPhotos.size;
 
     if (count === 0) {
@@ -648,6 +649,13 @@ async function deleteSelectedPhotos() {
     }
 
     const photoIds = Array.from(SelectionState.selectedPhotos);
+    console.log('[DELETE] Deleting IDs:', photoIds);
+
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = '刪除中...';
+    }
 
     try {
         const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
@@ -672,11 +680,18 @@ async function deleteSelectedPhotos() {
     } catch (error) {
         console.error('Delete error:', error);
         alert('刪除時發生錯誤，請稍後再試');
+    } finally {
+        if (deleteBtn) {
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = '🗑️ 刪除選取';
+        }
+        updateSelectionUI();
     }
 }
 
 // Make selection functions globally available
 window.togglePhotoSelection = togglePhotoSelection;
+window.deleteSelectedPhotos = deleteSelectedPhotos;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', initTimeline);
