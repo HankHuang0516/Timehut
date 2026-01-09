@@ -1993,3 +1993,8 @@ body.select-mode .main-content {
         opacity: 1;
     }
 }
+
+/* Utility to ensure elements are hidden */
+.hidden {
+    display: none !important;
+}
