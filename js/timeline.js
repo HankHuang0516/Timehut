@@ -690,8 +690,151 @@ async function deleteSelectedPhotos() {
 }
 
 // Make selection functions globally available
+// Make selection functions globally available
 window.togglePhotoSelection = togglePhotoSelection;
 window.deleteSelectedPhotos = deleteSelectedPhotos;
+
+/**
+ * 批量下載照片 (P1)
+ */
+async function batchDownload() {
+    const count = SelectionState.selectedPhotos.size;
+    if (count === 0) return alert('請先選擇照片');
+
+    const btn = document.getElementById('batchDownloadBtn');
+    if (!confirm(`確定要下載 ${count} 張照片嗎？`)) return;
+
+    btn.disabled = true;
+    btn.textContent = '📦 打包中...';
+
+    try {
+        const zip = new JSZip();
+        const photos = Array.from(SelectionState.selectedPhotos).map(id =>
+            TimelineState.allPhotosFlat.find(p => p.id === id)
+        ).filter(p => p);
+
+        let processed = 0;
+
+        // Parallel fetching with limit could be better, but sequential for simplicity
+        for (const photo of photos) {
+            const url = FlickrAPI.getPhotoUrl(photo, 'b'); // Large size
+            const filename = `${photo.title || photo.id}.jpg`;
+
+            // Use backend proxy to avoid CORS
+            const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-image?url=${encodeURIComponent(url)}`;
+
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Fetch failed');
+                const blob = await response.blob();
+                zip.file(filename, blob);
+                processed++;
+                btn.textContent = `📦 ${processed}/${count}`;
+            } catch (e) {
+                console.error(`Failed to download ${filename}`, e);
+            }
+        }
+
+        btn.textContent = '💾 產生 ZIP...';
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `timehut_photos_${new Date().toISOString().slice(0, 10)}.zip`);
+
+    } catch (error) {
+        console.error('Batch download error:', error);
+        alert('下載失敗，請稍後再試');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⬇️ 下載';
+    }
+}
+window.batchDownload = batchDownload;
+
+/**
+ * 批量加標籤 (P1)
+ */
+async function batchAddTags() {
+    const count = SelectionState.selectedPhotos.size;
+    if (count === 0) return alert('請先選擇照片');
+
+    const tags = prompt(`為 ${count} 張照片增加標籤 (以空格分隔):`);
+    if (!tags) return;
+
+    const photoIds = Array.from(SelectionState.selectedPhotos);
+    const btn = document.getElementById('batchTagBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+
+    try {
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds, tags })
+        });
+        const result = await response.json();
+        alert(result.message);
+
+        // Reload to update UI
+        SelectionState.selectedPhotos.clear();
+        toggleSelectMode();
+        loadPhotos();
+    } catch (error) {
+        alert('加標籤失敗: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🏷️ 加標籤';
+    }
+}
+window.batchAddTags = batchAddTags;
+
+/**
+ * 批量加入相簿 (P1)
+ */
+async function batchAddToAlbum() {
+    const count = SelectionState.selectedPhotos.size;
+    if (count === 0) return alert('請先選擇照片');
+
+    // Simple prompts for selection
+    let albumList = "請輸入目標相簿 ID 或選擇:\n";
+    CONFIG.CHILDREN.forEach((child, index) => {
+        albumList += `${index + 1}. ${child.name} (${child.emoji})\n`;
+    });
+
+    const input = prompt(albumList);
+    if (!input) return;
+
+    let albumId = input.trim();
+    // Check if user entered encoded index (1, 2)
+    const index = parseInt(input) - 1;
+    if (!isNaN(index) && CONFIG.CHILDREN[index]) {
+        albumId = CONFIG.CHILDREN[index].albumId;
+    }
+
+    if (!albumId) return alert('無效的相簿 ID');
+
+    const photoIds = Array.from(SelectionState.selectedPhotos);
+    const btn = document.getElementById('batchAlbumBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+
+    try {
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds })
+        });
+        const result = await response.json();
+        alert(result.message);
+
+        SelectionState.selectedPhotos.clear();
+        toggleSelectMode();
+    } catch (error) {
+        alert('加入相簿失敗: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📁 加入相簿';
+    }
+}
+window.batchAddToAlbum = batchAddToAlbum;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', initTimeline);

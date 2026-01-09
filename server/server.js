@@ -307,6 +307,94 @@ app.post('/api/photos/delete', async (req, res) => {
     });
 });
 
+// 批量加標籤 API (P1)
+app.post('/api/photos/tags/add', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { photoIds, tags } = req.body;
+    if (!photoIds || !Array.isArray(photoIds) || !tags) {
+        return res.status(400).json({ error: '參數錯誤' });
+    }
+
+    console.log(`[BATCH-TAGS] Adding tags "${tags}" to ${photoIds.length} photos`);
+
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            await addPhotoTags(photoId, tags);
+            results.push({ photoId, success: true });
+        } catch (error) {
+            results.push({ photoId, success: false, error: error.message });
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+        message: `標籤添加完成：${successCount}/${photoIds.length} 張成功`,
+        results
+    });
+});
+
+// 批量加入相簿 API (P1)
+app.post('/api/album/:albumId/add_photos', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { albumId } = req.params;
+    const { photoIds } = req.body;
+
+    if (!photoIds || !Array.isArray(photoIds)) {
+        return res.status(400).json({ error: '請提供照片 ID' });
+    }
+
+    console.log(`[BATCH-ALBUM] Adding ${photoIds.length} photos to album ${albumId}`);
+
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            await addPhotoToAlbum(photoId, albumId);
+            results.push({ photoId, success: true });
+        } catch (error) {
+            // Error 1: Photo already in set (code 1) - treat as success or ignore
+            if (error.message.includes('code 1')) {
+                results.push({ photoId, success: true, message: 'Already in album' });
+            } else {
+                results.push({ photoId, success: false, error: error.message });
+            }
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+        message: `加入相簿完成：${successCount}/${photoIds.length} 張成功`,
+        results
+    });
+});
+
+// 圖片代理 API (P1 for Download)
+app.get('/api/proxy-image', async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).send('Missing url');
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+
+        // Forward headers
+        res.setHeader('Content-Type', response.headers.get('content-type'));
+        res.setHeader('Content-Disposition', `attachment; filename="photo.jpg"`);
+
+        const buffer = await response.arrayBuffer();
+        res.send(Buffer.from(buffer));
+    } catch (error) {
+        console.error('Proxy Error:', error);
+        res.status(500).send('Failed to fetch image');
+    }
+});
+
 // 編輯照片標籤 API (P0)
 app.put('/api/photo/:photoId/tags', async (req, res) => {
     if (!oauthTokens.accessToken) {
@@ -665,6 +753,60 @@ async function setPhotoTags(photoId, tags) {
                     resolve(true);
                 } else {
                     reject(new Error(data.message || '設定標籤失敗'));
+                }
+            })
+            .catch(reject);
+    });
+}
+
+    });
+}
+
+// 增加照片標籤 (P1: Batch Add Tags)
+async function addPhotoTags(photoId, tags) {
+    console.log(`[TAGS-ADD] Adding tags to photo: ${photoId}`);
+    return new Promise((resolve, reject) => {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = Math.random().toString(36).substring(2);
+
+        const params = {
+            method: 'flickr.photos.addTags',
+            api_key: process.env.FLICKR_API_KEY,
+            photo_id: photoId,
+            tags: tags,
+            format: 'json',
+            nojsoncallback: '1',
+            oauth_consumer_key: process.env.FLICKR_API_KEY,
+            oauth_token: oauthTokens.accessToken,
+            oauth_signature_method: 'HMAC-SHA1',
+            oauth_timestamp: timestamp,
+            oauth_nonce: nonce,
+            oauth_version: '1.0'
+        };
+
+        const crypto = require('crypto');
+        const baseString = buildBaseString('POST', 'https://api.flickr.com/services/rest/', params);
+        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+
+        params.oauth_signature = signature;
+
+        const formData = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            formData.append(key, value);
+        });
+
+        fetch('https://api.flickr.com/services/rest/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.stat === 'ok') {
+                    resolve(true);
+                } else {
+                    reject(new Error(data.message || '增加標籤失敗'));
                 }
             })
             .catch(reject);

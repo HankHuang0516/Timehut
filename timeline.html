@@ -12,6 +12,8 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 
 <body class="timeline-page">
@@ -49,6 +51,9 @@
             <span id="selectedCount">0</span> 張已選
         </div>
         <div class="selection-actions">
+            <button class="action-btn" id="batchDownloadBtn" onclick="batchDownload()">⬇️ 下載</button>
+            <button class="action-btn" id="batchTagBtn" onclick="batchAddTags()">🏷️ 加標籤</button>
+            <button class="action-btn" id="batchAlbumBtn" onclick="batchAddToAlbum()">📁 加入相簿</button>
             <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelectedPhotos()">🗑️ 刪除選取</button>
             <button class="btn-secondary" id="cancelSelectBtn">取消</button>
         </div>
