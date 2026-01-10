@@ -70,6 +70,19 @@ async function initTimeline() {
     // Setup event listeners
     setupEventListeners();
 
+    // Setup loading timeout - show reload button after 8 seconds
+    const loadingTimeout = setTimeout(() => {
+        const reloadBtn = document.getElementById('reloadBtn');
+        const loadingText = document.getElementById('loadingText');
+        if (reloadBtn && TimelineState.isLoading) {
+            reloadBtn.style.display = 'block';
+            if (loadingText) loadingText.textContent = '載入時間較長，請稍候或嘗試重新載入';
+        }
+    }, 8000);
+
+    // Clear timeout when photos are loaded
+    TimelineState.loadingTimeout = loadingTimeout;
+
     // Load initial data
     if (tagName) {
         // Switch to search mode for tag

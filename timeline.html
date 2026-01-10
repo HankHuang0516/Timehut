@@ -87,7 +87,10 @@
                 <!-- Timeline items will be dynamically inserted here -->
                 <div class="loading-indicator" id="loadingIndicator">
                     <div class="spinner"></div>
-                    <p>載入照片中...</p>
+                    <p id="loadingText">載入照片中...</p>
+                    <button class="reload-btn" id="reloadBtn" style="display: none;" onclick="location.reload()">
+                        🔄 重新載入
+                    </button>
                 </div>
 
                 <div class="empty-state" id="emptyState" style="display: none;">

@@ -686,6 +686,25 @@ img {
     transform: scale(1.02);
 }
 
+/* Reload Button for loading timeout */
+.reload-btn {
+    display: none;
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: var(--color-primary);
+    color: var(--color-secondary);
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.reload-btn:hover {
+    background: var(--color-primary-dark);
+    transform: scale(1.05);
+}
+
 /* Right Sidebar - Age Navigation */
 .sidebar-right {
     position: fixed;
