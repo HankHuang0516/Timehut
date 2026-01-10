@@ -420,8 +420,7 @@ function createMomentCard(moment, birthDate) {
 
     // Footer Logic
     // "Enter Album" button if count > 1 (or always? User HTML always has it)
-    // Create moment data for album navigation
-    const momentDataId = `moment_${firstPhoto.id}`;
+    // Use momentDataId already declared above
     const enterAlbumHtml = count > 1 ?
         `<div class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">進入相集 ></div>` : '';
 

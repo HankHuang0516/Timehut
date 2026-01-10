@@ -156,9 +156,15 @@
         }
 
         @media (max-width: 768px) {
-            .album-page-content {
-                margin-top: 100px;
+
+            /* Override main-content flex layout for album page */
+            .main-content.album-page-content {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
                 padding: var(--spacing-md);
+                padding-top: 70px;
             }
 
             .album-header {

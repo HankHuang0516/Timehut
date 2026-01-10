@@ -875,9 +875,7 @@ img {
         padding: var(--spacing-md);
     }
 
-    .header-center {
-        display: none;
-    }
+    /* Search bar visibility handled in later media query with full width layout */
 
     .timeline-container {
         /* P0: Single column layout on mobile for immersive viewing */
