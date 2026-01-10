@@ -2387,38 +2387,70 @@ body.select-mode .main-content {
 }
 
 /* 4-5 items: 2 large on top + 2-3 small on bottom (Timehut style) */
-.moment-grid[data-count="4"],
-.moment-grid[data-count="5"] {
+.moment-grid[data-count="4"] {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 2fr 1fr;
+    grid-template-rows: 1.5fr 1fr;
 }
 
 .moment-grid[data-count="4"] .moment-photo-container:nth-child(1),
-.moment-grid[data-count="4"] .moment-photo-container:nth-child(2),
-.moment-grid[data-count="5"] .moment-photo-container:nth-child(1),
-.moment-grid[data-count="5"] .moment-photo-container:nth-child(2) {
-    aspect-ratio: 1;
+.moment-grid[data-count="4"] .moment-photo-container:nth-child(2) {
+    aspect-ratio: 4/3;
 }
 
-/* Bottom row for 5 items: 3 columns */
+.moment-grid[data-count="4"] .moment-photo-container:nth-child(3),
+.moment-grid[data-count="4"] .moment-photo-container:nth-child(4) {
+    aspect-ratio: 16/9;
+}
+
+/* 5 items: 2 large top + 3 small bottom - NO BLANK AREAS */
 .moment-grid[data-count="5"] {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 2fr 1fr;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    /* 6-column grid for flexibility */
+    grid-template-rows: 1.5fr 1fr;
+    gap: 2px;
 }
 
-/* Rearrange: items 1-2 top, items 3-5 bottom */
-.moment-grid[data-count="5"] .moment-photo-container:nth-child(n+3) {
+/* Top row: 2 large photos (3 columns each = 50%) */
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(1) {
+    grid-column: 1 / 4;
+    grid-row: 1;
+    aspect-ratio: 4/3;
+}
+
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(2) {
+    grid-column: 4 / 7;
+    grid-row: 1;
+    aspect-ratio: 4/3;
+}
+
+/* Bottom row: 3 small photos (2 columns each = 33%) */
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(3) {
+    grid-column: 1 / 3;
     grid-row: 2;
+    aspect-ratio: 16/9;
 }
 
-/* Make bottom row 3 columns when 5 items */
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(4) {
+    grid-column: 3 / 5;
+    grid-row: 2;
+    aspect-ratio: 16/9;
+}
+
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(5) {
+    grid-column: 5 / 7;
+    grid-row: 2;
+    aspect-ratio: 16/9;
+}
+
+/* Multi-grid fallback */
 .moment-grid.multi-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     grid-template-rows: 1.5fr 1fr;
 }
 
 .moment-grid.multi-grid .moment-photo-container:nth-child(n+3) {
-    aspect-ratio: 1;
+    aspect-ratio: 16/9;
 }
 
 .moment-photo-container {
@@ -2823,5 +2855,143 @@ body.select-mode .main-content {
     .pagination {
         flex-direction: column;
         gap: var(--spacing-md);
+    }
+}
+
+/* =====================================================
+   SWIPE CARD ANIMATION FOR PHOTO MODAL
+   ===================================================== */
+.modal-image-wrapper {
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-image {
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.modal-image.swipe-left-enter {
+    animation: slideInFromRight 0.3s ease-out forwards;
+}
+
+.modal-image.swipe-right-enter {
+    animation: slideInFromLeft 0.3s ease-out forwards;
+}
+
+.modal-image.swipe-left-exit {
+    animation: slideOutToLeft 0.3s ease-out forwards;
+}
+
+.modal-image.swipe-right-exit {
+    animation: slideOutToRight 0.3s ease-out forwards;
+}
+
+@keyframes slideInFromRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInFromLeft {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutToLeft {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* =====================================================
+   TOAST NOTIFICATION
+   ===================================================== */
+.toast-container {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10001;
+    pointer-events: none;
+}
+
+.toast {
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    animation: toastSlideUp 0.3s ease-out forwards;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toast.success {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.toast.error {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.toast.hide {
+    animation: toastSlideDown 0.3s ease-in forwards;
+}
+
+@keyframes toastSlideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toastSlideDown {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateY(20px);
+        opacity: 0;
     }
 }

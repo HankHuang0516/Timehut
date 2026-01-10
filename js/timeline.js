@@ -49,6 +49,33 @@ function navigateToAlbum(momentId) {
 }
 
 /**
+ * 顯示 Toast 通知
+ * @param {string} message - 訊息內容
+ * @param {string} type - 類型 ('success' | 'error')
+ */
+function showToast(message, type = 'success') {
+    // Create container if not exists
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    // Create toast
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+    container.appendChild(toast);
+
+    // Auto remove after 2.5s
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
+}
+
+/**
  * 切換時光旅行選單顯示
  */
 function toggleTimeTravelMenu() {
@@ -741,14 +768,33 @@ function closeModal() {
 }
 
 /**
- * 導航照片（上一張/下一張）
+ * 導航照片（上一張/下一張）- 含卡片式滑動動畫
  * @param {number} direction - 方向 (-1: 上一張, 1: 下一張)
  */
 function navigatePhoto(direction) {
     const newIndex = TimelineState.currentModalIndex + direction;
 
     if (newIndex >= 0 && newIndex < TimelineState.allPhotosFlat.length) {
-        openModal(newIndex);
+        // Add swipe animation
+        const modalImage = document.getElementById('modalImage');
+        if (modalImage) {
+            const exitClass = direction > 0 ? 'swipe-left-exit' : 'swipe-right-exit';
+            const enterClass = direction > 0 ? 'swipe-left-enter' : 'swipe-right-enter';
+
+            modalImage.classList.add(exitClass);
+
+            setTimeout(() => {
+                openModal(newIndex);
+                modalImage.classList.remove(exitClass);
+                modalImage.classList.add(enterClass);
+
+                setTimeout(() => {
+                    modalImage.classList.remove(enterClass);
+                }, 300);
+            }, 150);
+        } else {
+            openModal(newIndex);
+        }
     }
 }
 
@@ -1529,3 +1575,6 @@ window.setTaggingMode = typeof setTaggingMode === 'function' ? setTaggingMode : 
 // Time Travel functions
 window.toggleTimeTravelMenu = toggleTimeTravelMenu;
 window.populateTimeTravelMenu = populateTimeTravelMenu;
+
+// Toast notification
+window.showToast = showToast;
