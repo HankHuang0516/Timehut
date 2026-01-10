@@ -2372,3 +2372,197 @@ body.select-mode .main-content {
 .photo-batch-badge {
     /* Reuse specific style for badge inside photo if needed */
 }
+
+/* =====================================================
+   MOBILE RESPONSIVE STYLES
+   ===================================================== */
+
+/* Tablets and smaller */
+@media (max-width: 1024px) {
+    .sidebar-right {
+        display: none;
+    }
+
+    .timeline-section {
+        margin-right: 0;
+    }
+}
+
+/* Mobile devices */
+@media (max-width: 768px) {
+    :root {
+        --header-height: 56px;
+        --sidebar-width: 0px;
+    }
+
+    /* Header adjustments for mobile */
+    .header {
+        padding: 0 var(--spacing-sm);
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--header-height);
+        padding-bottom: var(--spacing-sm);
+    }
+
+    .header-left {
+        order: 1;
+    }
+
+    .header-title {
+        font-size: 1rem;
+    }
+
+    .header-right {
+        order: 2;
+        display: flex;
+        gap: var(--spacing-xs);
+    }
+
+    .header-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+
+    .upload-text {
+        display: none;
+    }
+
+    /* Search box takes full width on second row */
+    .header-center {
+        order: 3;
+        width: 100%;
+        padding: var(--spacing-xs) 0 0 0;
+        flex-basis: 100%;
+    }
+
+    .search-box {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    /* Hide sidebar on mobile */
+    .sidebar-left {
+        display: none;
+    }
+
+    .sidebar-right {
+        display: none;
+    }
+
+    /* Full width timeline */
+    .timeline-section {
+        margin-left: 0;
+        margin-right: 0;
+        padding: var(--spacing-md);
+    }
+
+    .timeline-header {
+        padding: var(--spacing-md);
+    }
+
+    .current-child-name {
+        font-size: 1.5rem;
+    }
+
+    .current-child-age {
+        font-size: 0.9rem;
+    }
+
+    /* Adjust main content margin */
+    .main-content {
+        margin-top: calc(var(--header-height) + 44px);
+    }
+
+    /* Modal adjustments */
+    .modal-content {
+        max-width: 95vw;
+        max-height: 85vh;
+    }
+
+    .modal-nav {
+        width: 36px;
+        height: 36px;
+        font-size: 1.5rem;
+    }
+
+    .modal-prev {
+        left: -5px;
+    }
+
+    .modal-next {
+        right: -5px;
+    }
+
+    /* Upload modal */
+    .upload-modal-content {
+        width: 95vw;
+        max-height: 90vh;
+        padding: var(--spacing-md);
+    }
+
+    /* Moment cards */
+    .moment-item {
+        margin-left: 0;
+    }
+
+    .moment-line {
+        display: none;
+    }
+
+    .moment-header {
+        padding-left: 0;
+    }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+    .header-title {
+        display: none;
+    }
+
+    .logo-svg {
+        width: 32px;
+        height: 32px;
+    }
+
+    .timeline-container {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+
+    .moment-footer {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        align-items: flex-start;
+    }
+}
+
+/* Mobile child switcher - floating bottom bar */
+@media (max-width: 768px) {
+    .child-profiles {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--color-surface);
+        border-top: 1px solid var(--color-border);
+        padding: var(--spacing-sm);
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: var(--spacing-lg);
+        z-index: 99;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .profile-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Add bottom padding to prevent content hidden by floating bar */
+    .timeline-section {
+        padding-bottom: 80px;
+    }
+}
