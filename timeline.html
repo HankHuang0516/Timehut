@@ -131,36 +131,31 @@
                 </div>
 
                 <!-- Album Selection (Optional) -->
-                <div class="album-selection-container">
-                    <label for="albumSelect">選擇相簿（可選）：</label>
-                    <select id="albumSelect" class="album-select">
+                <div class="upload-field">
+                    <label>選擇相簿（可選）：</label>
+                    <select id="albumSelect" class="upload-select">
                         <option value="">預設（自動加入當前小孩相簿）</option>
                     </select>
                 </div>
 
-                <!-- Uploader Selection (P1) -->
-                <div class="uploader-selection-container" style="margin-top: 15px;">
-                    <label for="uploaderSelect">上傳者：</label>
-                    <select id="uploaderSelect" class="uploader-select"
-                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="爸爸">👨 爸爸</option>
-                        <option value="媽媽">👩 媽媽</option>
-                        <option value="爺爺">👴 爺爺</option>
-                        <option value="奶奶">👵 奶奶</option>
-                        <option value="外公">👴 外公</option>
-                        <option value="外婆">👵 外婆</option>
-                        <option value="其他">👤 其他</option>
-                    </select>
+                <!-- Uploader (Fixed) -->
+                <div class="upload-field">
+                    <label>上傳者：</label>
+                    <div class="uploader-display" id="uploaderDisplay">
+                        <span class="uploader-icon">👨</span>
+                        <span class="uploader-name">爸爸</span>
+                    </div>
+                    <input type="hidden" id="uploaderValue" value="爸爸">
                 </div>
 
-                <div class="tags-input-container" style="margin-top: 15px;">
-                    <label for="tagsInput">標籤（用空格分隔）：</label>
-                    <input type="text" id="tagsInput" class="tags-input" placeholder="例如：生日 快樂 戶外"
-                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <!-- Tags Input -->
+                <div class="upload-field" id="batchTagsField">
+                    <label>標籤（用空格分隔）：</label>
+                    <input type="text" id="tagsInput" class="upload-input" placeholder="例如：生日 快樂 戶外">
                 </div>
 
-                <!-- Tagging Mode Toggle (P1) -->
-                <div class="tagging-mode-container" style="margin-top: 10px;">
+                <!-- Tagging Mode Toggle -->
+                <div class="upload-field">
                     <label>標籤模式：</label>
                     <div class="tagging-mode-toggle">
                         <button type="button" class="mode-btn active" id="batchModeBtn"
@@ -172,7 +167,7 @@
                             📝 單張
                         </button>
                     </div>
-                    <small id="taggingModeHint" style="color: #888; font-size: 11px;">目前：所有照片使用相同標籤</small>
+                    <small id="taggingModeHint" class="mode-hint">目前：所有照片使用相同標籤</small>
                 </div>
 
                 <!-- Upload Queue -->

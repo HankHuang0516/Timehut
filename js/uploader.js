@@ -102,6 +102,7 @@ const UploadUI = {
     fileList: [],
     albumSelect: null,
     taggingMode: 'batch', // 'batch' or 'individual'
+    individualTags: {}, // Store individual tags by file index
 
     init() {
         this.modal = document.getElementById('uploadModal');
@@ -160,15 +161,24 @@ const UploadUI = {
         const queueList = document.getElementById('queueList');
         if (!queueList) return;
 
+        // Save existing individual tag values before re-rendering
+        document.querySelectorAll('.queue-item-tags').forEach(input => {
+            const idx = input.dataset.fileIndex;
+            if (idx !== undefined) {
+                this.individualTags[idx] = input.value;
+            }
+        });
+
         queueList.innerHTML = this.fileList.map((file, index) => {
             const isImage = file.type.startsWith('image/');
             const isVideo = file.type.startsWith('video/');
             const icon = isVideo ? '🎬' : '🖼️';
             const size = this.formatFileSize(file.size);
 
-            // P1: In individual mode, show per-file tag input
+            // P1: In individual mode, show per-file tag input with preserved value
+            const savedTag = this.individualTags[index] || '';
             const tagInput = this.taggingMode === 'individual'
-                ? `<input type="text" class="queue-item-tags" data-file-index="${index}" placeholder="此照片的標籤...">`
+                ? `<input type="text" class="queue-item-tags" data-file-index="${index}" placeholder="此照片的標籤..." value="${savedTag}">`
                 : '';
 
             return `
@@ -268,9 +278,9 @@ const UploadUI = {
                 }
             }
 
-            // P1: Add uploader to tags for attribution
-            const uploaderSelect = document.getElementById('uploaderSelect');
-            const uploader = uploaderSelect ? uploaderSelect.value : '爸爸';
+            // P1: Add uploader to tags for attribution (fixed value)
+            const uploaderInput = document.getElementById('uploaderValue');
+            const uploader = uploaderInput ? uploaderInput.value : '爸爸';
             const uploaderTag = `uploader:${uploader}`;
 
             let successCount = 0;
