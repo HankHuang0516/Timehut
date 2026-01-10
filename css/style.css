@@ -2106,37 +2106,67 @@ body.select-mode .main-content {
     grid-template-columns: 1fr;
 }
 
+.moment-grid[data-count="1"] .moment-photo-container {
+    aspect-ratio: 4/3;
+}
+
 .moment-grid[data-count="2"] {
     grid-template-columns: 1fr 1fr;
-    aspect-ratio: 2/1;
+}
+
+.moment-grid[data-count="2"] .moment-photo-container {
+    aspect-ratio: 1;
 }
 
 .moment-grid[data-count="3"] {
-    grid-template-columns: 1fr 1fr 1fr;
-    aspect-ratio: 3/1;
-}
-
-.moment-grid[data-count="4"] {
     grid-template-columns: 1fr 1fr;
-    aspect-ratio: 1/1;
+    grid-template-rows: 2fr 1fr;
 }
 
+.moment-grid[data-count="3"] .moment-photo-container:first-child {
+    grid-column: 1 / 2;
+    grid-row: 1 / 3;
+    aspect-ratio: 1/2;
+}
+
+.moment-grid[data-count="3"] .moment-photo-container:nth-child(2),
+.moment-grid[data-count="3"] .moment-photo-container:nth-child(3) {
+    aspect-ratio: 1;
+}
+
+/* 4-5 items: 2 large on top + 2-3 small on bottom (Timehut style) */
+.moment-grid[data-count="4"],
 .moment-grid[data-count="5"] {
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, 1fr);
-    aspect-ratio: 3/2;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 2fr 1fr;
 }
 
-/* 5 items: first 2 large? or 3x2 grid with spanning? simpler to just grid 3x2 and have blank space? 
-   Actually, the user HTML shows 5 items + 1 hidden.
-   Let's use a flexible grid or just a row if strictly following horizontal scroll? 
-   No, Timehut is usually vertical or grid.
-   User HTML "tm__container h-[507px] vertical-pic" implies vertical scrolling? 
-   "display: inline-block; width: 800px; height: 665px;" -> This suggests a specific layout engine.
-   Let's stick to a clean Grid. */
+.moment-grid[data-count="4"] .moment-photo-container:nth-child(1),
+.moment-grid[data-count="4"] .moment-photo-container:nth-child(2),
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(1),
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(2) {
+    aspect-ratio: 1;
+}
+
+/* Bottom row for 5 items: 3 columns */
+.moment-grid[data-count="5"] {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 2fr 1fr;
+}
+
+/* Rearrange: items 1-2 top, items 3-5 bottom */
+.moment-grid[data-count="5"] .moment-photo-container:nth-child(n+3) {
+    grid-row: 2;
+}
+
+/* Make bottom row 3 columns when 5 items */
 .moment-grid.multi-grid {
-    grid-template-columns: repeat(auto-fit, minmax(33%, 1fr));
-    /* Force max height or aspect loop */
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 1.5fr 1fr;
+}
+
+.moment-grid.multi-grid .moment-photo-container:nth-child(n+3) {
+    aspect-ratio: 1;
 }
 
 .moment-photo-container {
@@ -2176,13 +2206,15 @@ body.select-mode .main-content {
     padding: 16px 20px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     background: white;
     border-top: 1px solid #f5f5f5;
 }
 
 .moment-actions {
     display: flex;
-    gap: 25px;
+    align-items: center;
+    gap: 5px;
 }
 
 .moment-action {
@@ -2192,30 +2224,33 @@ body.select-mode .main-content {
 }
 
 .moment-icon {
-    width: 20px;
-    height: 20px;
-    background-color: #eee;
-    /* Placeholder for icon bg */
-    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
 }
 
 .moment-count {
     font-size: 14px;
     font-weight: 500;
     color: #575757;
-    margin-left: 5px;
+    margin-left: 3px;
+}
+
+.moment-stats-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    color: #575757;
 }
 
 .moment-album-link {
-    margin-left: 20px;
-    font-size: 14px;
     color: #575757;
     cursor: pointer;
-    background: #f5f5f5;
-    padding: 4px 12px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
+    transition: color 0.2s;
+}
+
+.moment-album-link:hover {
+    color: var(--color-primary-dark);
 }
 
 .moment-stats {

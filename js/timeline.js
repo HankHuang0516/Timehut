@@ -311,9 +311,10 @@ function createMomentCard(moment, birthDate) {
     const monthStr = months[month - 1];
 
     // Calculate precise age
-    const age = calculateAge(birthDate, moment.date.split(' ')[0]);
+    const ageObj = calculateAge(birthDate, moment.date.split(' ')[0]);
+    const age = formatAgeString(ageObj.years, ageObj.months, ageObj.days);
 
-    // Uploader info
+    // Uploader info (hidden from header per Timehut design)
     const uploaderEmoji = getUploaderEmoji(moment.uploader);
 
     // Grid Logic
@@ -377,9 +378,6 @@ function createMomentCard(moment, birthDate) {
             <div class="moment-info">
                 <div class="moment-age">${age}</div>
             </div>
-            <div class="current-user-badge" style="position:static; margin-left: auto; margin-right: 20px;">
-                ${moment.uploader} ${uploaderEmoji}
-            </div>
         </div>
         
         <div class="moment-content-box">
@@ -387,10 +385,15 @@ function createMomentCard(moment, birthDate) {
             
             <div class="moment-footer">
                 <div class="moment-actions">
-                    <!-- Placeholder for Stars/Comments -->
+                    <span class="moment-icon">❤️</span>
+                    <span class="moment-count">0</span>
+                    <span class="moment-icon" style="margin-left: 20px;">💬</span>
+                    <span class="moment-count">0</span>
                 </div>
-                ${enterAlbumHtml}
-                <div class="moment-stats">${statsText}</div>
+                <div class="moment-stats-right">
+                    <span>${statsText}</span>
+                    ${count > 1 ? `<span class="moment-album-link" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">· 進入相集 ></span>` : ''}
+                </div>
             </div>
         </div>
     `;
