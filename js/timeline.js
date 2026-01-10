@@ -70,18 +70,18 @@ function populateTimeTravelMenu() {
 
     list.innerHTML = '';
 
-    // Get grouped photos by age from TimelineState
-    if (TimelineState.groupedPhotos) {
-        Object.entries(TimelineState.groupedPhotos).forEach(([ageKey, photos]) => {
+    // groupedPhotos is an array of { label, sortKey, photos: [] }
+    if (TimelineState.groupedPhotos && TimelineState.groupedPhotos.length > 0) {
+        TimelineState.groupedPhotos.forEach(group => {
             const item = document.createElement('div');
             item.className = 'time-travel-item';
             item.innerHTML = `
-                <span class="age-label">${ageKey}</span>
-                <span class="photo-count">${photos.length} 張照片</span>
+                <span class="age-label">${group.label}</span>
+                <span class="photo-count">${group.photos ? group.photos.length : 0} 張照片</span>
             `;
             item.onclick = () => {
-                // Scroll to age section
-                const header = document.querySelector(`[data-age="${ageKey}"]`);
+                // Scroll to age section header
+                const header = document.querySelector(`[data-age-label="${group.label}"]`);
                 if (header) {
                     header.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
@@ -92,7 +92,7 @@ function populateTimeTravelMenu() {
     }
 
     if (list.children.length === 0) {
-        list.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">載入中...</p>';
+        list.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">尚未載入照片</p>';
     }
 }
 
@@ -360,6 +360,13 @@ function renderTimeline() {
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
     TimelineState.groupedPhotos.forEach(group => {
+        // Add age group header for time travel targeting
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'age-group-header';
+        groupHeader.setAttribute('data-age-label', group.label);
+        groupHeader.innerHTML = `<h2 class="age-group-title">${group.label}</h2>`;
+        containerEl.insertBefore(groupHeader, loadingEl);
+
         // Group photos into Moments
         const moments = groupPhotosToMoments(group.photos);
 
