@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="黃家小屋 - 相集詳情">
+    <title>黃家小屋 - 相集</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .album-page-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--spacing-lg);
+        }
+
+        .album-header {
+            text-align: center;
+            margin-bottom: var(--spacing-xl);
+            padding: var(--spacing-lg);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+            border-radius: var(--radius-lg);
+            color: var(--color-secondary);
+        }
+
+        .album-header h2 {
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .album-header p {
+            opacity: 0.8;
+        }
+
+        .album-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .album-photo-card {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-normal);
+        }
+
+        .album-photo-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .album-photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .album-photo-card .select-checkbox {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid var(--color-border);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 5;
+        }
+
+        .select-mode .album-photo-card .select-checkbox {
+            display: flex;
+        }
+
+        .album-photo-card.selected .select-checkbox {
+            background: var(--color-primary);
+            border-color: var(--color-primary-dark);
+        }
+
+        .album-photo-card.selected .select-checkbox::after {
+            content: '✓';
+            color: var(--color-secondary);
+            font-weight: bold;
+        }
+
+        .album-photo-card.selected {
+            outline: 3px solid var(--color-primary);
+        }
+
+        .album-actions {
+            display: flex;
+            gap: var(--spacing-md);
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .album-actions button {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-radius: var(--radius-md);
+            font-weight: var(--font-weight-medium);
+            transition: all var(--transition-fast);
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: var(--color-secondary);
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-dark);
+        }
+
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #cc0000;
+        }
+
+        .btn-danger:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--color-background);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-border);
+        }
+
+        .selection-info {
+            text-align: center;
+            margin-bottom: var(--spacing-md);
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+        }
+
+        @media (max-width: 768px) {
+            .album-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: var(--spacing-sm);
+            }
+
+            .album-actions {
+                flex-direction: column;
+            }
+
+            .album-actions button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body class="timeline-page">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="timeline.html" class="header-logo">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
+                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
+                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
+                    <circle cx="24" cy="14" r="4" fill="#333" />
+                </svg>
+                <span class="header-title">黃家小屋</span>
+            </a>
+        </div>
+        <div class="header-center">
+            <h2 id="albumTitle" style="font-size: 1.1rem;">相集</h2>
+        </div>
+        <div class="header-right">
+            <a href="timeline.html" class="header-btn" title="返回時間軸">← 返回</a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content album-page-content">
+        <div class="album-header">
+            <h2 id="momentDate">相集詳情</h2>
+            <p id="momentInfo">載入中...</p>
+        </div>
+
+        <div class="album-actions">
+            <button class="btn-primary" id="selectModeBtn" onclick="toggleSelectMode()">
+                ☑️ 選擇模式
+            </button>
+            <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>
+                🗑️ 刪除選取 (<span id="selectedCount">0</span>)
+            </button>
+            <button class="btn-secondary" id="cancelBtn" onclick="cancelSelection()" style="display: none;">
+                取消選擇
+            </button>
+        </div>
+
+        <div class="selection-info" id="selectionInfo" style="display: none;">
+            點擊照片可選取，再點擊取消選取
+        </div>
+
+        <div class="album-grid" id="albumGrid">
+            <div class="loading-indicator" id="loadingIndicator">
+                <div class="spinner"></div>
+                <p>載入中...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Photo Modal -->
+    <div class="photo-modal" id="photoModal">
+        <div class="modal-overlay" onclick="closeModal()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <button class="modal-nav modal-prev" onclick="navigatePhoto(-1)">‹</button>
+            <img src="" alt="" class="modal-image" id="modalImage">
+            <button class="modal-nav modal-next" onclick="navigatePhoto(1)">›</button>
+            <div class="modal-info">
+                <h3 id="modalTitle"></h3>
+                <p id="modalDate"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="confirm-card">
+            <div class="confirm-icon">⚠️</div>
+            <h3 class="confirm-title" id="confirmTitle">確認刪除</h3>
+            <p class="confirm-message" id="confirmMessage">確定要刪除選取的照片嗎？</p>
+            <div class="confirm-actions">
+                <button class="btn-secondary" id="confirmCancelBtn">取消</button>
+                <button class="btn-danger" id="confirmOkBtn">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/flickr.js"></script>
+    <script>
+        // Album state
+        const AlbumState = {
+            photos: [],
+            selectedPhotos: new Set(),
+            isSelectMode: false,
+            currentModalIndex: 0,
+            momentId: null
+        };
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Get moment data from URL or sessionStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            AlbumState.momentId = urlParams.get('id');
+
+            // Try to get photos from sessionStorage
+            const storedPhotos = sessionStorage.getItem('albumPhotos');
+            const storedDate = sessionStorage.getItem('albumDate');
+
+            if (storedPhotos) {
+                AlbumState.photos = JSON.parse(storedPhotos);
+                document.getElementById('momentDate').textContent = storedDate || '相集';
+                document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+                document.getElementById('loadingIndicator').style.display = 'none';
+                renderPhotos();
+            } else {
+                document.getElementById('momentInfo').textContent = '無法載入相集資料';
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        });
+
+        function renderPhotos() {
+            const gridEl = document.getElementById('albumGrid');
+
+            AlbumState.photos.forEach((photo, index) => {
+                const card = document.createElement('div');
+                card.className = 'album-photo-card';
+                card.dataset.id = photo.id;
+                card.dataset.index = index;
+
+                const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm');
+
+                card.innerHTML = `
+                    <div class="select-checkbox" onclick="event.stopPropagation(); togglePhotoSelection('${photo.id}')"></div>
+                    <img src="${imgUrl}" alt="${photo.title || ''}" loading="lazy" onclick="handleCardClick(event, ${index}, '${photo.id}')">
+                `;
+
+                gridEl.appendChild(card);
+            });
+        }
+
+        function handleCardClick(event, index, photoId) {
+            if (AlbumState.isSelectMode) {
+                togglePhotoSelection(photoId);
+            } else {
+                openModal(index);
+            }
+        }
+
+        function toggleSelectMode() {
+            AlbumState.isSelectMode = !AlbumState.isSelectMode;
+            document.body.classList.toggle('select-mode', AlbumState.isSelectMode);
+
+            document.getElementById('selectModeBtn').textContent = AlbumState.isSelectMode ? '✅ 選擇中...' : '☑️ 選擇模式';
+            document.getElementById('cancelBtn').style.display = AlbumState.isSelectMode ? 'inline-block' : 'none';
+            document.getElementById('selectionInfo').style.display = AlbumState.isSelectMode ? 'block' : 'none';
+
+            if (!AlbumState.isSelectMode) {
+                clearSelection();
+            }
+        }
+
+        function togglePhotoSelection(photoId) {
+            if (AlbumState.selectedPhotos.has(photoId)) {
+                AlbumState.selectedPhotos.delete(photoId);
+            } else {
+                AlbumState.selectedPhotos.add(photoId);
+            }
+
+            // Update UI
+            const card = document.querySelector(`.album-photo-card[data-id="${photoId}"]`);
+            if (card) {
+                card.classList.toggle('selected', AlbumState.selectedPhotos.has(photoId));
+            }
+
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            const count = AlbumState.selectedPhotos.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('deleteSelectedBtn').disabled = count === 0;
+        }
+
+        function clearSelection() {
+            AlbumState.selectedPhotos.clear();
+            document.querySelectorAll('.album-photo-card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            updateSelectionUI();
+        }
+
+        function cancelSelection() {
+            clearSelection();
+            toggleSelectMode();
+        }
+
+        async function deleteSelected() {
+            const count = AlbumState.selectedPhotos.size;
+            if (count === 0) return;
+
+            const confirmed = await showConfirmModal(
+                '確認刪除',
+                `確定要刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
+                '🗑️ 確認刪除'
+            );
+
+            if (!confirmed) return;
+
+            const photoIds = Array.from(AlbumState.selectedPhotos);
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = '刪除中...';
+
+            try {
+                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photoIds })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove deleted photos from grid
+                    photoIds.forEach(id => {
+                        const card = document.querySelector(`.album-photo-card[data-id="${id}"]`);
+                        if (card) card.remove();
+
+                        // Remove from state
+                        AlbumState.photos = AlbumState.photos.filter(p => p.id !== id);
+                    });
+
+                    clearSelection();
+                    document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+                    alert(`成功刪除 ${result.deleted || count} 張照片`);
+                } else {
+                    alert(`刪除失敗: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert(`刪除失敗: ${error.message}`);
+            }
+
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = '🗑️ 刪除選取 (<span id="selectedCount">0</span>)';
+            toggleSelectMode();
+        }
+
+        function showConfirmModal(title, message, confirmText = '確認') {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmModal');
+                document.getElementById('confirmTitle').textContent = title;
+                document.getElementById('confirmMessage').innerHTML = message.replace(/\n/g, '<br>');
+                document.getElementById('confirmOkBtn').textContent = confirmText;
+
+                modal.classList.remove('hidden');
+
+                document.getElementById('confirmOkBtn').onclick = () => {
+                    modal.classList.add('hidden');
+                    resolve(true);
+                };
+
+                document.getElementById('confirmCancelBtn').onclick = () => {
+                    modal.classList.add('hidden');
+                    resolve(false);
+                };
+            });
+        }
+
+        function openModal(index) {
+            if (AlbumState.isSelectMode) return;
+
+            AlbumState.currentModalIndex = index;
+            const photo = AlbumState.photos[index];
+            if (!photo) return;
+
+            const modal = document.getElementById('photoModal');
+            document.getElementById('modalImage').src = FlickrAPI.getPhotoUrl(photo, 'l') || FlickrAPI.getPhotoUrl(photo, 'm');
+            document.getElementById('modalTitle').textContent = photo.title || '未命名';
+            document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('photoModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function navigatePhoto(direction) {
+            const newIndex = AlbumState.currentModalIndex + direction;
+            if (newIndex >= 0 && newIndex < AlbumState.photos.length) {
+                openModal(newIndex);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('photoModal');
+            if (!modal.classList.contains('active')) return;
+
+            if (e.key === 'Escape') closeModal();
+            if (e.key === 'ArrowLeft') navigatePhoto(-1);
+            if (e.key === 'ArrowRight') navigatePhoto(1);
+        });
+    </script>
+</body>
+
+</html>

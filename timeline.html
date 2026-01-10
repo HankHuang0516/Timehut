@@ -32,7 +32,9 @@
         <div class="header-center">
             <div class="search-box">
                 <span class="search-icon">🔍</span>
-                <input type="text" placeholder="搜尋照片..." id="searchInput">
+                <input type="text" placeholder="搜尋照片..." id="searchInput"
+                    onkeypress="if(event.key==='Enter') navigateToSearch()">
+                <button class="search-btn" onclick="navigateToSearch()" title="搜尋">搜尋</button>
             </div>
         </div>
         <div class="header-right">
@@ -40,7 +42,8 @@
                 <span>📤</span>
                 <span class="upload-text">上傳照片</span>
             </button>
-            <button class="header-btn" id="selectModeBtn" title="選擇模式">☑️</button>
+            <button class="header-btn" id="selectModeBtn" title="請進入相集後選擇照片"
+                onclick="alert('請先點擊「進入相集」，再進行選擇與刪除照片')">☑️</button>
             <button class="header-btn" id="settingsBtn" title="設定">⚙️</button>
         </div>
     </header>

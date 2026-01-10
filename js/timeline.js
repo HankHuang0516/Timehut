@@ -12,7 +12,8 @@ const TimelineState = {
     totalPages: 1,
     isLoading: false,
     currentModalIndex: 0,
-    allPhotosFlat: []
+    allPhotosFlat: [],
+    momentData: new Map() // Store moment data for album navigation
 };
 
 // Selection state for batch operations
@@ -20,6 +21,32 @@ const SelectionState = {
     isSelectMode: false,
     selectedPhotos: new Set()
 };
+
+/**
+ * 導向搜尋結果頁面
+ */
+function navigateToSearch() {
+    const query = document.getElementById('searchInput').value.trim();
+    if (query) {
+        window.location.href = `search.html?q=${encodeURIComponent(query)}`;
+    }
+}
+
+/**
+ * 導向相集詳情頁面
+ * @param {string} momentId - Moment 識別碼
+ */
+function navigateToAlbum(momentId) {
+    const momentData = TimelineState.momentData.get(momentId);
+    if (momentData) {
+        // Store moment photos in sessionStorage for album page
+        sessionStorage.setItem('albumPhotos', JSON.stringify(momentData.photos));
+        sessionStorage.setItem('albumDate', momentData.dateStr);
+        window.location.href = `album.html?id=${encodeURIComponent(momentId)}`;
+    } else {
+        console.error('Moment data not found:', momentId);
+    }
+}
 
 /**
  * 初始化時間軸頁面
@@ -341,6 +368,14 @@ function createMomentCard(moment, birthDate) {
     const ageObj = calculateAge(birthDate, moment.date.split(' ')[0]);
     const age = formatAgeString(ageObj.years, ageObj.months, ageObj.days);
 
+    // Store moment data for album navigation
+    const momentDataId = `moment_${firstPhoto.id}`;
+    TimelineState.momentData.set(momentDataId, {
+        photos: moment.photos,
+        dateStr: `${monthStr} ${day}日 - ${age}`,
+        timestamp: moment.timestamp
+    });
+
     // Uploader info (hidden from header per Timehut design)
     const uploaderEmoji = getUploaderEmoji(moment.uploader);
 
@@ -385,8 +420,10 @@ function createMomentCard(moment, birthDate) {
 
     // Footer Logic
     // "Enter Album" button if count > 1 (or always? User HTML always has it)
+    // Create moment data for album navigation
+    const momentDataId = `moment_${firstPhoto.id}`;
     const enterAlbumHtml = count > 1 ?
-        `<div class="moment-album-link" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">進入相集 ></div>` : '';
+        `<div class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">進入相集 ></div>` : '';
 
     // Stats
     const photoCount = moment.photos.filter(p => !p.media || p.media === 'photo').length;
@@ -419,7 +456,7 @@ function createMomentCard(moment, birthDate) {
                 </div>
                 <div class="moment-stats-right">
                     <span>${statsText}</span>
-                    ${count > 1 ? `<span class="moment-album-link" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">· 進入相集 ></span>` : ''}
+                    ${count > 1 ? `<span class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">· 進入相集 ></span>` : ''}
                 </div>
             </div>
         </div>
