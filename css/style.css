@@ -2995,3 +2995,40 @@ body.select-mode .main-content {
         opacity: 0;
     }
 }
+
+/* =====================================================
+   BUG FIXES
+   ===================================================== */
+
+/* Fix: Larger touch target for close buttons (44x44px min for mobile) */
+.modal-close,
+.upload-modal .modal-close,
+.photo-modal .modal-close,
+.time-travel-header button {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    padding: 8px;
+    cursor: pointer;
+    border: none;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    border-radius: var(--radius-full);
+    transition: background 0.2s ease;
+}
+
+.modal-close:hover,
+.time-travel-header button:hover {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+/* Fix: Photo object-fit to eliminate white gaps */
+.moment-photo,
+.moment-photo-container img {
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+}

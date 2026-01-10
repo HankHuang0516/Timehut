@@ -276,23 +276,8 @@
                 return;
             }
 
-            // Show current user badge
-            const MEMBER_KEY = 'timehut_current_member';
-            const memberId = localStorage.getItem(MEMBER_KEY);
-            if (memberId && CONFIG.FAMILY_MEMBERS) {
-                const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
-                if (member) {
-                    // Create and show user badge
-                    const badge = document.createElement('div');
-                    badge.className = 'current-user-badge';
-                    badge.innerHTML = `
-                        <span>${member.emoji}</span>
-                        <span>${member.name}</span>
-                        <button class="logout-btn" title="登出" onclick="doLogout()">✕</button>
-                    `;
-                    document.body.appendChild(badge);
-                }
-            }
+            // Show current user badge (removed per UX feedback - not needed)
+            // Badge removed to simplify mobile interface
         })();
 
         function doLogout() {
