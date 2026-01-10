@@ -156,17 +156,35 @@
         }
 
         @media (max-width: 768px) {
+            .album-page-content {
+                margin-top: 100px;
+                padding: var(--spacing-md);
+            }
+
+            .album-header {
+                padding: var(--spacing-md);
+            }
+
+            .album-header h2 {
+                font-size: 1.2rem;
+            }
+
             .album-grid {
-                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-                gap: var(--spacing-sm);
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+                gap: var(--spacing-xs);
             }
 
             .album-actions {
                 flex-direction: column;
+                padding: 0 var(--spacing-sm);
             }
 
             .album-actions button {
                 width: 100%;
+            }
+
+            .header-center {
+                display: none;
             }
         }
     </style>

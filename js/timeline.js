@@ -1405,3 +1405,14 @@ window.closeUploadModal = closeUploadModal;
 window.clearUploadQueue = clearUploadQueue;
 window.startUpload = startUpload;
 window.removeFromQueue = removeFromQueue;
+
+// Make navigation and timeline functions globally available
+window.navigateToSearch = navigateToSearch;
+window.navigateToAlbum = navigateToAlbum;
+window.initTimeline = initTimeline;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.navigatePhoto = navigatePhoto;
+window.toggleSelectMode = toggleSelectMode;
+window.deleteSelectedPhotos = deleteSelectedPhotos;
+window.setTaggingMode = typeof setTaggingMode === 'function' ? setTaggingMode : function () { };
