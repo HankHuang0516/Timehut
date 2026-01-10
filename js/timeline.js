@@ -1023,14 +1023,16 @@ async function deleteSelectedPhotos() {
 
         if (response.ok) {
             const successCount = result.results?.filter(r => r.success).length || 0;
-            // Maybe show success modal? For now alert is fine or toast.
-            // Let's us a simple alert but maybe style it later.
-            alert(`刪除完成！\n成功：${successCount} 張\n失敗：${count - successCount} 張`);
+            showToast(`刪除完成！成功：${successCount} 張`, 'success');
 
-            // Exit select mode and reload photos
+            // Exit select mode and reload entire page for fresh data
             SelectionState.selectedPhotos.clear();
             toggleSelectMode();
-            await loadPhotos();
+
+            // Auto-refresh page after short delay
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
         } else {
             alert(`刪除失敗：${result.error}`);
         }

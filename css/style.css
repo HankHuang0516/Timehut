@@ -3066,4 +3066,11 @@ body.select-mode .main-content {
         justify-content: center;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
+
+    /* Header buttons far right */
+    .header-right {
+        margin-left: auto;
+        margin-right: 0 !important;
+        padding-right: 8px;
+    }
 }
