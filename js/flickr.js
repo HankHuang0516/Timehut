@@ -174,30 +174,51 @@ const FlickrAPI = {
 
     /**
      * 搜尋照片（支援標籤搜尋）
+     * For private photos, uses local filtering from pre-loaded album data
      * @param {string} query - 搜尋關鍵字
-     * @param {Object} options - 額外選項
+     * @param {Object} options - 額外選項 (albumId, page, perPage, allPhotos)
      * @returns {Promise<Object>} 搜尋結果
      */
     async searchPhotos(query, options = {}) {
-        // Flickr photos.search with text searches title, description, and tags
-        const data = await this.call('flickr.photos.search', {
-            user_id: CONFIG.FLICKR_USER_ID,
-            text: query,
-            tags: query.replace(/\s+/g, ','), // Also search as tags (comma-separated)
-            tag_mode: 'any',
-            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l',
-            page: options.page || 1,
-            per_page: options.perPage || CONFIG.PHOTOS_PER_PAGE
-        });
+        // If we have pre-loaded photos, filter locally (for private albums)
+        if (options.allPhotos && options.allPhotos.length > 0) {
+            const filtered = this.filterPhotosLocally(options.allPhotos, query);
+            const page = options.page || 1;
+            const perPage = options.perPage || 50;
+            const start = (page - 1) * perPage;
+            const paged = filtered.slice(start, start + perPage);
 
-        const photos = data.photos;
+            return {
+                photos: paged,
+                total: filtered.length,
+                pages: Math.ceil(filtered.length / perPage),
+                page: page
+            };
+        }
 
-        return {
-            photos: photos.photo || [],
-            total: parseInt(photos.total, 10),
-            pages: parseInt(photos.pages, 10),
-            page: parseInt(photos.page, 10)
-        };
+        // Fallback: try Flickr public API search (for public photos)
+        try {
+            const data = await this.call('flickr.photos.search', {
+                user_id: CONFIG.FLICKR_USER_ID,
+                text: query,
+                tags: query.replace(/\s+/g, ','),
+                tag_mode: 'any',
+                extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l',
+                page: options.page || 1,
+                per_page: options.perPage || CONFIG.PHOTOS_PER_PAGE
+            });
+
+            const photos = data.photos;
+            return {
+                photos: photos.photo || [],
+                total: parseInt(photos.total, 10),
+                pages: parseInt(photos.pages, 10),
+                page: parseInt(photos.page, 10)
+            };
+        } catch (error) {
+            console.error('Search API failed, returning empty:', error);
+            return { photos: [], total: 0, pages: 0, page: 1 };
+        }
     },
 
     /**

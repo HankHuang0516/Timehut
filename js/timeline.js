@@ -49,6 +49,54 @@ function navigateToAlbum(momentId) {
 }
 
 /**
+ * 切換時光旅行選單顯示
+ */
+function toggleTimeTravelMenu() {
+    const menu = document.getElementById('timeTravelMenu');
+    if (menu.style.display === 'none') {
+        populateTimeTravelMenu();
+        menu.style.display = 'block';
+    } else {
+        menu.style.display = 'none';
+    }
+}
+
+/**
+ * 填充時光旅行選單
+ */
+function populateTimeTravelMenu() {
+    const list = document.getElementById('timeTravelList');
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    // Get grouped photos by age from TimelineState
+    if (TimelineState.groupedPhotos) {
+        Object.entries(TimelineState.groupedPhotos).forEach(([ageKey, photos]) => {
+            const item = document.createElement('div');
+            item.className = 'time-travel-item';
+            item.innerHTML = `
+                <span class="age-label">${ageKey}</span>
+                <span class="photo-count">${photos.length} 張照片</span>
+            `;
+            item.onclick = () => {
+                // Scroll to age section
+                const header = document.querySelector(`[data-age="${ageKey}"]`);
+                if (header) {
+                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                toggleTimeTravelMenu();
+            };
+            list.appendChild(item);
+        });
+    }
+
+    if (list.children.length === 0) {
+        list.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">載入中...</p>';
+    }
+}
+
+/**
  * 初始化時間軸頁面
  */
 /**
@@ -1436,3 +1484,7 @@ window.navigatePhoto = navigatePhoto;
 window.toggleSelectMode = toggleSelectMode;
 window.deleteSelectedPhotos = deleteSelectedPhotos;
 window.setTaggingMode = typeof setTaggingMode === 'function' ? setTaggingMode : function () { };
+
+// Time Travel functions
+window.toggleTimeTravelMenu = toggleTimeTravelMenu;
+window.populateTimeTravelMenu = populateTimeTravelMenu;

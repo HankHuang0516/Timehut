@@ -39,14 +39,27 @@
         </div>
         <div class="header-right">
             <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
-                <span>📤</span>
-                <span class="upload-text">上傳照片</span>
+                <span class="btn-icon">📤</span>
+                <span class="btn-label">上傳</span>
             </button>
-            <button class="header-btn" id="selectModeBtn" title="請進入相集後選擇照片"
-                onclick="alert('請先點擊「進入相集」，再進行選擇與刪除照片')">☑️</button>
-            <button class="header-btn" id="settingsBtn" title="設定">⚙️</button>
+            <button class="header-btn time-travel-btn" id="timeTravelBtn" title="時光旅行" onclick="toggleTimeTravelMenu()">
+                <span class="btn-icon">⏰</span>
+                <span class="btn-label">時光</span>
+            </button>
         </div>
     </header>
+
+    <!-- Time Travel Mobile Menu (hidden by default) -->
+    <div class="time-travel-menu" id="timeTravelMenu" style="display: none;">
+        <div class="time-travel-header">
+            <h3>⏰ 時光旅行</h3>
+            <button onclick="toggleTimeTravelMenu()">✕</button>
+        </div>
+        <div class="time-travel-list" id="timeTravelList">
+            <!-- Age items will be dynamically inserted -->
+        </div>
+    </div>
+
 
     <!-- Selection Bar for Batch Operations -->
     <div class="selection-bar hidden" id="selectionBar">
