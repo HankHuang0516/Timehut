@@ -215,6 +215,113 @@ function checkServerFunctions() {
     }
 }
 
+/**
+ * =============================================
+ * P0/P1 Regression Tests (新增)
+ * =============================================
+ */
+
+/**
+ * 檢查 timeline.html 是否有 initTimeline 調用
+ */
+function checkInitTimelineCall() {
+    log.info('[迴歸測試] 檢查 initTimeline 調用...');
+
+    const timelinePath = path.join(__dirname, '..', 'timeline.html');
+    const content = fs.readFileSync(timelinePath, 'utf8');
+
+    if (content.includes('initTimeline()')) {
+        log.pass('timeline.html 包含 initTimeline() 調用');
+        results.passed++;
+    } else {
+        log.fail('timeline.html 缺少 initTimeline() 調用 - 照片將無法載入！');
+        results.failed++;
+    }
+}
+
+/**
+ * 檢查 window 作用域函數掛載
+ */
+function checkWindowFunctions() {
+    log.info('[迴歸測試] 檢查 window 作用域函數...');
+
+    const timelineJsPath = path.join(__dirname, '..', 'js', 'timeline.js');
+    const content = fs.readFileSync(timelineJsPath, 'utf8');
+
+    const requiredWindowFunctions = [
+        'navigateToSearch',
+        'navigateToAlbum',
+        'initTimeline',
+        'openModal',
+        'closeModal'
+    ];
+
+    let allFound = true;
+    for (const func of requiredWindowFunctions) {
+        if (content.includes(`window.${func} =`)) {
+            log.pass(`window.${func} 已掛載`);
+            results.passed++;
+        } else {
+            log.fail(`window.${func} 未掛載 - onclick 將無法調用！`);
+            results.failed++;
+            allFound = false;
+        }
+    }
+
+    return allFound;
+}
+
+/**
+ * 檢查新頁面是否存在
+ */
+function checkNewPages() {
+    log.info('[迴歸測試] 檢查新建頁面...');
+
+    const pages = [
+        { file: 'search.html', desc: '搜尋結果頁' },
+        { file: 'album.html', desc: '相集詳情頁' }
+    ];
+
+    for (const page of pages) {
+        const pagePath = path.join(__dirname, '..', page.file);
+        if (fs.existsSync(pagePath)) {
+            log.pass(`${page.desc} (${page.file}) 存在`);
+            results.passed++;
+        } else {
+            log.fail(`${page.desc} (${page.file}) 缺失！`);
+            results.failed++;
+        }
+    }
+}
+
+/**
+ * 檢查手機版 CSS 響應式樣式
+ */
+function checkMobileCSS() {
+    log.info('[迴歸測試] 檢查手機版響應式 CSS...');
+
+    const cssPath = path.join(__dirname, '..', 'css', 'style.css');
+    const content = fs.readFileSync(cssPath, 'utf8');
+
+    // Check for mobile media queries
+    if (content.includes('@media (max-width: 768px)')) {
+        log.pass('手機版媒體查詢 (@media max-width: 768px) 存在');
+        results.passed++;
+    } else {
+        log.fail('缺少手機版響應式樣式！');
+        results.failed++;
+    }
+
+    // Check header-center visibility in mobile
+    if (content.includes('.header-center') && content.includes('order: 3')) {
+        log.pass('搜尋框手機版樣式正確 (order: 3)');
+        results.passed++;
+    } else {
+        log.warn('搜尋框手機版樣式可能不正確');
+        results.warnings++;
+    }
+}
+
 // ========================================
 // Main Execution
 // ========================================
@@ -238,6 +345,20 @@ async function main() {
     console.log('');
 
     checkServerFunctions();
+    console.log('');
+
+    // P0/P1 Regression Tests
+    console.log('--- P0/P1 迴歸測試 ---');
+    checkInitTimelineCall();
+    console.log('');
+
+    checkWindowFunctions();
+    console.log('');
+
+    checkNewPages();
+    console.log('');
+
+    checkMobileCSS();
     console.log('');
 
     // Summary
