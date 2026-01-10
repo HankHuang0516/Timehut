@@ -100,7 +100,8 @@ app.get('/health', (req, res) => {
 app.get('/api/auth/status', (req, res) => {
     res.json({
         authenticated: !!oauthTokens.accessToken,
-        userId: process.env.FLICKR_USER_ID
+        userId: process.env.FLICKR_USER_ID,
+        version: '1.3'
     });
 });
 
@@ -224,6 +225,17 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
                 }
             } else {
                 console.log('Skipping album addition (no albumId or photoId).');
+            }
+
+            // 如果指定了日期，設定日期
+            if (req.body.date && photoId) {
+                console.log(`Setting date for photo ${photoId} to ${req.body.date}...`);
+                try {
+                    await setPhotoDate(photoId, req.body.date);
+                    console.log(`Successfully set date.`);
+                } catch (dateError) {
+                    console.error(`Failed to set date:`, dateError);
+                }
             }
 
             results.push({
@@ -629,6 +641,69 @@ async function addPhotoToAlbum(photoId, albumId) {
     });
 }
 
+// 設定照片拍攝日期
+async function setPhotoDate(photoId, dateStr) {
+    return new Promise((resolve, reject) => {
+        // 解析日期: 2023年06月 -> 2023-06-01 12:00:00
+        let dateTaken = dateStr;
+        const match = dateStr.match(/(\d{4})年(\d{2})月/);
+        if (match) {
+            dateTaken = `${match[1]}-${match[2]}-01 12:00:00`;
+        }
+
+        console.log(`[DATE] Setting date for photo ${photoId} to ${dateTaken}`);
+
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = Math.random().toString(36).substring(2);
+
+        const params = {
+            method: 'flickr.photos.setDates',
+            api_key: process.env.FLICKR_API_KEY,
+            photo_id: photoId,
+            date_taken: dateTaken,
+            date_taken_granularity: '4', // 4 = Month level
+            format: 'json',
+            nojsoncallback: '1',
+            oauth_consumer_key: process.env.FLICKR_API_KEY,
+            oauth_token: oauthTokens.accessToken,
+            oauth_signature_method: 'HMAC-SHA1',
+            oauth_timestamp: timestamp,
+            oauth_nonce: nonce,
+            oauth_version: '1.0'
+        };
+
+        // 建立簽名
+        const crypto = require('crypto');
+        const baseString = buildBaseString('POST', 'https://api.flickr.com/services/rest/', params);
+        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+
+        params.oauth_signature = signature;
+
+        // 建立 form data
+        const formData = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            formData.append(key, value);
+        });
+
+        fetch('https://api.flickr.com/services/rest/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                console.log(`[DATE] Flickr API response:`, JSON.stringify(data));
+                if (data.stat === 'ok') {
+                    resolve(true);
+                } else {
+                    reject(new Error(data.message || '設定日期失敗'));
+                }
+            })
+            .catch(reject);
+    });
+}
+
 function buildBaseString(method, url, params) {
     const sortedParams = Object.keys(params)
         .sort()
@@ -756,9 +831,6 @@ async function setPhotoTags(photoId, tags) {
                 }
             })
             .catch(reject);
-    });
-}
-
     });
 }
 

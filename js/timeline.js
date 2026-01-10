@@ -115,8 +115,8 @@ function setupEventListeners() {
         });
     }
 
-    // Infinite scroll (optional)
-    // window.addEventListener('scroll', throttle(handleScroll, 200));
+    // Infinite scroll
+    window.addEventListener('scroll', throttle(handleScroll, 200));
 }
 
 /**
@@ -212,6 +212,33 @@ async function loadPhotos() {
     }
 
     TimelineState.isLoading = false;
+}
+
+/**
+ * 處理滾動事件（無限滾動載入更多）
+ */
+function handleScroll() {
+    // Check if we're near the bottom of the page
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const scrollHeight = document.documentElement.scrollHeight;
+    const clientHeight = window.innerHeight;
+
+    // Load more when within 500px of bottom
+    if (scrollTop + clientHeight >= scrollHeight - 500) {
+        loadMorePhotos();
+    }
+}
+
+/**
+ * 載入更多照片（下一頁）
+ */
+async function loadMorePhotos() {
+    if (TimelineState.isLoading) return;
+    if (TimelineState.currentPage >= TimelineState.totalPages) return;
+
+    TimelineState.currentPage++;
+    console.log(`[PAGINATION] Loading page ${TimelineState.currentPage} of ${TimelineState.totalPages}`);
+    await loadPhotos();
 }
 
 /**

@@ -38,7 +38,7 @@ const CONFIG = {
     ],
 
     // UI Settings
-    PHOTOS_PER_PAGE: 50,
+    PHOTOS_PER_PAGE: 500,
 
     // Flickr API Base URL
     FLICKR_API_BASE: 'https://api.flickr.com/services/rest/',
