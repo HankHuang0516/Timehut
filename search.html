@@ -138,16 +138,26 @@
             document.getElementById('searchSubtitle').textContent = '搜尋中...';
 
             try {
-                // Get selected child from session storage
-                const selectedChild = sessionStorage.getItem('selectedChild');
-                const childIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
-                const child = CONFIG.CHILDREN[childIndex];
+                // First try to get photos from sessionStorage (synced from timeline.html)
+                if (!SearchState.allPhotos) {
+                    const storedPhotos = sessionStorage.getItem('allPhotos');
+                    if (storedPhotos) {
+                        SearchState.allPhotos = JSON.parse(storedPhotos);
+                        console.log('Loaded photos from sessionStorage:', SearchState.allPhotos.length);
+                    }
+                }
 
-                // First, load ALL photos from the album for local filtering
-                if (child && child.albumId && !SearchState.allPhotos) {
-                    document.getElementById('searchSubtitle').textContent = '載入相簿中...';
-                    const albumResult = await FlickrAPI.getAlbumPhotos(child.albumId, 1, 500);
-                    SearchState.allPhotos = albumResult.photos || [];
+                // Fallback: load from API if sessionStorage is empty
+                if (!SearchState.allPhotos || SearchState.allPhotos.length === 0) {
+                    const selectedChild = sessionStorage.getItem('selectedChild');
+                    const childIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
+                    const child = CONFIG.CHILDREN[childIndex];
+
+                    if (child && child.albumId) {
+                        document.getElementById('searchSubtitle').textContent = '載入相簿中...';
+                        const albumResult = await FlickrAPI.getAlbumPhotos(child.albumId, 1, 500);
+                        SearchState.allPhotos = albumResult.photos || [];
+                    }
                 }
 
                 // Now search locally from pre-loaded photos

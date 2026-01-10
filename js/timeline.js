@@ -205,6 +205,37 @@ function setupEventListeners() {
 
     // Infinite scroll
     window.addEventListener('scroll', throttle(handleScroll, 200));
+
+    // Touch swipe for photo navigation in modal
+    const modal = document.getElementById('photoModal');
+    if (modal) {
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        modal.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+
+        modal.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, { passive: true });
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const diff = touchStartX - touchEndX;
+
+            if (Math.abs(diff) > swipeThreshold && modal.classList.contains('active')) {
+                if (diff > 0) {
+                    // Swipe left -> Next photo
+                    navigatePhoto(1);
+                } else {
+                    // Swipe right -> Previous photo
+                    navigatePhoto(-1);
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -281,6 +312,9 @@ async function loadPhotos() {
             TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, child.birthDate);
             renderTimeline();
             updateAgeNavCounts();
+
+            // Sync photos to sessionStorage for search.html to use
+            sessionStorage.setItem('allPhotos', JSON.stringify(TimelineState.photos));
         }
 
     } catch (error) {
