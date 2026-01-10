@@ -1998,3 +1998,233 @@ body.select-mode .main-content {
 .hidden {
     display: none !important;
 }
+
+/* Fix: Ensure Modal Content is above Overlay */
+.modal-overlay {
+    z-index: 1000;
+}
+
+.upload-modal-content,
+.modal-content,
+.confirm-card {
+    z-index: 1001;
+    position: relative;
+}
+
+/* =====================================================
+   P1: MOMENT CARD LAYOUT (Batch View)
+   ===================================================== */
+.moment-item {
+    position: relative;
+    margin-bottom: var(--spacing-2xl);
+    padding-left: 0;
+    /* Ensure z-index context for line */
+    z-index: 1;
+}
+
+.moment-line {
+    position: absolute;
+    left: 28px;
+    /* Center of date box (56/2) */
+    top: 56px;
+    bottom: -48px;
+    /* Connect to next item */
+    width: 3px;
+    background: #F9F5F1;
+    z-index: 0;
+}
+
+.moment-item:last-child .moment-line {
+    display: none;
+}
+
+.moment-header {
+    display: flex;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.moment-date-box {
+    width: 56px;
+    height: 56px;
+    background: #FAF7F3;
+    border-radius: 17px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.moment-month {
+    font-size: 11px;
+    color: #B5B5B5;
+    line-height: 16px;
+}
+
+.moment-day {
+    font-size: 23px;
+    color: #ff6f59;
+    font-weight: 600;
+    line-height: 32px;
+    margin-top: -4px;
+}
+
+.moment-info {
+    margin-left: 14px;
+}
+
+.moment-age {
+    font-size: 20px;
+    font-weight: 600;
+    color: #575757;
+}
+
+.moment-content-box {
+    background: white;
+    margin-top: 20px;
+    margin-left: 28px;
+    /* Indent slightly from date line */
+    margin-right: var(--spacing-md);
+    border: 1px solid #EFEFEF;
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Grid Layout for Photos */
+.moment-grid {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+}
+
+/* Grid Logic based on item count */
+.moment-grid[data-count="1"] {
+    grid-template-columns: 1fr;
+}
+
+.moment-grid[data-count="2"] {
+    grid-template-columns: 1fr 1fr;
+    aspect-ratio: 2/1;
+}
+
+.moment-grid[data-count="3"] {
+    grid-template-columns: 1fr 1fr 1fr;
+    aspect-ratio: 3/1;
+}
+
+.moment-grid[data-count="4"] {
+    grid-template-columns: 1fr 1fr;
+    aspect-ratio: 1/1;
+}
+
+.moment-grid[data-count="5"] {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    aspect-ratio: 3/2;
+}
+
+/* 5 items: first 2 large? or 3x2 grid with spanning? simpler to just grid 3x2 and have blank space? 
+   Actually, the user HTML shows 5 items + 1 hidden.
+   Let's use a flexible grid or just a row if strictly following horizontal scroll? 
+   No, Timehut is usually vertical or grid.
+   User HTML "tm__container h-[507px] vertical-pic" implies vertical scrolling? 
+   "display: inline-block; width: 800px; height: 665px;" -> This suggests a specific layout engine.
+   Let's stick to a clean Grid. */
+.moment-grid.multi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(33%, 1fr));
+    /* Force max height or aspect loop */
+}
+
+.moment-photo-container {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 1;
+    /* Square cells */
+}
+
+.moment-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.3s;
+}
+
+.moment-photo:hover {
+    transform: scale(1.05);
+}
+
+.moment-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c8c8c8;
+    font-size: 36px;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.moment-footer {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    background: white;
+    border-top: 1px solid #f5f5f5;
+}
+
+.moment-actions {
+    display: flex;
+    gap: 25px;
+}
+
+.moment-action {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.moment-icon {
+    width: 20px;
+    height: 20px;
+    background-color: #eee;
+    /* Placeholder for icon bg */
+    border-radius: 50%;
+}
+
+.moment-count {
+    font-size: 14px;
+    font-weight: 500;
+    color: #575757;
+    margin-left: 5px;
+}
+
+.moment-album-link {
+    margin-left: 20px;
+    font-size: 14px;
+    color: #575757;
+    cursor: pointer;
+    background: #f5f5f5;
+    padding: 4px 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.moment-stats {
+    margin-left: auto;
+    font-size: 14px;
+    color: #575757;
+}
+
+/* Batch Badge */
+.photo-batch-badge {
+    /* Reuse specific style for badge inside photo if needed */
+}

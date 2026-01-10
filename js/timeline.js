@@ -217,104 +217,196 @@ async function loadPhotos() {
 /**
  * 渲染時間軸
  */
+/**
+ * 渲染時間軸 (Moment Card Layout)
+ */
 function renderTimeline() {
     const containerEl = document.getElementById('timelineContainer');
+    const loadingEl = document.getElementById('loadingIndicator');
 
     // Build flat array for modal navigation
     TimelineState.allPhotosFlat = [];
 
-    TimelineState.groupedPhotos.forEach(group => {
-        // Add age group header
-        let headerEl = document.getElementById(`age-${group.sortKey}`);
-        if (!headerEl) {
-            headerEl = document.createElement('div');
-            headerEl.className = 'age-group-header';
-            headerEl.id = `age-${group.sortKey}`;
-            headerEl.innerHTML = `
-                <div class="age-group-line"></div>
-                <span class="age-group-label">${group.label}</span>
-                <div class="age-group-line"></div>
-            `;
-            containerEl.insertBefore(headerEl, containerEl.querySelector('#loadingIndicator'));
+    // Clear existing content (keep loading/empty)
+    Array.from(containerEl.children).forEach(child => {
+        if (!child.id?.includes('loading') && !child.id?.includes('empty')) {
+            child.remove();
         }
+    });
 
-        // Add photo cards
-        group.photos.forEach((photo, photoIndex) => {
-            TimelineState.allPhotosFlat.push(photo);
-            const flatIndex = TimelineState.allPhotosFlat.length - 1;
+    const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
-            const cardEl = createPhotoCard(photo, flatIndex);
-            containerEl.insertBefore(cardEl, containerEl.querySelector('#loadingIndicator'));
+    TimelineState.groupedPhotos.forEach(group => {
+        // Group photos into Moments
+        const moments = groupPhotosToMoments(group.photos);
+
+        moments.forEach(moment => {
+            // Add photos to flat list and track flatIndex for each photo
+            moment.flatStartIndex = TimelineState.allPhotosFlat.length;
+            moment.photos.forEach(p => TimelineState.allPhotosFlat.push(p));
+
+            const cardEl = createMomentCard(moment, child.birthDate);
+            containerEl.insertBefore(cardEl, loadingEl);
         });
     });
 }
 
 /**
- * 建立照片卡片
- * @param {Object} photo - 照片物件
- * @param {number} index - 全域索引
- * @returns {HTMLElement} 照片卡片元素
+ * 將照片分組為 Moments (Batches)
+ * 規則：同一上傳者 + 上傳時間相差 30 分鐘內
  */
-function createPhotoCard(photo, index) {
-    const card = document.createElement('article');
-    card.className = 'photo-card';
-    card.dataset.id = photo.id; // Add data-id for selection
+function groupPhotosToMoments(photos) {
+    if (!photos || photos.length === 0) return [];
 
-    card.onclick = (e) => {
-        // Don't open modal if clicking on a tag or batch badge
-        if (e.target.classList.contains('photo-tag') ||
-            e.target.classList.contains('photo-batch-badge')) return;
+    const moments = [];
+    let currentMoment = null;
 
-        // Handle selection mode
-        if (SelectionState.isSelectMode) {
-            togglePhotoSelection(photo.id);
-            return;
+    // Photos are expected to be sorted by date taken/upload desc
+    photos.forEach(photo => {
+        // Get uploader
+        const tags = photo.tags ? photo.tags.split(' ') : [];
+        const uploaderTag = tags.find(t => t.startsWith('uploader:'));
+        const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : '未知';
+
+        const photoTime = parseInt(photo.dateupload) * 1000;
+
+        if (currentMoment) {
+            const timeDiff = Math.abs(photoTime - currentMoment.timestamp);
+            const isSameUploader = uploader === currentMoment.uploader;
+            // 30 mins = 30 * 60 * 1000 = 1800000
+            const isWithinTime = timeDiff < 1800000;
+
+            if (isSameUploader && isWithinTime) {
+                currentMoment.photos.push(photo);
+                return;
+            }
         }
 
-        openModal(index);
-    };
+        // Start new moment
+        currentMoment = {
+            uploader: uploader,
+            timestamp: photoTime,
+            date: photo.datetaken || new Date(photoTime).toISOString(),
+            photos: [photo]
+        };
+        moments.push(currentMoment);
+    });
 
-    const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm');
-    const title = photo.title || '未命名';
-    const date = formatDate(photo.datetaken || photo.dateupload);
+    return moments;
+}
 
-    // P1: Extract uploader from tags
-    const allTags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
-    const uploaderTag = allTags.find(t => t.startsWith('uploader:'));
-    const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : null;
-    const uploaderEmoji = getUploaderEmoji(uploader);
+/**
+ * 建立 Moment Card (Batch View)
+ */
+function createMomentCard(moment, birthDate) {
+    const card = document.createElement('div');
+    card.className = 'moment-item';
 
-    // P0: Check for photo batch
-    let batchHtml = '';
-    const batchInfo = TimelineState.photoBatches ? TimelineState.photoBatches.get(photo.id) : null;
-    if (batchInfo && batchInfo.batchSize > 1 && batchInfo.batchPhotoIds[0] === photo.id) {
-        batchHtml = `<span class="photo-batch-badge" onclick="openBatchView(TimelineState.photoBatches.get('${photo.id}'))">進入相集 (${batchInfo.batchSize})</span>`;
-    }
+    const count = moment.photos.length;
+    const firstPhoto = moment.photos[0];
+    const dateObj = new Date(moment.timestamp);
+    const day = dateObj.getDate();
+    const month = dateObj.getMonth() + 1;
+    const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+    const monthStr = months[month - 1];
 
-    // Process tags (P1: Display tags on cards, excluding uploader tag)
-    const displayTags = allTags.filter(t => !t.startsWith('uploader:')).slice(0, 3);
-    const tagsHtml = displayTags.map(tag =>
-        `<span class="photo-tag" onclick="filterByTag('${tag}')">#${tag}</span>`
-    ).join('');
+    // Calculate precise age
+    const age = calculateAge(birthDate, moment.date.split(' ')[0]);
+
+    // Uploader info
+    const uploaderEmoji = getUploaderEmoji(moment.uploader);
+
+    // Grid Logic
+    let gridHtml = '';
+    const displayPhotos = moment.photos.slice(0, 5); // Show max 5 in grid
+    const remaining = count - 5;
+
+    // Grid class based on count (capped at 5 for layout logic)
+    const gridCount = Math.min(count, 5);
+    let extraClass = count > 3 ? 'multi-grid' : '';
+
+    gridHtml = `<div class="moment-grid ${extraClass}" data-count="${gridCount}">`;
+
+    displayPhotos.forEach((photo, idx) => {
+        const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm'); // Medium size
+        const isLast = idx === 4;
+        const flatIndex = moment.flatStartIndex + idx;
+
+        let overlayHtml = '';
+        if (isLast && remaining > 0) {
+            overlayHtml = `<div class="moment-overlay" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">+${remaining + 1}</div>`;
+        }
+
+        // Click handler logic
+        // If single photo -> Open Modal
+        // If batch -> Click opens Modal for specific photo, OR user wants "Enter Album"?
+        // User HTML implies "Enter Album" is a separate button at bottom.
+        // Clicking images usually opens lightbox.
+
+        const clickAttr = `onclick="openModal(${flatIndex})"`;
+
+        gridHtml += `
+            <div class="moment-photo-container">
+                <img src="${imgUrl}" class="moment-photo" loading="lazy" ${clickAttr}>
+                ${overlayHtml}
+                ${SelectionState.isSelectMode ? createSelectionOverlay(photo.id) : ''}
+            </div>
+        `;
+    });
+    gridHtml += `</div>`;
+
+    // Footer Logic
+    // "Enter Album" button if count > 1 (or always? User HTML always has it)
+    const enterAlbumHtml = count > 1 ?
+        `<div class="moment-album-link" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">進入相集 ></div>` : '';
+
+    // Stats
+    const photoCount = moment.photos.filter(p => !p.media || p.media === 'photo').length;
+    const videoCount = moment.photos.filter(p => p.media === 'video').length;
+    let statsText = '';
+    if (photoCount > 0) statsText += `照片 ${photoCount} `;
+    if (videoCount > 0) statsText += `+ 影片 ${videoCount}`;
 
     card.innerHTML = `
-        <div class="photo-wrapper">
-            <img src="${imgUrl}" alt="${title}" loading="lazy">
-            ${uploader ? `<span class="photo-uploader" title="${uploader}上傳">${uploaderEmoji}</span>` : ''}
-            ${batchHtml}
-        </div>
-        <div class="photo-info">
-            <h3 class="photo-title">${title}</h3>
-            <div class="photo-meta">
-                <span class="photo-date">${date}</span>
-                <span class="photo-age">${photo.ageString}</span>
+        <div class="moment-line"></div>
+        <div class="moment-header">
+            <div class="moment-date-box">
+                <span class="moment-month">${monthStr}</span>
+                <span class="moment-day">${day}</span>
             </div>
-            ${tagsHtml ? `<div class="photo-tags">${tagsHtml}</div>` : ''}
+            <div class="moment-info">
+                <div class="moment-age">${age}</div>
+            </div>
+            <div class="current-user-badge" style="position:static; margin-left: auto; margin-right: 20px;">
+                ${moment.uploader} ${uploaderEmoji}
+            </div>
+        </div>
+        
+        <div class="moment-content-box">
+            ${gridHtml}
+            
+            <div class="moment-footer">
+                <div class="moment-actions">
+                    <!-- Placeholder for Stars/Comments -->
+                </div>
+                ${enterAlbumHtml}
+                <div class="moment-stats">${statsText}</div>
+            </div>
         </div>
     `;
 
     return card;
 }
+
+function createSelectionOverlay(photoId) {
+    const isSelected = SelectionState.selectedPhotos.has(photoId);
+    return `
+        <div class="photo-select-overlay ${isSelected ? 'selected' : ''}" onclick="event.stopPropagation(); togglePhotoSelection('${photoId}')">
+            <div class="select-checkbox ${isSelected ? 'checked' : ''}"></div>
+        </div>
+    `;
+}
+
 
 /**
  * 取得上傳者的 Emoji
