@@ -251,6 +251,14 @@ async function loadPhotos() {
         containerEl.appendChild(errorEl);
     }
 
+    // Clear loading timeout and hide reload button
+    if (TimelineState.loadingTimeout) {
+        clearTimeout(TimelineState.loadingTimeout);
+        TimelineState.loadingTimeout = null;
+    }
+    const reloadBtn = document.getElementById('reloadBtn');
+    if (reloadBtn) reloadBtn.style.display = 'none';
+
     TimelineState.isLoading = false;
 }
 
