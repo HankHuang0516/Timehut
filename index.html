@@ -115,6 +115,7 @@
         const AUTH_KEY = 'timehut_authenticated';
         const MEMBER_KEY = 'timehut_current_member';
         const AUTH_EXPIRY_KEY = 'timehut_auth_expiry';
+        const CHILD_KEY = 'timehut_current_child'; // Remember selected child
 
         // DOM Elements
         const passwordSection = document.getElementById('password-section');
@@ -152,8 +153,18 @@
         // Initialize page
         function init() {
             if (checkAuth()) {
-                // Already logged in - show member or child selection
+                // Already logged in
                 const currentMember = localStorage.getItem(MEMBER_KEY);
+                const currentChild = localStorage.getItem(CHILD_KEY);
+
+                // AUTO-REDIRECT: If user has remembered child, go directly to timeline
+                if (currentChild !== null) {
+                    sessionStorage.setItem('selectedChild', currentChild);
+                    window.location.href = 'timeline.html';
+                    return; // Exit early
+                }
+
+                // Otherwise show member/child selection
                 if (currentMember) {
                     showCurrentUser(currentMember);
                     showChildSelection();
@@ -301,11 +312,13 @@
             localStorage.removeItem(AUTH_KEY);
             localStorage.removeItem(AUTH_EXPIRY_KEY);
             localStorage.removeItem(MEMBER_KEY);
+            localStorage.removeItem(CHILD_KEY);
             location.reload();
         });
 
-        // Select child and navigate
+        // Select child and navigate (save to localStorage for persistence)
         function selectChild(childIndex) {
+            localStorage.setItem(CHILD_KEY, childIndex); // Remember child for auto-login
             sessionStorage.setItem('selectedChild', childIndex);
             window.location.href = 'timeline.html';
         }
