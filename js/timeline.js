@@ -1580,3 +1580,33 @@ window.populateTimeTravelMenu = populateTimeTravelMenu;
 
 // Toast notification
 window.showToast = showToast;
+
+/**
+ * 下載當前照片
+ */
+function downloadCurrentPhoto() {
+    const photo = TimelineState.allPhotosFlat[TimelineState.currentModalIndex];
+    if (!photo) {
+        showToast('無法下載照片', 'error');
+        return;
+    }
+
+    // Get the largest available URL
+    const downloadUrl = photo.url_o || photo.url_l || photo.url_c || photo.url_z || photo.url_m;
+    if (!downloadUrl) {
+        showToast('無法取得照片網址', 'error');
+        return;
+    }
+
+    // Create a temporary link and trigger download
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = photo.title || `photo_${photo.id}.jpg`;
+    link.target = '_blank';
+
+    // For cross-origin images, open in new tab
+    window.open(downloadUrl, '_blank');
+    showToast('已開啟下載視窗', 'success');
+}
+
+window.downloadCurrentPhoto = downloadCurrentPhoto;

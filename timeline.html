@@ -37,7 +37,7 @@
                 <button class="search-btn" onclick="navigateToSearch()" title="搜尋">搜尋</button>
             </div>
         </div>
-        <div class="header-right">
+        <div class="header-right" style="margin-left: auto; position: absolute; right: 8px;">
             <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
                 <span class="btn-icon">📤</span>
                 <span class="btn-label">上傳</span>
@@ -231,6 +231,10 @@
                         <button class="save-tags-btn" onclick="savePhotoTags()">💾</button>
                     </div>
                 </div>
+                <!-- Download Button -->
+                <button class="modal-download-btn" id="modalDownloadBtn" onclick="downloadCurrentPhoto()" title="下載原圖">
+                    📥 下載原圖
+                </button>
             </div>
         </div>
     </div>
