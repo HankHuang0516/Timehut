@@ -17,6 +17,18 @@
 </head>
 
 <body class="timeline-page">
+    <!-- Album Sidebar (swipe from left) -->
+    <div class="album-sidebar" id="albumSidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-title">📚 選擇相簿</span>
+            <button class="sidebar-close" onclick="closeAlbumSidebar()">✕</button>
+        </div>
+        <div class="sidebar-albums" id="sidebarAlbums">
+            <!-- 動態生成相簿列表 -->
+        </div>
+    </div>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeAlbumSidebar()"></div>
+
     <!-- Header -->
     <header class="header header-mobile-stack">
         <div class="header-row-top">

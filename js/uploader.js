@@ -136,6 +136,27 @@ const UploadUI = {
             this.dropzone.classList.remove('dragover');
             this.addFiles(e.dataTransfer.files);
         });
+
+        // Populate album select from CONFIG.CHILDREN
+        this.populateAlbumSelect();
+    },
+
+    /**
+     * 填充相簿選擇下拉選單 - 從 CONFIG.CHILDREN 讀取，預設為當前相簿
+     */
+    populateAlbumSelect() {
+        const albumSelect = document.getElementById('albumSelect');
+        if (!albumSelect || typeof CONFIG === 'undefined') return;
+
+        // Get current child index from localStorage
+        const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
+
+        // Generate options from CONFIG.CHILDREN
+        albumSelect.innerHTML = CONFIG.CHILDREN.map((child, index) => `
+            <option value="${child.albumId}" ${index === currentChildIndex ? 'selected' : ''}>
+                ${child.emoji} ${child.name}
+            </option>
+        `).join('');
     },
 
     addFiles(files) {

@@ -1626,3 +1626,116 @@ async function downloadCurrentPhoto() {
 }
 
 window.downloadCurrentPhoto = downloadCurrentPhoto;
+
+// =====================================================
+// ALBUM SIDEBAR (Swipe from left)
+// =====================================================
+
+/**
+ * 初始化相簿側邊欄
+ */
+function initAlbumSidebar() {
+    const sidebarAlbums = document.getElementById('sidebarAlbums');
+    if (!sidebarAlbums) return;
+
+    const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
+
+    // Render album cards
+    sidebarAlbums.innerHTML = CONFIG.CHILDREN.map((child, index) => `
+        <div class="sidebar-album-card ${index === currentChildIndex ? 'active' : ''}" 
+             onclick="switchAlbum(${index})">
+            <span class="album-card-emoji">${child.emoji}</span>
+            <div class="album-card-info">
+                <div class="album-card-name">${child.name}</div>
+                <div class="album-card-subtitle">${calculateAge(child.birthDate)}</div>
+            </div>
+        </div>
+    `).join('');
+
+    // Initialize swipe gesture
+    initSwipeGesture();
+}
+
+/**
+ * 計算年齡
+ */
+function calculateAge(birthDate) {
+    const birth = new Date(birthDate);
+    const now = new Date();
+    const years = now.getFullYear() - birth.getFullYear();
+    const months = now.getMonth() - birth.getMonth();
+
+    if (months < 0) {
+        return `${years - 1}歲${12 + months}個月`;
+    }
+    return `${years}歲${months}個月`;
+}
+
+/**
+ * 初始化滑動手勢
+ */
+function initSwipeGesture() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+
+    document.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        const touchEndY = e.changedTouches[0].screenY;
+
+        const diffX = touchEndX - touchStartX;
+        const diffY = Math.abs(touchEndY - touchStartY);
+
+        // Only trigger if horizontal swipe is significant and starts from left edge
+        if (touchStartX < 30 && diffX > 80 && diffY < 100) {
+            openAlbumSidebar();
+        }
+    }, { passive: true });
+}
+
+/**
+ * 開啟相簿側邊欄
+ */
+function openAlbumSidebar() {
+    const sidebar = document.getElementById('albumSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.add('open');
+    if (overlay) overlay.classList.add('visible');
+}
+
+/**
+ * 關閉相簿側邊欄
+ */
+function closeAlbumSidebar() {
+    const sidebar = document.getElementById('albumSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('visible');
+}
+
+/**
+ * 切換相簿
+ */
+function switchAlbum(childIndex) {
+    localStorage.setItem('timehut_current_child', childIndex);
+    closeAlbumSidebar();
+    showToast(`切換到 ${CONFIG.CHILDREN[childIndex].name} 的相簿`, 'success');
+
+    // Reload page to load new album
+    setTimeout(() => {
+        window.location.reload();
+    }, 500);
+}
+
+// Export sidebar functions
+window.openAlbumSidebar = openAlbumSidebar;
+window.closeAlbumSidebar = closeAlbumSidebar;
+window.switchAlbum = switchAlbum;
+
+// Initialize sidebar on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', initAlbumSidebar);
