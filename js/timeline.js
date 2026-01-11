@@ -135,8 +135,8 @@ async function initTimeline() {
     const tagName = urlParams.get('tag_name');
     const q = urlParams.get('q');
 
-    // Get selected child from session storage
-    const selectedChild = sessionStorage.getItem('selectedChild');
+    // Get selected child from localStorage (set by album sidebar)
+    const selectedChild = localStorage.getItem('timehut_current_child');
     TimelineState.currentChildIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
 
     // Update UI with selected child
@@ -1621,7 +1621,7 @@ async function downloadCurrentPhoto() {
         console.error('Download error:', error);
         // Fallback: open in new tab for cross-origin images
         window.open(downloadUrl, '_blank');
-        showToast('已開啟下載視窗', 'success');
+        showToast('已在新分頁開啟，請長按圖片儲存', 'info');
     }
 }
 
