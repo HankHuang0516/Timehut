@@ -606,16 +606,10 @@ img {
     position: relative;
 }
 
-/* P0: Vertical Timeline Line - Timehut Style */
+/* P0: Vertical Timeline Line - DISABLED per user request to avoid alignment issues */
 .timeline-container::before {
-    content: '';
-    position: absolute;
-    left: 40px;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: linear-gradient(to bottom, var(--color-primary), var(--color-primary-light));
-    z-index: 0;
+    display: none;
+    /* User requested removal of vertical timeline line */
 }
 
 /* P0: Date Badge - Timehut Style */
