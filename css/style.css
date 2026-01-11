@@ -3330,3 +3330,40 @@ body.select-mode .main-content {
     opacity: 1;
     visibility: visible;
 }
+
+/* Hamburger Menu Button */
+.hamburger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 8px;
+    border-radius: var(--radius-md);
+    transition: background 0.2s ease;
+}
+
+.hamburger-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.hamburger-btn:active {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.hamburger-icon {
+    font-size: 1.5rem;
+    color: var(--color-text);
+}
+
+/* Desktop: Hide hamburger button (sidebar always visible or use other navigation) */
+@media (min-width: 769px) {
+    .hamburger-btn {
+        display: flex;
+        /* Keep visible for consistency */
+    }
+}

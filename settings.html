@@ -312,11 +312,18 @@
             showToast('設定已儲存！');
         }
 
-        // 顯示 Toast
-        function showToast(message) {
+        // 顯示 Toast (with icon support)
+        function showToast(message, type = 'success') {
+            const icons = {
+                success: '✅',
+                error: '❌',
+                info: 'ℹ️'
+            };
+            const icon = icons[type] || '✅';
+
             const toast = document.createElement('div');
-            toast.className = 'toast success';
-            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `${icon} ${message}`;
             document.body.appendChild(toast);
 
             setTimeout(() => {
