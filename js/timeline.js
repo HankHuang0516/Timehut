@@ -51,7 +51,7 @@ function navigateToAlbum(momentId) {
 /**
  * 顯示 Toast 通知
  * @param {string} message - 訊息內容
- * @param {string} type - 類型 ('success' | 'error')
+ * @param {string} type - 類型 ('success' | 'error' | 'info')
  */
 function showToast(message, type = 'success') {
     // Create container if not exists
@@ -62,10 +62,18 @@ function showToast(message, type = 'success') {
         document.body.appendChild(container);
     }
 
+    // Get icon based on type
+    const icons = {
+        success: '✅',
+        error: '❌',
+        info: 'ℹ️'
+    };
+    const icon = icons[type] || '✅';
+
     // Create toast
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+    toast.innerHTML = `${icon} ${message}`;
     container.appendChild(toast);
 
     // Auto remove after 2.5s

@@ -225,13 +225,33 @@
         function calculateAge(birthDate) {
             const birth = new Date(birthDate);
             const now = new Date();
-            const years = now.getFullYear() - birth.getFullYear();
-            const months = now.getMonth() - birth.getMonth();
 
-            if (months < 0) {
-                return `${years - 1}歲${12 + months}個月`;
+            // Check for invalid date
+            if (isNaN(birth.getTime())) {
+                return '日期無效';
             }
-            return `${years}歲${months}個月`;
+
+            let years = now.getFullYear() - birth.getFullYear();
+            let months = now.getMonth() - birth.getMonth();
+
+            // Adjust for negative months
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
+
+            // Handle future birthdates
+            if (years < 0) {
+                return '尚未出生';
+            }
+
+            if (years >= 1) {
+                return `${years}歲${months}個月`;
+            } else if (months >= 1) {
+                return `${months}個月`;
+            } else {
+                return '新生兒';
+            }
         }
 
         // 取得儲存的出生日期
