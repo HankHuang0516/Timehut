@@ -1242,13 +1242,14 @@ async function savePhotoTags() {
             // Update local photo object
             photo.tags = finalTags;
             if (saveBtn) saveBtn.textContent = '✅';
+            showToast('標籤已儲存！', 'success');
             setTimeout(() => { if (saveBtn) saveBtn.textContent = originalEmoji; }, 1500);
         } else {
             throw new Error(result.error || '儲存失敗');
         }
     } catch (error) {
         console.error('Save tags error:', error);
-        alert('儲存標籤失敗：' + error.message);
+        showToast('儲存標籤失敗：' + error.message, 'error');
         if (saveBtn) saveBtn.textContent = originalEmoji;
     }
 }
@@ -1582,9 +1583,9 @@ window.populateTimeTravelMenu = populateTimeTravelMenu;
 window.showToast = showToast;
 
 /**
- * 下載當前照片
+ * 下載當前照片 - 直接下載到手機
  */
-function downloadCurrentPhoto() {
+async function downloadCurrentPhoto() {
     const photo = TimelineState.allPhotosFlat[TimelineState.currentModalIndex];
     if (!photo) {
         showToast('無法下載照片', 'error');
@@ -1598,15 +1599,30 @@ function downloadCurrentPhoto() {
         return;
     }
 
-    // Create a temporary link and trigger download
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = photo.title || `photo_${photo.id}.jpg`;
-    link.target = '_blank';
+    showToast('正在下載...', 'info');
 
-    // For cross-origin images, open in new tab
-    window.open(downloadUrl, '_blank');
-    showToast('已開啟下載視窗', 'success');
+    try {
+        // Fetch the image as blob for direct download
+        const response = await fetch(downloadUrl);
+        const blob = await response.blob();
+
+        // Create blob URL and trigger download
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = photo.title || `photo_${photo.id}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+
+        showToast('下載完成！', 'success');
+    } catch (error) {
+        console.error('Download error:', error);
+        // Fallback: open in new tab for cross-origin images
+        window.open(downloadUrl, '_blank');
+        showToast('已開啟下載視窗', 'success');
+    }
 }
 
 window.downloadCurrentPhoto = downloadCurrentPhoto;

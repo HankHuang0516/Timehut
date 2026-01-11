@@ -3188,4 +3188,28 @@ body.select-mode .main-content {
         display: flex;
         gap: 4px;
     }
+
+    /* Photo modal scrollable content for mobile */
+    .photo-modal .modal-content {
+        max-height: 90vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .photo-modal .modal-info {
+        max-height: 35vh;
+        overflow-y: auto;
+        padding-bottom: 16px;
+    }
+
+    /* Ensure download button is always visible at bottom */
+    .photo-modal .modal-download-btn {
+        position: sticky;
+        bottom: 0;
+        width: calc(100% - 24px);
+        margin: 8px 12px;
+        flex-shrink: 0;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
 }
