@@ -5,7 +5,7 @@
 
 // Global state
 const TimelineState = {
-    currentChildIndex: 0,
+    currentChildIndex: parseInt(localStorage.getItem('timehut_current_child') || '0'),
     photos: [],
     groupedPhotos: [],
     currentPage: 1,
