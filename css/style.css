@@ -3132,7 +3132,7 @@ body.select-mode .main-content {
 
     /* Save tags button styling for clarity */
     .save-tags-btn {
-        min-width: 60px;
+        min-width: 80px;
         padding: 8px 12px;
         font-size: 0.9rem;
         background: linear-gradient(135deg, #22c55e, #16a34a);
@@ -3140,5 +3140,58 @@ body.select-mode .main-content {
         border: none;
         border-radius: 8px;
         cursor: pointer;
+    }
+
+    /* Hide timeline vertical line on mobile to avoid alignment issues */
+    .timeline-container::before {
+        display: none !important;
+    }
+
+    /* Hide age-group-title border-left on mobile */
+    .age-group-title {
+        border-left: none !important;
+        padding-left: 0 !important;
+    }
+
+    /* New header 2-row layout for mobile */
+    .header-mobile-stack {
+        flex-direction: column;
+        padding: 8px 12px;
+        height: auto;
+    }
+
+    .header-row-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .header-row-search {
+        width: 100%;
+    }
+
+    .header-row-search .search-box {
+        width: 100%;
+        max-width: none;
+    }
+
+    /* Enlarged logo for mobile */
+    .logo-svg-large {
+        width: 36px;
+        height: 36px;
+    }
+
+    .header-logo-large .header-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    /* Header right buttons in row */
+    .header-row-top .header-right {
+        position: static;
+        display: flex;
+        gap: 4px;
     }
 }

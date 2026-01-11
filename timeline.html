@@ -18,34 +18,38 @@
 
 <body class="timeline-page">
     <!-- Header -->
-    <header class="header">
-        <div class="header-left">
-            <a href="index.html" class="header-logo">
-                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
-                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
-                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
-                    <circle cx="24" cy="14" r="4" fill="#333" />
-                </svg>
-                <span class="header-title">黃家小屋</span>
-            </a>
+    <header class="header header-mobile-stack">
+        <div class="header-row-top">
+            <div class="header-left">
+                <a href="index.html" class="header-logo header-logo-large">
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        class="logo-svg logo-svg-large">
+                        <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
+                        <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
+                        <circle cx="24" cy="14" r="4" fill="#333" />
+                    </svg>
+                    <span class="header-title">黃家小屋</span>
+                </a>
+            </div>
+            <div class="header-right">
+                <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
+                    <span class="btn-icon">📤</span>
+                    <span class="btn-label">上傳</span>
+                </button>
+                <button class="header-btn time-travel-btn" id="timeTravelBtn" title="時光旅行"
+                    onclick="toggleTimeTravelMenu()">
+                    <span class="btn-icon">⏰</span>
+                    <span class="btn-label">時光</span>
+                </button>
+            </div>
         </div>
-        <div class="header-center">
+        <div class="header-row-search">
             <div class="search-box">
                 <span class="search-icon">🔍</span>
                 <input type="text" placeholder="搜尋照片..." id="searchInput"
                     onkeypress="if(event.key==='Enter') navigateToSearch()">
                 <button class="search-btn" onclick="navigateToSearch()" title="搜尋">搜尋</button>
             </div>
-        </div>
-        <div class="header-right" style="margin-left: auto; position: absolute; right: 8px;">
-            <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
-                <span class="btn-icon">📤</span>
-                <span class="btn-label">上傳</span>
-            </button>
-            <button class="header-btn time-travel-btn" id="timeTravelBtn" title="時光旅行" onclick="toggleTimeTravelMenu()">
-                <span class="btn-icon">⏰</span>
-                <span class="btn-label">時光</span>
-            </button>
         </div>
     </header>
 
@@ -228,7 +232,7 @@
                 <div class="modal-tags-edit" id="modalTagsEdit">
                     <div class="tags-edit-row">
                         <input type="text" id="editTagsInput" placeholder="編輯標籤（用空格分隔）">
-                        <button class="save-tags-btn" onclick="savePhotoTags()">儲存</button>
+                        <button class="save-tags-btn" onclick="savePhotoTags()">儲存標籤</button>
                     </div>
                 </div>
                 <!-- Download Button -->
