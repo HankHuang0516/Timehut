@@ -13,7 +13,8 @@ const TimelineState = {
     isLoading: false,
     currentModalIndex: 0,
     allPhotosFlat: [],
-    momentData: new Map() // Store moment data for album navigation
+    momentData: new Map(), // Store moment data for album navigation
+    SCROLL_POSITION_KEY: 'timehut_timeline_scroll_position'
 };
 
 // Selection state for batch operations
@@ -385,6 +386,15 @@ async function loadPhotos() {
     if (reloadBtn) reloadBtn.style.display = 'none';
 
     TimelineState.isLoading = false;
+
+    // Restore scroll position if returning from album page
+    const savedScrollPosition = sessionStorage.getItem(TimelineState.SCROLL_POSITION_KEY);
+    if (savedScrollPosition) {
+        setTimeout(() => {
+            window.scrollTo(0, parseInt(savedScrollPosition));
+            sessionStorage.removeItem(TimelineState.SCROLL_POSITION_KEY);
+        }, 100);
+    }
 }
 
 /**
@@ -1752,3 +1762,8 @@ window.switchAlbum = switchAlbum;
 
 // Initialize sidebar on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', initAlbumSidebar);
+
+// Save scroll position when leaving the page
+window.addEventListener('beforeunload', () => {
+    sessionStorage.setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
+});

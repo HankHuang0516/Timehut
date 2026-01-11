@@ -148,6 +148,20 @@
             background: var(--color-border);
         }
 
+        .btn-download {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
+
+        .btn-download:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         .selection-info {
             text-align: center;
             margin-bottom: var(--spacing-md);
@@ -223,6 +237,9 @@
         <div class="album-actions">
             <button class="btn-primary" id="selectModeBtn" onclick="toggleSelectMode()">
                 ☑️ 選擇模式
+            </button>
+            <button class="btn-download" id="downloadSelectedBtn" onclick="downloadSelected()" disabled>
+                ⬇️ 下載選取 (<span id="downloadCount">0</span>)
             </button>
             <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>
                 🗑️ 刪除選取 (<span id="selectedCount">0</span>)
@@ -368,7 +385,9 @@
         function updateSelectionUI() {
             const count = AlbumState.selectedPhotos.size;
             document.getElementById('selectedCount').textContent = count;
+            document.getElementById('downloadCount').textContent = count;
             document.getElementById('deleteSelectedBtn').disabled = count === 0;
+            document.getElementById('downloadSelectedBtn').disabled = count === 0;
         }
 
         function clearSelection() {
@@ -380,6 +399,48 @@
         }
 
         function cancelSelection() {
+            clearSelection();
+            toggleSelectMode();
+        }
+
+        // Batch download selected photos
+        async function downloadSelected() {
+            const count = AlbumState.selectedPhotos.size;
+            if (count === 0) return;
+
+            const downloadBtn = document.getElementById('downloadSelectedBtn');
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '下載中...';
+
+            try {
+                // Get selected photo objects
+                const selectedPhotos = AlbumState.photos.filter(p =>
+                    AlbumState.selectedPhotos.has(p.id)
+                );
+
+                // Download each photo
+                let downloaded = 0;
+                for (const photo of selectedPhotos) {
+                    const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+                    try {
+                        // Open URL in new tab for download
+                        window.open(url, '_blank');
+                        downloaded++;
+                        // Small delay between downloads
+                        await new Promise(r => setTimeout(r, 300));
+                    } catch (e) {
+                        console.error('Download error:', e);
+                    }
+                }
+
+                alert(`已開啟 ${downloaded} 張照片，請長按儲存`);
+            } catch (error) {
+                console.error('Batch download error:', error);
+                alert('下載失敗: ' + error.message);
+            }
+
+            downloadBtn.disabled = false;
+            downloadBtn.innerHTML = '⬇️ 下載選取 (<span id="downloadCount">0</span>)';
             clearSelection();
             toggleSelectMode();
         }
