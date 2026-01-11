@@ -3367,3 +3367,63 @@ body.select-mode .main-content {
         /* Keep visible for consistency */
     }
 }
+
+/* =====================================================
+   SIDEBAR TAB HANDLE (Semi-circular bookmark on left edge)
+   ===================================================== */
+.sidebar-tab-handle {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    border-radius: 0 20px 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 998;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-left: none;
+}
+
+.sidebar-tab-handle:hover {
+    width: 36px;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar-tab-handle:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.sidebar-tab-handle .tab-icon {
+    font-size: 1.1rem;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    margin-left: 2px;
+}
+
+/* Hide tab when sidebar is open */
+.album-sidebar.open~.sidebar-overlay~.sidebar-tab-handle,
+.sidebar-tab-handle.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%) translateX(-100%);
+}
+
+/* Mobile: Show tab handle prominently */
+@media (max-width: 768px) {
+    .sidebar-tab-handle {
+        top: 45%;
+        height: 70px;
+        width: 24px;
+    }
+
+    .sidebar-tab-handle .tab-icon {
+        font-size: 1rem;
+    }
+}

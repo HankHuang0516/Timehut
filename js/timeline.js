@@ -1713,8 +1713,10 @@ function initSwipeGesture() {
 function openAlbumSidebar() {
     const sidebar = document.getElementById('albumSidebar');
     const overlay = document.getElementById('sidebarOverlay');
+    const tabHandle = document.getElementById('sidebarTabHandle');
     if (sidebar) sidebar.classList.add('open');
     if (overlay) overlay.classList.add('visible');
+    if (tabHandle) tabHandle.classList.add('hidden');
 }
 
 /**
@@ -1723,8 +1725,10 @@ function openAlbumSidebar() {
 function closeAlbumSidebar() {
     const sidebar = document.getElementById('albumSidebar');
     const overlay = document.getElementById('sidebarOverlay');
+    const tabHandle = document.getElementById('sidebarTabHandle');
     if (sidebar) sidebar.classList.remove('open');
     if (overlay) overlay.classList.remove('visible');
+    if (tabHandle) tabHandle.classList.remove('hidden');
 }
 
 /**
