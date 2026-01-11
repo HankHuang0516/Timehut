@@ -3177,6 +3177,14 @@ body.select-mode .main-content {
         height: 36px;
     }
 
+    .logo-img {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--color-primary);
+    }
+
     .header-logo-large .header-title {
         font-size: 1.1rem;
         font-weight: 600;
@@ -3358,6 +3366,16 @@ body.select-mode .main-content {
 .hamburger-icon {
     font-size: 1.5rem;
     color: var(--color-text);
+}
+
+/* Logo Image (replaces SVG) */
+.logo-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Desktop: Hide hamburger button (sidebar always visible or use other navigation) */
