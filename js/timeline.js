@@ -1657,35 +1657,28 @@ function initAlbumSidebar() {
     const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
 
     // Render album cards
-    sidebarAlbums.innerHTML = CONFIG.CHILDREN.map((child, index) => `
-        <div class="sidebar-album-card ${index === currentChildIndex ? 'active' : ''}" 
-             onclick="switchAlbum(${index})">
-            <span class="album-card-emoji">${child.emoji}</span>
-            <div class="album-card-info">
-                <div class="album-card-name">${child.name}</div>
-                <div class="album-card-subtitle">${calculateAge(child.birthDate)}</div>
+    sidebarAlbums.innerHTML = CONFIG.CHILDREN.map((child, index) => {
+        // Use correct calculateAge from utils.js (returns object)
+        const age = calculateAge(child.birthDate, new Date());
+        const ageString = formatAgeString(age.years, age.months, age.days);
+
+        return `
+            <div class="sidebar-album-card ${index === currentChildIndex ? 'active' : ''}" 
+                 onclick="switchAlbum(${index})">
+                <span class="album-card-emoji">${child.emoji}</span>
+                <div class="album-card-info">
+                    <div class="album-card-name">${child.name}</div>
+                    <div class="album-card-subtitle">${ageString}</div>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
     // Initialize swipe gesture
     initSwipeGesture();
 }
 
-/**
- * 計算年齡
- */
-function calculateAge(birthDate) {
-    const birth = new Date(birthDate);
-    const now = new Date();
-    const years = now.getFullYear() - birth.getFullYear();
-    const months = now.getMonth() - birth.getMonth();
-
-    if (months < 0) {
-        return `${years - 1}歲${12 + months}個月`;
-    }
-    return `${years}歲${months}個月`;
-}
+// calculateAge is defined in utils.js - DO NOT REDEFINE HERE
 
 /**
  * 初始化滑動手勢
