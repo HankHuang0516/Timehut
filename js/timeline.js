@@ -177,11 +177,15 @@ async function initTimeline() {
 function updateChildDisplay() {
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
+    // Get birthdate from localStorage or use default
+    const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
+        || child.birthDate;
+
     // Update header
     document.getElementById('currentChildName').textContent = child.name;
 
-    // Calculate current age
-    const age = calculateAge(child.birthDate, new Date());
+    // Calculate current age using saved birthdate
+    const age = calculateAge(birthDate, new Date());
     document.getElementById('currentChildAge').textContent = formatAgeString(age.years, age.months, age.days);
 
     // Update sidebar buttons
@@ -189,8 +193,8 @@ function updateChildDisplay() {
         btn.classList.toggle('active', index === TimelineState.currentChildIndex);
     });
 
-    // Build age navigation
-    buildAgeNavigation(child.birthDate);
+    // Build age navigation with saved birthdate
+    buildAgeNavigation(birthDate);
 }
 
 /**
@@ -335,8 +339,12 @@ async function loadPhotos() {
             // P0: Calculate photo batches
             TimelineState.photoBatches = calculatePhotoBatches(TimelineState.photos);
 
+            // Get birthdate from localStorage or use default
+            const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
+                || child.birthDate;
+
             // Group photos by age and render
-            TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, child.birthDate);
+            TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, birthDate);
             renderTimeline();
             updateAgeNavCounts();
 

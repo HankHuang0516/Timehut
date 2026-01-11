@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="黃家小屋 - 設定">
+    <title>黃家小屋 - 設定</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><path d='M24 4L4 16V44H44V16L24 4Z' fill='%23FFEC00'/></svg>">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .settings-page {
+            min-height: 100vh;
+            background: var(--color-background);
+            padding-bottom: 40px;
+        }
+
+        .settings-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--color-primary);
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: var(--color-surface);
+            border: none;
+            border-radius: 12px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: var(--color-primary);
+            transform: scale(1.05);
+        }
+
+        .settings-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        .settings-section {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .child-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: var(--color-background);
+            border-radius: var(--radius-lg);
+            margin-bottom: 12px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .child-card:hover {
+            border-color: var(--color-primary);
+        }
+
+        .child-emoji {
+            font-size: 2.5rem;
+        }
+
+        .child-info {
+            flex: 1;
+        }
+
+        .child-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--color-text);
+            margin-bottom: 4px;
+        }
+
+        .child-age {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+        }
+
+        .child-birthdate {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .birthdate-label {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .birthdate-input {
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .birthdate-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(255, 236, 0, 0.3);
+        }
+
+        .save-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+            color: #333;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(255, 236, 0, 0.3);
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(255, 236, 0, 0.4);
+        }
+
+        .save-btn:active {
+            transform: scale(0.98);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #333;
+            color: white;
+            border-radius: 12px;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideUp 0.3s ease;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="settings-page">
+    <div class="settings-container">
+        <div class="settings-header">
+            <a href="timeline.html" class="back-btn" title="返回">←</a>
+            <h1 class="settings-title">⚙️ 設定</h1>
+        </div>
+
+        <div class="settings-section">
+            <h2 class="section-title">👶 小孩資料</h2>
+            <div id="childrenList">
+                <!-- 動態生成 -->
+            </div>
+        </div>
+
+        <button class="save-btn" onclick="saveSettings()">
+            💾 儲存設定
+        </button>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script>
+        // 計算年齡
+        function calculateAge(birthDate) {
+            const birth = new Date(birthDate);
+            const now = new Date();
+            const years = now.getFullYear() - birth.getFullYear();
+            const months = now.getMonth() - birth.getMonth();
+
+            if (months < 0) {
+                return `${years - 1}歲${12 + months}個月`;
+            }
+            return `${years}歲${months}個月`;
+        }
+
+        // 取得儲存的出生日期
+        function getSavedBirthDate(index) {
+            const saved = localStorage.getItem(`timehut_child_${index}_birthdate`);
+            return saved || CONFIG.CHILDREN[index].birthDate;
+        }
+
+        // 渲染小孩列表
+        function renderChildren() {
+            const container = document.getElementById('childrenList');
+
+            container.innerHTML = CONFIG.CHILDREN.map((child, index) => {
+                const birthDate = getSavedBirthDate(index);
+                const age = calculateAge(birthDate);
+
+                return `
+                    <div class="child-card">
+                        <span class="child-emoji">${child.emoji}</span>
+                        <div class="child-info">
+                            <div class="child-name">${child.name}</div>
+                            <div class="child-age">目前 ${age}</div>
+                        </div>
+                        <div class="child-birthdate">
+                            <span class="birthdate-label">出生日期</span>
+                            <input type="date" 
+                                   class="birthdate-input" 
+                                   id="birthdate-${index}"
+                                   value="${birthDate}"
+                                   onchange="updateAge(${index})">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 更新年齡顯示
+        function updateAge(index) {
+            const input = document.getElementById(`birthdate-${index}`);
+            const card = input.closest('.child-card');
+            const ageEl = card.querySelector('.child-age');
+
+            if (input.value) {
+                const age = calculateAge(input.value);
+                ageEl.textContent = `目前 ${age}`;
+            }
+        }
+
+        // 儲存設定
+        function saveSettings() {
+            CONFIG.CHILDREN.forEach((child, index) => {
+                const input = document.getElementById(`birthdate-${index}`);
+                if (input && input.value) {
+                    localStorage.setItem(`timehut_child_${index}_birthdate`, input.value);
+                }
+            });
+
+            showToast('設定已儲存！');
+        }
+
+        // 顯示 Toast
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast success';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 2000);
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', renderChildren);
+    </script>
+</body>
+
+</html>
