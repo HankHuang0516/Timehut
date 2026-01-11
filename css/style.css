@@ -3107,9 +3107,14 @@ body.select-mode .main-content {
 /* Mobile Timeline Line Alignment Fix */
 @media (max-width: 768px) {
 
+    /* Move vertical timeline line further left to avoid age header overlap */
+    .timeline-container::before {
+        left: 15px !important;
+    }
+
     /* Move age group header right to avoid vertical line overlap */
     .age-group-header {
-        padding-left: 50px !important;
+        padding-left: 35px !important;
         margin-left: 0 !important;
     }
 
