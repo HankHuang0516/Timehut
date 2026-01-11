@@ -3103,3 +3103,37 @@ body.select-mode .main-content {
 .modal-download-btn:active {
     transform: scale(0.98);
 }
+
+/* Mobile Timeline Line Alignment Fix */
+@media (max-width: 768px) {
+
+    /* Move age group header right to avoid vertical line overlap */
+    .age-group-header {
+        padding-left: 50px !important;
+        margin-left: 0 !important;
+    }
+
+    .age-group-title {
+        margin-left: 5px !important;
+    }
+
+    /* Ensure download button is visible in photo modal */
+    .modal-download-btn {
+        display: block !important;
+        width: calc(100% - 32px);
+        margin: 12px 16px;
+        z-index: 100;
+    }
+
+    /* Save tags button styling for clarity */
+    .save-tags-btn {
+        min-width: 60px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+}
