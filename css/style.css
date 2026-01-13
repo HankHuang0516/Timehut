@@ -893,6 +893,12 @@ img {
     inset: 0;
     background: var(--color-overlay);
     backdrop-filter: blur(4px);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.modal-overlay:hover {
+    background: rgba(0, 0, 0, 0.85);
 }
 
 .modal-content {
@@ -2698,17 +2704,22 @@ body.select-mode .main-content {
     }
 
     .modal-nav {
-        width: 36px;
-        height: 36px;
-        font-size: 1.5rem;
+        width: 44px;
+        height: 44px;
+        font-size: 1.8rem;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        opacity: 0.9;
+        display: flex; /* Ensure arrows are visible */
     }
 
     .modal-prev {
-        left: -5px;
+        left: 8px;
     }
 
     .modal-next {
-        right: -5px;
+        right: 8px;
     }
 
     /* Upload modal */
@@ -2894,8 +2905,16 @@ body.select-mode .main-content {
         gap: 4px;
     }
 
+    .photo-card .photo-meta span {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .photo-card .photo-tags {
         max-width: 100%;
+        white-space: nowrap;
     }
 }
 
