@@ -2652,7 +2652,7 @@ body.select-mode .main-content {
 
     /* Adjust main content margin */
     .main-content {
-        margin-top: calc(var(--header-height) + 44px);
+        margin-top: calc(var(--header-height) + 76px); /* Increase buffer by 32px to prevent header overlap */
     }
 
     /* Modal adjustments */
