@@ -3331,12 +3331,14 @@ body.select-mode .main-content {
     z-index: 999;
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;
     transition: all 0.3s ease;
 }
 
 .sidebar-overlay.visible {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
 }
 
 /* Hamburger Menu Button */

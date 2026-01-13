@@ -12,6 +12,8 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         .album-page-content {
             max-width: 1200px;
@@ -403,14 +405,14 @@
             toggleSelectMode();
         }
 
-        // Batch download selected photos
+        // Batch download selected photos as ZIP
         async function downloadSelected() {
             const count = AlbumState.selectedPhotos.size;
             if (count === 0) return;
 
             const downloadBtn = document.getElementById('downloadSelectedBtn');
             downloadBtn.disabled = true;
-            downloadBtn.textContent = '下載中...';
+            downloadBtn.textContent = '準備下載...';
 
             try {
                 // Get selected photo objects
@@ -418,22 +420,64 @@
                     AlbumState.selectedPhotos.has(p.id)
                 );
 
-                // Download each photo
-                let downloaded = 0;
-                for (const photo of selectedPhotos) {
-                    const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+                // Create ZIP file using JSZip
+                const zip = new JSZip();
+                let successCount = 0;
+                let failCount = 0;
+
+                // Fetch and add each photo to ZIP
+                for (let i = 0; i < selectedPhotos.length; i++) {
+                    const photo = selectedPhotos[i];
+                    downloadBtn.textContent = `下載中... (${i + 1}/${selectedPhotos.length})`;
+
                     try {
-                        // Open URL in new tab for download
-                        window.open(url, '_blank');
-                        downloaded++;
-                        // Small delay between downloads
-                        await new Promise(r => setTimeout(r, 300));
+                        const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+
+                        // Fetch image as blob
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error('下載失敗');
+
+                        const blob = await response.blob();
+
+                        // Extract filename from URL or use photo ID
+                        const urlParts = url.split('/');
+                        const filename = urlParts[urlParts.length - 1] || `photo_${photo.id}.jpg`;
+
+                        // Add to ZIP
+                        zip.file(filename, blob);
+                        successCount++;
                     } catch (e) {
-                        console.error('Download error:', e);
+                        console.error('Error downloading photo:', photo.id, e);
+                        failCount++;
                     }
                 }
 
-                alert(`已開啟 ${downloaded} 張照片，請長按儲存`);
+                if (successCount === 0) {
+                    alert('所有照片下載失敗，請稍後再試');
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = '⬇️ 下載選取 (<span id="downloadCount">0</span>)';
+                    return;
+                }
+
+                // Generate ZIP and trigger download
+                downloadBtn.textContent = '打包中...';
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+                // Create download link
+                const downloadUrl = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `照片_${new Date().toISOString().split('T')[0]}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(downloadUrl);
+
+                const message = failCount > 0
+                    ? `成功下載 ${successCount} 張，失敗 ${failCount} 張`
+                    : `成功下載 ${successCount} 張照片`;
+                alert(message);
+
             } catch (error) {
                 console.error('Batch download error:', error);
                 alert('下載失敗: ' + error.message);
