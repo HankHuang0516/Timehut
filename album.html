@@ -267,6 +267,7 @@
     <div class="photo-modal" id="photoModal">
         <div class="modal-overlay" onclick="closeModal()"></div>
         <div class="modal-content">
+            <div class="modal-page-indicator" id="modalPageIndicator">1 / 1</div>
             <button class="modal-close" onclick="closeModal()">✕</button>
             <button class="modal-nav modal-prev" onclick="navigatePhoto(-1)">‹</button>
             <img src="" alt="" class="modal-image" id="modalImage">
@@ -573,6 +574,12 @@
             document.getElementById('modalImage').src = FlickrAPI.getPhotoUrl(photo, 'l') || FlickrAPI.getPhotoUrl(photo, 'm');
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
             document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
+
+            // Update page indicator (e.g., "1 / 10")
+            const pageIndicator = document.getElementById('modalPageIndicator');
+            if (pageIndicator) {
+                pageIndicator.textContent = `${index + 1} / ${AlbumState.photos.length}`;
+            }
 
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';

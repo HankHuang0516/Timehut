@@ -780,6 +780,12 @@ function openModal(index) {
         editTagsInput.value = displayTags;
     }
 
+    // Update page indicator (e.g., "1 / 10")
+    const pageIndicator = document.getElementById('modalPageIndicator');
+    if (pageIndicator) {
+        pageIndicator.textContent = `${index + 1} / ${TimelineState.allPhotosFlat.length}`;
+    }
+
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }

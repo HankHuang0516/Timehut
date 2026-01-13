@@ -74,6 +74,7 @@
     <div class="photo-modal" id="photoModal">
         <div class="modal-overlay" onclick="closeModal()"></div>
         <div class="modal-content">
+            <div class="modal-page-indicator" id="modalPageIndicator">1 / 1</div>
             <button class="modal-close" onclick="closeModal()">✕</button>
             <button class="modal-nav modal-prev" onclick="navigatePhoto(-1)">‹</button>
             <img src="" alt="" class="modal-image" id="modalImage">
@@ -108,7 +109,9 @@
             SearchState.query = urlParams.get('q') || '';
 
             if (SearchState.query) {
-                document.getElementById('searchInput').value = SearchState.query;
+                const searchInput = document.getElementById('searchInput');
+                searchInput.value = SearchState.query;
+                searchInput.setAttribute('value', SearchState.query);
                 await performSearch();
             } else {
                 document.getElementById('searchTitle').textContent = '請輸入搜尋關鍵字';
@@ -259,6 +262,12 @@
             modalTitle.textContent = photo.title || '未命名';
             modalDate.textContent = formatDate(photo.datetaken || photo.dateupload);
             modalTags.textContent = photo.tags ? photo.tags.split(' ').filter(t => !t.startsWith('uploader:')).join(' ') : '';
+
+            // Update page indicator (e.g., "1 / 10")
+            const pageIndicator = document.getElementById('modalPageIndicator');
+            if (pageIndicator) {
+                pageIndicator.textContent = `${index + 1} / ${SearchState.photos.length}`;
+            }
 
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
