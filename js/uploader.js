@@ -136,7 +136,167 @@ const Uploader = {
     }
 };
 
-// 上傳 UI 控制器
+};
+
+/**
+ * Background Uploader - Handles upload queue independently of the modal
+ */
+const BackgroundUploader = {
+    isUploading: false,
+    uploadQueue: [], // Array of {file, albumId, tags}
+    totalFiles: 0,
+    completedFiles: 0,
+
+    // UI Elements
+    globalBar: null,
+    progressBar: null,
+    statusText: null,
+    percentText: null,
+
+    init() {
+        this.globalBar = document.getElementById('globalUploadBar');
+        this.progressBar = document.getElementById('globalProgressBar');
+        this.statusText = document.getElementById('globalStatusText');
+        this.percentText = document.getElementById('globalPercentText');
+
+        // Prevent navigation warning
+        window.onbeforeunload = (e) => {
+            if (this.isUploading) {
+                const msg = '上傳正在進行中，離開頁面將會中斷上傳。確定要離開嗎？';
+                e.returnValue = msg;
+                return msg;
+            }
+        };
+    },
+
+    startBatch(files, options) {
+        if (this.isUploading) {
+            alert('已有上傳正在進行中');
+            return;
+        }
+
+        this.isUploading = true;
+        this.totalFiles = files.length;
+        this.completedFiles = 0;
+        this.showGlobalBar();
+
+        // Process sequentially
+        this.processQueue(files, options);
+    },
+
+    async processQueue(files, options) {
+        let successCount = 0;
+        let failCount = 0;
+        const { albumId, tags, onCompletion } = options;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+
+            // Update status text
+            this.updateStatus(`正在上傳 ${i + 1}/${files.length}: ${file.name}`);
+            this.updateProgress(0);
+
+            try {
+                // Per-file tags for individual mode handled by caller preparing 'tags'
+                // Here we assume batch tags or pre-processed logic passed down could be complex
+                // But to simplify refactor, we stick to current "one batch call" flow if possible, 
+                // OR we loop here. Current Uploader.js loops in UI. We move that loop here.
+
+                // Wait for single file upload
+                await Uploader.uploadFiles([file], {
+                    albumId,
+                    tags, // Helper: If individual mode, caller should pass specific tag for this file? 
+                    // Actually, UI logic complexity: 'individual' mode has different tags per file.
+                    // To support that, 'options' needs to be smarter or 'files' needs to be objects.
+                    onProgress: (percent) => {
+                        this.updateProgress(percent);
+                    }
+                });
+                successCount++;
+            } catch (error) {
+                console.error(`Failed: ${file.name}`, error);
+                failCount++;
+            }
+            this.completedFiles++;
+        }
+
+        this.finish(successCount, failCount);
+    },
+
+    // Refactored to support the exact logic from UploadUI:
+    // UI passes the entire logic. Actually, better to let UI do the preparation 
+    // and pass a list of "tasks" to BackgroundUploader.
+    async startTasks(tasks) {
+        // tasks: Array of { file, albumId, tags }
+        if (this.isUploading) return;
+
+        this.isUploading = true;
+        this.totalFiles = tasks.length;
+        this.completedFiles = 0;
+        this.showGlobalBar();
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < tasks.length; i++) {
+            const task = tasks[i];
+            this.updateStatus(`上傳中 (${i + 1}/${this.totalFiles}): ${task.file.name}`);
+            this.updateProgress(0);
+
+            try {
+                await Uploader.uploadFiles([task.file], {
+                    albumId: task.albumId,
+                    tags: task.tags,
+                    onProgress: (percent) => {
+                        this.updateProgress(percent);
+                    }
+                });
+                successCount++;
+            } catch (error) {
+                console.error(`Failed: ${task.file.name}`, error);
+                failCount++;
+            }
+        }
+
+        this.finish(successCount, failCount);
+    },
+
+    updateStatus(text) {
+        if (this.statusText) this.statusText.textContent = text;
+    },
+
+    updateProgress(percent) {
+        if (this.progressBar) this.progressBar.style.width = `${percent}%`;
+        if (this.percentText) this.percentText.textContent = `${Math.round(percent)}%`;
+    },
+
+    showGlobalBar() {
+        if (this.globalBar) this.globalBar.classList.add('visible');
+    },
+
+    hideGlobalBar() {
+        if (this.globalBar) this.globalBar.classList.remove('visible');
+    },
+
+    finish(success, fail) {
+        this.isUploading = false;
+        this.updateStatus('上傳完成！');
+        this.updateProgress(100);
+
+        setTimeout(() => {
+            alert(`上傳完成！\n成功：${success} 個\n失敗：${fail} 個\n頁面即將刷新以顯示新照片。`);
+            this.hideGlobalBar();
+            location.reload();
+        }, 500);
+    }
+};
+
+// Start Global Init
+document.addEventListener('DOMContentLoaded', () => {
+    BackgroundUploader.init();
+});
+
+// UI Logic
 const UploadUI = {
     modal: null,
     dropzone: null,
@@ -356,136 +516,75 @@ const UploadUI = {
 
     async startUpload() {
         console.log('startUpload called');
-        if (this.fileList.length === 0) {
-            alert('請選擇要上傳的檔案');
-            return;
-        }
-
-        const uploadBtn = document.getElementById('startUploadBtn');
-        const originalText = uploadBtn.textContent;
-        uploadBtn.disabled = true;
-        uploadBtn.textContent = '準備中...';
-
         try {
+            if (this.fileList.length === 0) {
+                alert('請選擇要上傳的檔案');
+                return;
+            }
+
+            // Close Modal immediately to allow background processing
+            this.hideUploadQueue(); // Or close entire modal?
+            // Better to close modal to show "Background" effect
+            // closeUploadModal(); // Global function from timeline.html/js? need verification. 
+            // In timeline.html we have 'closeUploadModal()' defined in script? 
+            // Actually it's an onclick handler on div, likely defined in timeline.js?
+            // Checked timeline.js, nope. timeline.html has `onclick="closeUploadModal()"` but 
+            // function might be missing or inline? 
+            // Wait, checking timeline.html... 
+            // It has `onclick="closeUploadModal()"` on overlay. 
+            // I should find where `closeUploadModal` is defined. 
+            // If not found, I can manipulate DOM directly.
+            document.getElementById('uploadModal').style.display = 'none';
+
+            // Prepare tasks
+            const tasks = [];
+
             const albumSelect = document.getElementById('albumSelect');
             let albumId = albumSelect ? albumSelect.value : '';
 
-            // Fallback to current child's album if dropdown is empty or default
+            // Fallback (same logic as before)
             if (!albumId && typeof CONFIG !== 'undefined' && typeof TimelineState !== 'undefined') {
                 const currentChild = CONFIG.CHILDREN[TimelineState.currentChildIndex];
                 if (currentChild && currentChild.albumId) {
                     albumId = currentChild.albumId;
-                    console.log('Using current child albumId:', albumId);
                 }
             }
 
-            // P1: Add uploader to tags for attribution (fixed value)
+            // Uploader tag
             const uploaderInput = document.getElementById('uploaderValue');
             const uploader = uploaderInput ? uploaderInput.value : '爸爸';
             const uploaderTag = `uploader:${uploader}`;
 
-            let successCount = 0;
-            let failCount = 0;
-
             if (this.taggingMode === 'individual') {
-                // P1: Individual mode - upload each file with its own tags
                 for (let i = 0; i < this.fileList.length; i++) {
                     const file = this.fileList[i];
                     const tagInput = document.querySelector(`input[data-file-index="${i}"]`);
                     const fileTags = tagInput ? tagInput.value : '';
                     const tags = `${uploaderTag} ${fileTags}`.trim();
-
-                    uploadBtn.textContent = `上傳中... (${i + 1}/${this.fileList.length})`;
-
-                    try {
-                        await Uploader.uploadFiles([file], {
-                            albumId,
-                            tags,
-                            onProgress: (percent) => {
-                                this.updateProgress(i, percent);
-                                if (percent >= 100) {
-                                    // 100% 後顯示處理中
-                                    const info = document.querySelector(`#queue-item-${i} .queue-size`);
-                                    if (info) info.textContent = '處理中...';
-                                }
-                            }
-                        });
-                        successCount++;
-                        // 完成後標記
-                        const item = document.getElementById(`queue-item-${i}`);
-                        if (item) item.style.opacity = '0.5';
-                    } catch (error) {
-                        console.error(`Failed to upload ${file.name}:`, error);
-                        failCount++;
-                        const info = document.querySelector(`#queue-item-${i} .queue-size`);
-                        if (info) {
-                            info.textContent = '失敗';
-                            info.style.color = 'red';
-                        }
-                    }
+                    tasks.push({ file, albumId, tags, index: i }); // Add index for progress tracking
                 }
             } else {
-                // Batch mode - all files use the same tags
                 const tagsInput = document.getElementById('tagsInput');
                 const batchTags = tagsInput ? tagsInput.value : '';
                 const tags = `${uploaderTag} ${batchTags}`.trim();
 
-                uploadBtn.textContent = '上傳中...';
-
-                // In batch mode, we update ALL progress bars simultaneously
-                const onBatchProgress = (percent) => {
-                    this.fileList.forEach((_, idx) => {
-                        this.updateProgress(idx, percent);
-                        if (percent >= 100) {
-                            const info = document.querySelector(`#queue-item-${idx} .queue-size`);
-                            if (info) info.textContent = '處理中...';
-                        }
-                    });
-                };
-
-                const result = await Uploader.uploadFiles(this.fileList, {
-                    albumId,
-                    tags,
-                    onProgress: onBatchProgress
+                this.fileList.forEach((file, index) => {
+                    tasks.push({ file, albumId, tags, index: index }); // Add index for progress tracking
                 });
-
-                console.log('Upload result:', result);
-                if (result && result.results) {
-                    successCount = result.results.filter(r => r.success).length;
-                    failCount = result.results.length - successCount;
-                } else {
-                    console.error('Unexpected result format:', result);
-                    throw new Error('伺服器回應格式錯誤');
-                }
             }
 
-            // 顯示結果
-            alert(`上傳完成！\n成功：${successCount} 個\n失敗：${failCount} 個`);
+            // Handover to BackgroundUploader
+            BackgroundUploader.startTasks(tasks);
 
-            // 清空檔案列表
+            // Clear local list
             this.fileList = [];
             this.renderFileList();
-            this.hideUploadQueue();
-
-            // 刷新頁面顯示新照片
-            if (successCount > 0) {
-                // 清除 sessionStorage 快取，確保重新載入最新資料
-                sessionStorage.removeItem('allPhotos');
-                sessionStorage.removeItem('albumPhotos');
-
-                // 等待 Flickr API 更新（通常需要幾秒）
-                alert('照片已上傳成功！頁面將在 3 秒後重新整理...');
-                setTimeout(() => location.reload(), 3000);
-            }
 
         } catch (error) {
             console.error('Critical error in startUpload:', error);
             alert('系統錯誤：' + error.message);
-        } finally {
-            if (uploadBtn) {
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = originalText;
-            }
+            // Re-open modal if failed immediately?
+            document.getElementById('uploadModal').style.display = 'flex';
         }
     },
 

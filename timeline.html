@@ -19,6 +19,22 @@
 </head>
 
 <body class="timeline-page">
+    <!-- Global Upload Progress Bar (Background) -->
+    <div class="global-upload-bar" id="globalUploadBar">
+        <div class="global-progress-info">
+            <div class="global-progress-text">
+                <span id="globalStatusText">正在上傳...</span>
+                <span id="globalPercentText">0%</span>
+            </div>
+            <div class="global-progress-track">
+                <div class="global-progress-fill" id="globalProgressBar"></div>
+            </div>
+        </div>
+        <div class="global-upload-actions">
+            <!-- P0: Allow canceling background upload -->
+            <!-- <button class="global-minimize-btn" title="取消上傳" onclick="BackgroundUploader.cancel()">✕</button> -->
+        </div>
+    </div>
     <!-- Album Sidebar (swipe from left) -->
     <div class="album-sidebar" id="albumSidebar">
         <div class="sidebar-header">
