@@ -136,8 +136,6 @@ const Uploader = {
     }
 };
 
-};
-
 /**
  * Background Uploader - Handles upload queue independently of the modal
  */
