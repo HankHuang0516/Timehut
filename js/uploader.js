@@ -89,6 +89,14 @@ const Uploader = {
 
             xhr.open('POST', `${this.apiUrl}/api/upload`);
 
+            // 設定較長的超時時間（10分鐘），影片處理需要較長時間
+            xhr.timeout = 600000;
+
+            xhr.ontimeout = () => {
+                console.error('XHR timeout - upload took too long');
+                reject(new Error('上傳超時，請稍後再試'));
+            };
+
             xhr.onload = () => {
                 console.log('XHR response status:', xhr.status);
                 console.log('XHR response text:', xhr.responseText.substring(0, 500));
@@ -112,10 +120,17 @@ const Uploader = {
                 }
             };
 
-            xhr.onerror = () => {
+            xhr.onerror = (e) => {
+                console.error('XHR onerror triggered:', e);
                 reject(new Error('網路錯誤，無法連線到伺服器'));
             };
 
+            xhr.onabort = () => {
+                console.error('XHR aborted');
+                reject(new Error('上傳被取消'));
+            };
+
+            console.log('Sending upload request to:', `${this.apiUrl}/api/upload`);
             xhr.send(formData);
         });
     }
@@ -454,7 +469,13 @@ const UploadUI = {
 
             // 刷新頁面顯示新照片
             if (successCount > 0) {
-                setTimeout(() => location.reload(), 1500);
+                // 清除 sessionStorage 快取，確保重新載入最新資料
+                sessionStorage.removeItem('allPhotos');
+                sessionStorage.removeItem('albumPhotos');
+
+                // 等待 Flickr API 更新（通常需要幾秒）
+                alert('照片已上傳成功！頁面將在 3 秒後重新整理...');
+                setTimeout(() => location.reload(), 3000);
             }
 
         } catch (error) {
