@@ -90,19 +90,24 @@ const Uploader = {
             xhr.open('POST', `${this.apiUrl}/api/upload`);
 
             xhr.onload = () => {
+                console.log('XHR response status:', xhr.status);
+                console.log('XHR response text:', xhr.responseText.substring(0, 500));
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         const data = JSON.parse(xhr.responseText);
                         resolve(data);
                     } catch (e) {
+                        console.error('Failed to parse response:', e);
                         reject(new Error('無法解析伺服器回應'));
                     }
                 } else {
                     try {
                         const errorData = JSON.parse(xhr.responseText);
+                        console.error('Server error:', errorData);
                         reject(new Error(errorData.error || `上傳失敗 (${xhr.status})`));
                     } catch (e) {
-                        reject(new Error(`上傳失敗 (${xhr.status})`));
+                        console.error('Failed to parse error response:', xhr.responseText);
+                        reject(new Error(`上傳失敗 (${xhr.status}): ${xhr.responseText.substring(0, 100)}`));
                     }
                 }
             };
@@ -429,8 +434,14 @@ const UploadUI = {
                     onProgress: onBatchProgress
                 });
 
-                successCount = result.results.filter(r => r.success).length;
-                failCount = result.results.length - successCount;
+                console.log('Upload result:', result);
+                if (result && result.results) {
+                    successCount = result.results.filter(r => r.success).length;
+                    failCount = result.results.length - successCount;
+                } else {
+                    console.error('Unexpected result format:', result);
+                    throw new Error('伺服器回應格式錯誤');
+                }
             }
 
             // 顯示結果
