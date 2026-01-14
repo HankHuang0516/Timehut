@@ -231,6 +231,7 @@ const BackgroundUploader = {
         this.isUploading = true;
         this.totalFiles = tasks.length;
         this.completedFiles = 0;
+        this.failedFiles = []; // 記錄失敗的檔案和原因
         this.showGlobalBar();
 
         let successCount = 0;
@@ -253,10 +254,34 @@ const BackgroundUploader = {
             } catch (error) {
                 console.error(`Failed: ${task.file.name}`, error);
                 failCount++;
+                // 記錄失敗原因
+                this.failedFiles.push({
+                    name: task.file.name,
+                    reason: this.translateError(error.message)
+                });
             }
         }
 
         this.finish(successCount, failCount);
+    },
+
+    /**
+     * 將 Flickr 錯誤訊息翻譯為友善的中文提示
+     */
+    translateError(errorMsg) {
+        if (errorMsg.includes('Filetype was not recognised')) {
+            return '影片格式不支援。Flickr 需要 H.264 編碼。\n建議：在 iPhone 設定 > 相機 > 格式，選擇「相容性最高」';
+        }
+        if (errorMsg.includes('File size limit')) {
+            return '檔案太大，超過 Flickr 500MB 限制';
+        }
+        if (errorMsg.includes('timeout') || errorMsg.includes('超時')) {
+            return '上傳超時，請檢查網路連線後重試';
+        }
+        if (errorMsg.includes('網路錯誤')) {
+            return '網路連線問題，請稍後重試';
+        }
+        return errorMsg;
     },
 
     updateStatus(text) {
@@ -282,9 +307,25 @@ const BackgroundUploader = {
         this.updateProgress(100);
 
         setTimeout(() => {
-            alert(`上傳完成！\n成功：${success} 個\n失敗：${fail} 個\n頁面即將刷新以顯示新照片。`);
+            let message = `上傳完成！\n成功：${success} 個\n失敗：${fail} 個`;
+
+            // 顯示失敗原因
+            if (this.failedFiles && this.failedFiles.length > 0) {
+                message += '\n\n失敗的檔案：';
+                this.failedFiles.forEach(f => {
+                    message += `\n• ${f.name}\n  原因：${f.reason}`;
+                });
+            }
+
+            if (success > 0) {
+                message += '\n\n頁面即將刷新以顯示新照片。';
+            }
+
+            alert(message);
             this.hideGlobalBar();
-            location.reload();
+            if (success > 0) {
+                location.reload();
+            }
         }, 500);
     }
 };
@@ -303,6 +344,7 @@ const UploadUI = {
     albumSelect: null,
     taggingMode: 'batch', // 'batch' or 'individual'
     individualTags: {}, // Store individual tags by file index
+    videoWarnings: {}, // Store video compatibility warnings by file index
 
     init() {
         this.modal = document.getElementById('uploadModal');
@@ -375,15 +417,56 @@ const UploadUI = {
         `).join('');
     },
 
-    addFiles(files) {
+    async addFiles(files) {
         for (const file of files) {
             // 檢查是否已存在
             if (!this.fileList.some(f => f.name === file.name && f.size === file.size)) {
+                const index = this.fileList.length;
                 this.fileList.push(file);
+
+                // 檢查影片格式相容性
+                if (file.type.startsWith('video/')) {
+                    const isCompatible = await this.checkVideoCompatibility(file);
+                    if (!isCompatible) {
+                        this.videoWarnings[index] = true;
+                    }
+                }
             }
         }
         this.renderFileList();
         this.showUploadQueue();
+    },
+
+    /**
+     * 檢查影片是否與 Flickr 相容
+     * Flickr 需要 H.264 編碼，不支援 H.265/HEVC
+     */
+    checkVideoCompatibility(file) {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+
+            const timeout = setTimeout(() => {
+                URL.revokeObjectURL(video.src);
+                resolve(false); // 超時視為可能不相容
+            }, 3000);
+
+            video.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                URL.revokeObjectURL(video.src);
+                // 如果能成功載入 metadata，通常是相容的格式
+                resolve(true);
+            };
+
+            video.onerror = () => {
+                clearTimeout(timeout);
+                URL.revokeObjectURL(video.src);
+                // 無法載入可能表示格式不支援
+                resolve(false);
+            };
+
+            video.src = URL.createObjectURL(file);
+        });
     },
 
     removeFile(index) {
@@ -409,8 +492,10 @@ const UploadUI = {
         queueList.innerHTML = this.fileList.map((file, index) => {
             const isImage = file.type.startsWith('image/');
             const isVideo = file.type.startsWith('video/');
-            const icon = isVideo ? '🎬' : '🖼️';
+            const hasWarning = this.videoWarnings[index];
+            const icon = isVideo ? (hasWarning ? '⚠️' : '🎬') : '🖼️';
             const size = this.formatFileSize(file.size);
+            const warningText = hasWarning ? '<div class="video-warning" style="color:#e67e22;font-size:0.8rem;margin-top:4px;">此影片可能使用 H.265 編碼，Flickr 可能無法處理</div>' : '';
 
             // P1: In individual mode, show per-file tag input with preserved value
             const savedTag = this.individualTags[index] || '';
@@ -426,6 +511,7 @@ const UploadUI = {
                         <span class="queue-size">${size}</span>
                         <button class="queue-remove" onclick="UploadUI.removeFile(${index})">✕</button>
                     </div>
+                    ${warningText}
                     ${tagInput}
                     <div class="progress-container">
                         <div class="progress-bar" id="progress-bar-${index}"></div>
