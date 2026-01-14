@@ -58,39 +58,61 @@ const Uploader = {
         }
     },
 
-    // 上傳檔案
-    async uploadFiles(files, options = {}) {
-        const { albumId, title, description, onProgress } = options;
+    // 上傳檔案 (Modified to use XHR for progress)
+    uploadFiles(files, options = {}) {
+        const { albumId, title, description, tags, onProgress } = options;
 
-        const formData = new FormData();
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
 
-        // 加入所有檔案
-        for (const file of files) {
-            formData.append('files', file);
-        }
-
-        if (albumId) formData.append('albumId', albumId);
-        if (title) formData.append('title', title);
-        if (description) formData.append('description', description);
-        if (options.tags) formData.append('tags', options.tags);
-
-        try {
-            const response = await fetch(`${this.apiUrl}/api/upload`, {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || '上傳失敗');
+            // 加入所有檔案
+            for (const file of files) {
+                formData.append('files', file);
             }
 
-            return data;
-        } catch (error) {
-            console.error('上傳失敗:', error);
-            throw error;
-        }
+            if (albumId) formData.append('albumId', albumId);
+            if (title) formData.append('title', title);
+            if (description) formData.append('description', description);
+            if (tags) formData.append('tags', tags);
+
+            const xhr = new XMLHttpRequest();
+
+            // 監聽上傳進度
+            if (xhr.upload) {
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (event.lengthComputable && onProgress) {
+                        const percent = (event.loaded / event.total) * 100;
+                        onProgress(percent);
+                    }
+                });
+            }
+
+            xhr.open('POST', `${this.apiUrl}/api/upload`);
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        resolve(data);
+                    } catch (e) {
+                        reject(new Error('無法解析伺服器回應'));
+                    }
+                } else {
+                    try {
+                        const errorData = JSON.parse(xhr.responseText);
+                        reject(new Error(errorData.error || `上傳失敗 (${xhr.status})`));
+                    } catch (e) {
+                        reject(new Error(`上傳失敗 (${xhr.status})`));
+                    }
+                }
+            };
+
+            xhr.onerror = () => {
+                reject(new Error('網路錯誤，無法連線到伺服器'));
+            };
+
+            xhr.send(formData);
+        });
     }
 };
 
@@ -108,6 +130,8 @@ const UploadUI = {
         this.modal = document.getElementById('uploadModal');
         this.dropzone = document.getElementById('uploadDropzone');
         this.fileInput = document.getElementById('fileInput');
+
+        this.injectStyles();
 
         if (!this.dropzone || !this.fileInput) return;
 
@@ -139,6 +163,46 @@ const UploadUI = {
 
         // Populate album select from CONFIG.CHILDREN
         this.populateAlbumSelect();
+
+        // Bind start upload button
+        const startUploadBtn = document.getElementById('startUploadBtn');
+        if (startUploadBtn) {
+            startUploadBtn.addEventListener('click', () => {
+                console.log('Start Upload button clicked');
+                this.startUpload();
+            });
+        } else {
+            console.error('Start Upload button not found');
+        }
+    },
+
+    injectStyles() {
+        const styleId = 'uploader-styles';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .progress-container {
+                    width: 100%;
+                    height: 4px;
+                    background-color: #eee;
+                    margin-top: 5px;
+                    border-radius: 2px;
+                    overflow: hidden;
+                    display: none; /* Hidden by default */
+                }
+                .progress-bar {
+                    height: 100%;
+                    background-color: #4CAF50;
+                    width: 0%;
+                    transition: width 0.2s;
+                }
+                .queue-item.uploading .progress-container {
+                    display: block;
+                }
+            `;
+            document.head.appendChild(style);
+        }
     },
 
     /**
@@ -203,12 +267,17 @@ const UploadUI = {
                 : '';
 
             return `
-                <div class="queue-item" data-index="${index}">
-                    <span class="queue-icon">${icon}</span>
-                    <span class="queue-filename">${file.name}</span>
-                    <span class="queue-size">${size}</span>
-                    <button class="queue-remove" onclick="UploadUI.removeFile(${index})">✕</button>
+                <div class="queue-item" data-index="${index}" id="queue-item-${index}">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <span class="queue-icon">${icon}</span>
+                        <span class="queue-filename">${file.name}</span>
+                        <span class="queue-size">${size}</span>
+                        <button class="queue-remove" onclick="UploadUI.removeFile(${index})">✕</button>
+                    </div>
                     ${tagInput}
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progress-bar-${index}"></div>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -275,103 +344,154 @@ const UploadUI = {
         }
     },
 
-    async startUpload() {
-        if (this.fileList.length === 0) {
-            alert('請選擇要上傳的檔案');
-            return;
-        }
-
-        const uploadBtn = document.getElementById('startUploadBtn');
-        const originalText = uploadBtn.textContent;
-        uploadBtn.disabled = true;
-        uploadBtn.textContent = '上傳中...';
-
-        try {
-            const albumSelect = document.getElementById('albumSelect');
-            let albumId = albumSelect ? albumSelect.value : '';
-
-            // Fallback to current child's album if dropdown is empty or default
-            if (!albumId && typeof CONFIG !== 'undefined' && typeof TimelineState !== 'undefined') {
-                const currentChild = CONFIG.CHILDREN[TimelineState.currentChildIndex];
-                if (currentChild && currentChild.albumId) {
-                    albumId = currentChild.albumId;
-                    console.log('Using current child albumId:', albumId);
-                }
-            }
-
-            // P1: Add uploader to tags for attribution (fixed value)
-            const uploaderInput = document.getElementById('uploaderValue');
-            const uploader = uploaderInput ? uploaderInput.value : '爸爸';
-            const uploaderTag = `uploader:${uploader}`;
-
-            let successCount = 0;
-            let failCount = 0;
-
-            if (this.taggingMode === 'individual') {
-                // P1: Individual mode - upload each file with its own tags
-                for (let i = 0; i < this.fileList.length; i++) {
-                    const file = this.fileList[i];
-                    const tagInput = document.querySelector(`input[data-file-index="${i}"]`);
-                    const fileTags = tagInput ? tagInput.value : '';
-                    const tags = `${uploaderTag} ${fileTags}`.trim();
-
-                    uploadBtn.textContent = `上傳中... (${i + 1}/${this.fileList.length})`;
-
-                    try {
-                        await Uploader.uploadFiles([file], { albumId, tags });
-                        successCount++;
-                    } catch (error) {
-                        console.error(`Failed to upload ${file.name}:`, error);
-                        failCount++;
-                    }
-                }
-            } else {
-                // Batch mode - all files use the same tags
-                const tagsInput = document.getElementById('tagsInput');
-                const batchTags = tagsInput ? tagsInput.value : '';
-                const tags = `${uploaderTag} ${batchTags}`.trim();
-
-                const result = await Uploader.uploadFiles(this.fileList, { albumId, tags });
-                successCount = result.results.filter(r => r.success).length;
-                failCount = result.results.length - successCount;
-            }
-
-            // 顯示結果
-            alert(`上傳完成！\n成功：${successCount} 個\n失敗：${failCount} 個`);
-
-            // 清空檔案列表
-            this.fileList = [];
-            this.renderFileList();
-            this.hideUploadQueue();
-
-            // 刷新頁面顯示新照片
-            if (successCount > 0) {
-                setTimeout(() => location.reload(), 1500);
-            }
-
-        } catch (error) {
-            alert('上傳失敗：' + error.message);
-        } finally {
-            uploadBtn.disabled = false;
-            uploadBtn.textContent = originalText;
+    updateProgress(index, percent) {
+        const item = document.getElementById(`queue-item-${index}`);
+        const bar = document.getElementById(`progress-bar-${index}`);
+        if (item && bar) {
+            item.classList.add('uploading');
+            bar.style.width = `${percent}%`;
         }
     },
 
-    clearQueue() {
-        this.fileList = [];
-        this.renderFileList();
-        this.hideUploadQueue();
-    }
-};
+    async startUpload() {
+        console.log('startUpload called');
+        try {
+            if (this.fileList.length === 0) {
+                alert('請選擇要上傳的檔案');
+                return;
+            }
 
-// 初始化
-document.addEventListener('DOMContentLoaded', () => {
-    UploadUI.init();
-});
+            const uploadBtn = document.getElementById('startUploadBtn');
+            const originalText = uploadBtn.textContent;
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '準備中...';
 
-// 全域函數供 HTML 調用
-function clearUploadQueue() {
-    UploadUI.clearQueue();
+            try {
+                const albumSelect = document.getElementById('albumSelect');
+                let albumId = albumSelect ? albumSelect.value : '';
+
+                // Fallback to current child's album if dropdown is empty or default
+                if (!albumId && typeof CONFIG !== 'undefined' && typeof TimelineState !== 'undefined') {
+                    const currentChild = CONFIG.CHILDREN[TimelineState.currentChildIndex];
+                    if (currentChild && currentChild.albumId) {
+                        albumId = currentChild.albumId;
+                        console.log('Using current child albumId:', albumId);
+                    }
+                }
+
+                // P1: Add uploader to tags for attribution (fixed value)
+                const uploaderInput = document.getElementById('uploaderValue');
+                const uploader = uploaderInput ? uploaderInput.value : '爸爸';
+                const uploaderTag = `uploader:${uploader}`;
+
+                let successCount = 0;
+                let failCount = 0;
+
+                if (this.taggingMode === 'individual') {
+                    // P1: Individual mode - upload each file with its own tags
+                    for (let i = 0; i < this.fileList.length; i++) {
+                        const file = this.fileList[i];
+                        const tagInput = document.querySelector(`input[data-file-index="${i}"]`);
+                        const fileTags = tagInput ? tagInput.value : '';
+                        const tags = `${uploaderTag} ${fileTags}`.trim();
+
+                        uploadBtn.textContent = `上傳中... (${i + 1}/${this.fileList.length})`;
+
+                        try {
+                            await Uploader.uploadFiles([file], {
+                                albumId,
+                                tags,
+                                onProgress: (percent) => {
+                                    this.updateProgress(i, percent);
+                                    if (percent >= 100) {
+                                        // 100% 後顯示處理中
+                                        const info = document.querySelector(`#queue-item-${i} .queue-size`);
+                                        if (info) info.textContent = '處理中...';
+                                    }
+                                }
+                            });
+                            successCount++;
+                            // 完成後標記
+                            const item = document.getElementById(`queue-item-${i}`);
+                            if (item) item.style.opacity = '0.5';
+                        } catch (error) {
+                            console.error(`Failed to upload ${file.name}:`, error);
+                            failCount++;
+                            const info = document.querySelector(`#queue-item-${i} .queue-size`);
+                            if (info) {
+                                info.textContent = '失敗';
+                                info.style.color = 'red';
+                            }
+                        }
+                    }
+                } else {
+                    // Batch mode - all files use the same tags
+                    const tagsInput = document.getElementById('tagsInput');
+                    const batchTags = tagsInput ? tagsInput.value : '';
+                    const tags = `${uploaderTag} ${batchTags}`.trim();
+
+                    uploadBtn.textContent = '上傳中...';
+
+                    // In batch mode, we update ALL progress bars simultaneously
+                    const onBatchProgress = (percent) => {
+                        this.fileList.forEach((_, idx) => {
+                            this.updateProgress(idx, percent);
+                            if (percent >= 100) {
+                                const info = document.querySelector(`#queue-item-${idx} .queue-size`);
+                                if (info) info.textContent = '處理中...';
+                            }
+                        });
+                    };
+
+                    const result = await Uploader.uploadFiles(this.fileList, {
+                        albumId,
+                        tags,
+                        onProgress: onBatchProgress
+                    });
+
+                    successCount = result.results.filter(r => r.success).length;
+                    failCount = result.results.length - successCount;
+                }
+
+                // 顯示結果
+                alert(`上傳完成！\n成功：${successCount} 個\n失敗：${failCount} 個`);
+
+                // 清空檔案列表
+                this.fileList = [];
+                this.renderFileList();
+                this.hideUploadQueue();
+
+                // 刷新頁面顯示新照片
+                if (successCount > 0) {
+                    setTimeout(() => location.reload(), 1500);
+                }
+
+            } catch (error) {
+                console.error('Critical error in startUpload:', error);
+                alert('系統錯誤：' + error.message);
+            } finally {
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = originalText;
+                }
+            }
+        },
+
+        clearQueue() {
+            this.fileList = [];
+            this.renderFileList();
+            this.hideUploadQueue();
+        }
+    };
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        UploadUI.init();
+    });
+
+    // 全域函數供 HTML 調用
+    function clearUploadQueue() {
+        UploadUI.clearQueue();
 }
 
 function startUpload() {
