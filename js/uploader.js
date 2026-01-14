@@ -131,7 +131,7 @@ const UploadUI = {
         this.dropzone = document.getElementById('uploadDropzone');
         this.fileInput = document.getElementById('fileInput');
 
-        this.injectStyles();
+        // Removed injectStyles as CSS is now in style.css
 
         if (!this.dropzone || !this.fileInput) return;
 
@@ -176,34 +176,8 @@ const UploadUI = {
         }
     },
 
-    injectStyles() {
-        const styleId = 'uploader-styles';
-        if (!document.getElementById(styleId)) {
-            const style = document.createElement('style');
-            style.id = styleId;
-            style.textContent = `
-                .progress-container {
-                    width: 100%;
-                    height: 4px;
-                    background-color: #eee;
-                    margin-top: 5px;
-                    border-radius: 2px;
-                    overflow: hidden;
-                    display: none; /* Hidden by default */
-                }
-                .progress-bar {
-                    height: 100%;
-                    background-color: #4CAF50;
-                    width: 0%;
-                    transition: width 0.2s;
-                }
-                .queue-item.uploading .progress-container {
-                    display: block;
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    },
+    // injectStyles removed
+
 
     /**
      * 填充相簿選擇下拉選單 - 從 CONFIG.CHILDREN 讀取，預設為當前相簿
@@ -278,6 +252,9 @@ const UploadUI = {
                     <div class="progress-container">
                         <div class="progress-bar" id="progress-bar-${index}"></div>
                     </div>
+                    <div style="text-align: right;">
+                        <span class="progress-text" id="progress-text-${index}"></span>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -347,9 +324,13 @@ const UploadUI = {
     updateProgress(index, percent) {
         const item = document.getElementById(`queue-item-${index}`);
         const bar = document.getElementById(`progress-bar-${index}`);
+        const text = document.getElementById(`progress-text-${index}`);
         if (item && bar) {
             item.classList.add('uploading');
             bar.style.width = `${percent}%`;
+            if (text) {
+                text.textContent = Math.round(percent) + '%';
+            }
         }
     },
 

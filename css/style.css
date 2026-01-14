@@ -3513,3 +3513,37 @@ body.select-mode .main-content {
         font-size: 1rem;
     }
 }
+/* Upload Progress */
+.progress-container {
+    width: 100%;
+    height: 4px;
+    background-color: var(--color-border);
+    margin-top: 5px;
+    border-radius: 2px;
+    overflow: hidden;
+    display: none; /* Hidden by default */
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--color-primary);
+    width: 0%;
+    transition: width 0.2s;
+}
+
+.queue-item.uploading .progress-container {
+    display: block;
+}
+
+.progress-text {
+    font-size: 0.8rem;
+    color: var(--color-primary);
+    margin-left: var(--spacing-xs);
+    font-weight: bold;
+    display: none;
+}
+
+.queue-item.uploading .progress-text {
+    display: inline;
+}
+
