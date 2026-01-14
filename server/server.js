@@ -217,11 +217,12 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
             if (albumId && photoId) {
                 console.log(`Adding photo ${photoId} to album ${albumId}...`);
                 try {
-                    await addPhotoToAlbum(photoId, albumId);
+                    await addPhotoToAlbumWithRetry(photoId, albumId);
                     console.log(`Successfully added to album.`);
                 } catch (albumError) {
-                    console.error(`Failed to add to album:`, albumError);
-                    // Don't fail the whole request, just log it
+                    console.error(`Failed to add to album after retries:`, albumError);
+                    // Add warning to results
+                    results[results.length - 1].albumError = albumError.message;
                 }
             } else {
                 console.log('Skipping album addition (no albumId or photoId).');
@@ -568,9 +569,20 @@ async function uploadToFlickr(file, title, description, tags) {
 
                 // 解析 XML 回應
                 const photoIdMatch = data.match(/<photoid>(\d+)<\/photoid>/);
+                const ticketIdMatch = data.match(/<ticketid>(\d+)<\/ticketid>/);
+
                 if (photoIdMatch) {
                     console.log('✅ 上傳成功，Photo ID:', photoIdMatch[1]);
                     resolve(photoIdMatch[1]);
+                } else if (ticketIdMatch) {
+                    console.log('✅ 上傳成功 (Async Ticket)，Ticket ID:', ticketIdMatch[1]);
+                    // Ticket ID means it's processing async. We can't add to album yet with Photo ID.
+                    // But usually for small videos it returns PhotoID. 
+                    // If we get ticket, we might treat it as "success but no ID".
+                    // For now, resolve null or throw? 
+                    // If we resolve null, the main loop will skip album adding, which is correct behavior for Ticket ID (can't add ticket to album).
+                    console.warn('Received Ticket ID. Video is processing asynchronously. Cannot add to album immediately.');
+                    resolve(null);
                 } else {
                     const errMatch = data.match(/<err code="(\d+)" msg="([^"]+)"/);
                     if (errMatch) {
@@ -639,6 +651,24 @@ async function addPhotoToAlbum(photoId, albumId) {
             })
             .catch(reject);
     });
+}
+
+/**
+ * Retry wrapper for adding photo to album
+ * Retries 3 times with 1.5s delay
+ */
+async function addPhotoToAlbumWithRetry(photoId, albumId, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            await addPhotoToAlbum(photoId, albumId);
+            return true;
+        } catch (error) {
+            console.log(`[ALBUM-RETRY] Attempt ${i + 1}/${retries} failed: ${error.message}`);
+            if (i === retries - 1) throw error;
+            // Wait 1.5s before retry
+            await new Promise(r => setTimeout(r, 1500));
+        }
+    }
 }
 
 // 設定照片拍攝日期
