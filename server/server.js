@@ -18,6 +18,10 @@ const FormData = require('form-data');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+console.log("!!!!!!!! SERVER STARTING - VERSION DEBUG - TIMESTAMP: " + Date.now() + " !!!!!!!");
+console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
 // ==================== 上傳佇列管理 ====================
 const QUEUE_FILE = path.join(__dirname, 'uploads', 'queue.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -1945,7 +1949,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #28`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #29`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
