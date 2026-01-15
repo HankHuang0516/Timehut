@@ -106,8 +106,112 @@ function getLocalPhotosForAlbum(albumId) {
 // ==================== 背景上傳 Worker ====================
 let isProcessingQueue = false;
 
+// 上傳配置
+const UPLOAD_CONFIG = {
+    maxRetries: 3,           // 最大重試次數
+    retryDelayMs: 2000,      // 重試延遲（毫秒）
+    uploadTimeoutMs: 300000, // 上傳超時 5 分鐘（大檔案需要）
+    networkCheckUrl: 'https://api.flickr.com/services/rest/?method=flickr.test.echo&api_key=' + (process.env.FLICKR_API_KEY || ''),
+};
+
 /**
- * 處理上傳佇列（背景執行）
+ * 判斷錯誤是否可重試
+ */
+function isRetryableError(error) {
+    const retryablePatterns = [
+        /ECONNRESET/i,
+        /ETIMEDOUT/i,
+        /ENOTFOUND/i,
+        /ENETUNREACH/i,
+        /ECONNREFUSED/i,
+        /socket hang up/i,
+        /network/i,
+        /timeout/i,
+        /EPIPE/i,
+        /EAI_AGAIN/i,
+        /502/i,
+        /503/i,
+        /504/i,
+    ];
+
+    const errorStr = error.message || error.toString();
+    return retryablePatterns.some(pattern => pattern.test(errorStr));
+}
+
+/**
+ * 延遲函數
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 檢查網路連線
+ */
+async function checkNetworkConnectivity() {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(UPLOAD_CONFIG.networkCheckUrl, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        return response.ok;
+    } catch (error) {
+        console.log('[NETWORK] Connectivity check failed:', error.message);
+        return false;
+    }
+}
+
+/**
+ * 帶重試的上傳到 Flickr
+ */
+async function uploadToFlickrWithRetry(file, title, description, tags, maxRetries = UPLOAD_CONFIG.maxRetries) {
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`[UPLOAD] Attempt ${attempt}/${maxRetries} for ${file.originalname}`);
+
+            // 如果不是第一次嘗試，先檢查網路
+            if (attempt > 1) {
+                const isOnline = await checkNetworkConnectivity();
+                if (!isOnline) {
+                    console.log(`[UPLOAD] Network offline, waiting before retry...`);
+                    await delay(UPLOAD_CONFIG.retryDelayMs * attempt);
+                    continue;
+                }
+            }
+
+            const photoId = await uploadToFlickr(file, title, description, tags);
+            return photoId;
+
+        } catch (error) {
+            lastError = error;
+            console.error(`[UPLOAD] Attempt ${attempt} failed:`, error.message);
+
+            // 判斷是否可重試
+            if (!isRetryableError(error)) {
+                console.log(`[UPLOAD] Non-retryable error, giving up`);
+                throw error;
+            }
+
+            // 如果還有重試機會，等待後重試
+            if (attempt < maxRetries) {
+                const waitTime = UPLOAD_CONFIG.retryDelayMs * attempt;
+                console.log(`[UPLOAD] Retryable error, waiting ${waitTime}ms before retry...`);
+                await delay(waitTime);
+            }
+        }
+    }
+
+    throw lastError || new Error('Upload failed after all retries');
+}
+
+/**
+ * 處理上傳佇列（背景執行）- 增強版
  */
 async function processUploadQueue() {
     if (isProcessingQueue) {
@@ -126,44 +230,62 @@ async function processUploadQueue() {
         return;
     }
 
+    // 先檢查網路連線
+    const isOnline = await checkNetworkConnectivity();
+    if (!isOnline) {
+        console.log('[WORKER] Network appears offline, scheduling retry in 30 seconds...');
+        setTimeout(() => processUploadQueue().catch(console.error), 30000);
+        return;
+    }
+
     isProcessingQueue = true;
     console.log(`[WORKER] Starting to process ${pendingItems.length} pending uploads...`);
+
+    let successCount = 0;
+    let failCount = 0;
+    let retryLaterCount = 0;
 
     for (const item of pendingItems) {
         try {
             console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
 
-            // 更新狀態為上傳中
-            updateQueueItem(item.localId, { status: 'uploading' });
+            // 更新狀態為上傳中，記錄嘗試次數
+            const retryCount = (item.retryCount || 0) + 1;
+            updateQueueItem(item.localId, {
+                status: 'uploading',
+                retryCount,
+                lastAttempt: new Date().toISOString()
+            });
 
             // 檢查檔案是否存在
             if (!fs.existsSync(item.localPath)) {
                 console.error(`[WORKER] File not found: ${item.localPath}`);
                 updateQueueItem(item.localId, {
                     status: 'error',
-                    error: 'File not found'
+                    error: 'File not found (永久錯誤)'
                 });
+                failCount++;
                 continue;
             }
 
-            // 上傳到 Flickr
+            // 上傳到 Flickr（帶重試）
             const file = {
                 path: item.localPath,
                 originalname: item.originalFilename,
                 mimetype: item.mimetype
             };
 
-            const photoId = await uploadToFlickr(file, item.title, item.description, item.tags);
+            const photoId = await uploadToFlickrWithRetry(file, item.title, item.description, item.tags);
             console.log(`[WORKER] Uploaded to Flickr, photoId: ${photoId}`);
 
             if (photoId) {
-                // 加入相簿
+                // 加入相簿（帶重試）
                 if (item.albumId) {
                     try {
                         await addPhotoToAlbumWithRetry(photoId, item.albumId);
                         console.log(`[WORKER] Added to album ${item.albumId}`);
                     } catch (albumError) {
-                        console.error(`[WORKER] Failed to add to album:`, albumError);
+                        console.error(`[WORKER] Failed to add to album (will continue):`, albumError.message);
                     }
                 }
 
@@ -172,7 +294,7 @@ async function processUploadQueue() {
                     try {
                         await setPhotoDate(photoId, item.date);
                     } catch (dateError) {
-                        console.error(`[WORKER] Failed to set date:`, dateError);
+                        console.error(`[WORKER] Failed to set date (will continue):`, dateError.message);
                     }
                 }
 
@@ -188,12 +310,13 @@ async function processUploadQueue() {
                     fs.unlinkSync(item.localPath);
                     console.log(`[WORKER] Deleted local file: ${item.localPath}`);
                 } catch (e) {
-                    console.error(`[WORKER] Failed to delete local file:`, e);
+                    console.error(`[WORKER] Failed to delete local file:`, e.message);
                 }
 
                 // 從佇列移除已完成的項目
                 removeFromQueue(item.localId);
-                console.log(`[WORKER] Completed: ${item.originalFilename}`);
+                console.log(`[WORKER] ✅ Completed: ${item.originalFilename}`);
+                successCount++;
 
             } else {
                 // Flickr 返回 null（可能是影片處理中）
@@ -201,19 +324,47 @@ async function processUploadQueue() {
                     status: 'processing',
                     message: 'Video is being processed by Flickr'
                 });
+                console.log(`[WORKER] ⏳ Video processing: ${item.originalFilename}`);
             }
 
         } catch (error) {
-            console.error(`[WORKER] Error processing ${item.localId}:`, error);
-            updateQueueItem(item.localId, {
-                status: 'error',
-                error: error.message
-            });
+            console.error(`[WORKER] Error processing ${item.localId}:`, error.message);
+
+            const retryCount = (item.retryCount || 0);
+            const isRetryable = isRetryableError(error);
+
+            if (isRetryable && retryCount < 5) {
+                // 可重試錯誤，標記為 pending 稍後重試
+                updateQueueItem(item.localId, {
+                    status: 'pending',
+                    error: `${error.message} (將自動重試)`,
+                    retryCount: retryCount
+                });
+                retryLaterCount++;
+                console.log(`[WORKER] ⏳ Will retry later: ${item.originalFilename} (attempt ${retryCount})`);
+            } else {
+                // 永久錯誤或超過重試次數
+                updateQueueItem(item.localId, {
+                    status: 'error',
+                    error: isRetryable ? `${error.message} (已達最大重試次數)` : error.message
+                });
+                failCount++;
+                console.log(`[WORKER] ❌ Failed permanently: ${item.originalFilename}`);
+            }
         }
+
+        // 每個檔案之間稍微延遲，避免過快請求
+        await delay(500);
     }
 
     isProcessingQueue = false;
-    console.log('[WORKER] Queue processing completed');
+    console.log(`[WORKER] Queue processing completed: ${successCount} success, ${failCount} failed, ${retryLaterCount} retry later`);
+
+    // 如果有需要重試的項目，30 秒後再次處理
+    if (retryLaterCount > 0) {
+        console.log(`[WORKER] Scheduling retry for ${retryLaterCount} items in 30 seconds...`);
+        setTimeout(() => processUploadQueue().catch(console.error), 30000);
+    }
 }
 
 /**
@@ -927,6 +1078,11 @@ async function uploadToFlickr(file, title, description, tags) {
         const FormData = require('form-data');
         const form = new FormData();
 
+        // 設定超時
+        const UPLOAD_TIMEOUT = UPLOAD_CONFIG.uploadTimeoutMs; // 5 分鐘
+        let timeoutId;
+        let isCompleted = false;
+
         // 準備 OAuth 簽名參數
         const uploadUrl = 'https://up.flickr.com/services/upload/';
         const timestamp = Math.floor(Date.now() / 1000);
@@ -985,15 +1141,26 @@ async function uploadToFlickr(file, title, description, tags) {
             headers: {
                 ...form.getHeaders(),
                 'Authorization': authHeader
-            }
+            },
+            timeout: UPLOAD_TIMEOUT
         };
 
         const req = https.request(options, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
+                if (isCompleted) return;
+                isCompleted = true;
+                clearTimeout(timeoutId);
+
                 console.log('Flickr Upload Response Status:', res.statusCode);
                 console.log('Flickr Upload Response:', data.substring(0, 500));
+
+                // 檢查 HTTP 狀態碼
+                if (res.statusCode >= 500) {
+                    reject(new Error(`Flickr server error: ${res.statusCode}`));
+                    return;
+                }
 
                 // 解析 XML 回應
                 const photoIdMatch = data.match(/<photoid>(\d+)<\/photoid>/);
@@ -1004,12 +1171,7 @@ async function uploadToFlickr(file, title, description, tags) {
                     resolve(photoIdMatch[1]);
                 } else if (ticketIdMatch) {
                     console.log('✅ 上傳成功 (Async Ticket)，Ticket ID:', ticketIdMatch[1]);
-                    // Ticket ID means it's processing async. We can't add to album yet with Photo ID.
-                    // But usually for small videos it returns PhotoID. 
-                    // If we get ticket, we might treat it as "success but no ID".
-                    // For now, resolve null or throw? 
-                    // If we resolve null, the main loop will skip album adding, which is correct behavior for Ticket ID (can't add ticket to album).
-                    console.warn('Received Ticket ID. Video is processing asynchronously. Cannot add to album immediately.');
+                    console.warn('Received Ticket ID. Video is processing asynchronously.');
                     resolve(null);
                 } else {
                     const errMatch = data.match(/<err code="(\d+)" msg="([^"]+)"/);
@@ -1024,7 +1186,34 @@ async function uploadToFlickr(file, title, description, tags) {
             });
         });
 
-        req.on('error', reject);
+        // 超時處理
+        timeoutId = setTimeout(() => {
+            if (!isCompleted) {
+                isCompleted = true;
+                req.destroy();
+                reject(new Error(`Upload timeout after ${UPLOAD_TIMEOUT / 1000} seconds`));
+            }
+        }, UPLOAD_TIMEOUT);
+
+        // 請求超時事件
+        req.on('timeout', () => {
+            if (!isCompleted) {
+                isCompleted = true;
+                clearTimeout(timeoutId);
+                req.destroy();
+                reject(new Error('Request timeout'));
+            }
+        });
+
+        // 錯誤處理
+        req.on('error', (err) => {
+            if (!isCompleted) {
+                isCompleted = true;
+                clearTimeout(timeoutId);
+                reject(err);
+            }
+        });
+
         form.pipe(req);
     });
 }
