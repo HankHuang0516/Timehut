@@ -1113,7 +1113,59 @@ app.get('/api/album/:id/photos', async (req, res) => {
     }
 });
 
-// ==================== Flickr API 函數 ====================
+// 取得照片尺寸/影片來源 (Proxy)
+app.get('/api/photo/:id/sizes', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { id } = req.params;
+    const url = 'https://api.flickr.com/services/rest/';
+
+    // 參數準備
+    const params = {
+        method: 'flickr.photos.getSizes',
+        api_key: process.env.FLICKR_API_KEY,
+        photo_id: id,
+        format: 'json',
+        nojsoncallback: '1',
+        oauth_consumer_key: process.env.FLICKR_API_KEY,
+        oauth_token: oauthTokens.accessToken,
+        oauth_signature_method: 'HMAC-SHA1',
+        oauth_timestamp: Math.floor(Date.now() / 1000),
+        oauth_nonce: Math.random().toString(36).substring(2),
+        oauth_version: '1.0'
+    };
+
+    try {
+        // 建立簽名
+        constcrypto = require('crypto');
+        const baseString = buildBaseString('GET', url, params);
+        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+        params.oauth_signature = signature;
+
+        // 建立 Query String
+        const queryString = Object.keys(params)
+            .sort()
+            .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+            .join('&');
+
+        const response = await fetch(`${url}?${queryString}`);
+        const data = await response.json();
+
+        if (data.stat === 'ok') {
+            res.json(data);
+        } else {
+            console.error('Flickr API Error (getSizes):', data);
+            res.status(500).json({ error: data.message });
+        }
+    } catch (error) {
+        console.error('取得 Sizes 失敗:', error);
+        res.status(500).json({ error: '伺服器內部錯誤' });
+    }
+});
+
 
 async function uploadToFlickr(file, title, description, tags) {
     return new Promise((resolve, reject) => {

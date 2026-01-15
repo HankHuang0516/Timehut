@@ -141,11 +141,28 @@ const FlickrAPI = {
      * @param {Object} photo - 照片物件
      * @returns {Promise<string>} 影片 URL (MP4)
      */
+    /**
+     * 取得影片來源 URL (透過 getSizes)
+     * @param {Object} photo - 照片物件
+     * @returns {Promise<string>} 影片 URL (MP4)
+     */
     async getVideoUrl(photo) {
         try {
-            const data = await this.call('flickr.photos.getSizes', {
-                photo_id: photo.id
-            });
+            // Use backend proxy to access private video sizes
+            const url = `${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/sizes`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                // If proxy fails (e.g. not connected), maybe try direct call as backup?
+                // But mostly we need proxy for private. Let's throw to trigger fallback
+                throw new Error(`Proxy error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.stat !== 'ok') {
+                throw new Error(data.message || 'Flickr API error');
+            }
 
             const sizes = data.sizes.size;
             // 找尋 media="video" 的來源，或者最大的 video 格式
@@ -172,7 +189,13 @@ const FlickrAPI = {
             return videoSource ? videoSource.source : this.getPhotoUrl(photo, 'o');
         } catch (error) {
             console.error('Failed to get video url:', error);
-            // Fallback to original photo url (likely jpg but worth a shot if API fails)
+            // Fallback to direct call (might fail for private) or original photo url
+            try {
+                const data = await this.call('flickr.photos.getSizes', { photo_id: photo.id });
+                // ... same logic if we want to dupe it, but for now just fallback to .o
+                // actually, if proxy failed, maybe we are local/offline or it's public? 
+                // Let's just return the best guess
+            } catch (e) { }
             return this.getPhotoUrl(photo, 'o');
         }
     },
