@@ -290,11 +290,14 @@
             <!-- Image Player -->
             <img src="" alt="" class="modal-image" id="modalImage">
 
-            <!-- Video Player -->
+            <!-- Video Player (Direct MP4) -->
             <video controls autoplay class="modal-video" id="modalVideo">
                 <source src="" type="video/mp4">
                 您的瀏覽器不支援影片標籤。
             </video>
+
+            <!-- Flickr Embedded Player (IFrame) -->
+            <iframe id="modalIframe" class="modal-video" style="border:none;" allowfullscreen></iframe>
 
             <button class="modal-nav modal-next" onclick="navigatePhoto(1)">›</button>
             <div class="modal-info">
@@ -776,32 +779,33 @@
             const modal = document.getElementById('photoModal');
             const imgEl = document.getElementById('modalImage');
             const videoEl = document.getElementById('modalVideo');
+            const iframeEl = document.getElementById('modalIframe');
 
             const isVideo = photo.media === 'video';
             const originalUrl = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
 
-            // Reset
+            // Reset all media elements
             imgEl.style.display = 'none';
             videoEl.style.display = 'none';
             videoEl.pause();
+            videoEl.src = '';
+            iframeEl.style.display = 'none';
+            iframeEl.src = '';
 
             // Show modal immediately to indicate loading
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
 
             if (isVideo) {
-                // Show loading state or placeholder if needed
-                try {
-                    const videoSrc = await FlickrAPI.getVideoUrl(photo);
-                    // Use backend proxy to bypass CORS/Auth issues for video streaming
-                    const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-video?url=${encodeURIComponent(videoSrc)}`;
-                    videoEl.src = proxyUrl;
-                    videoEl.style.display = 'block';
-                    // videoEl.play(); // Auto play if allowed
-                } catch (e) {
-                    console.error('Video load failed', e);
-                    alert('影片載入失敗');
-                }
+                // Use Flickr's embedded player via IFrame
+                // Format: https://www.flickr.com/photos/{user_id}/{photo_id}/player
+                const flickrUserId = CONFIG.FLICKR_USER_ID || photo.owner || '158881690@N04';
+                const embedUrl = `https://www.flickr.com/photos/${flickrUserId}/${photo.id}/player`;
+
+                iframeEl.src = embedUrl;
+                iframeEl.style.display = 'block';
+                iframeEl.style.width = '90vw';
+                iframeEl.style.height = '80vh';
             } else {
                 imgEl.src = originalUrl || FlickrAPI.getPhotoUrl(photo, 'm');
                 imgEl.style.display = 'block';
