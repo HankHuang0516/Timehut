@@ -941,16 +941,46 @@ app.post('/api/album/:albumId/add_photos', async (req, res) => {
     });
 });
 
-// 圖片/影片代理 API (Streaming with Range Support)
+// 圖片/影片代理 API (Enhanced: Resolves /play/ URLs)
 app.get('/api/proxy-video', async (req, res) => {
-    const { url } = req.query;
+    let url = req.query.url;
     if (!url) return res.status(400).send('Missing url');
 
     try {
+        console.log(`[PROXY-VIDEO] Original URL: ${url}`);
+
+        // NEW: If this is a Flickr /play/ URL, resolve it first
+        if (url.includes('flickr.com') && url.includes('/play/')) {
+            console.log(`[PROXY-VIDEO] Detected /play/ URL. Attempting redirect resolution...`);
+            try {
+                const resolveResp = await fetch(url, {
+                    method: 'GET',
+                    redirect: 'follow',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.flickr.com/',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+                    }
+                });
+
+                console.log(`[PROXY-VIDEO] Resolved Status: ${resolveResp.status}, Final URL: ${resolveResp.url}`);
+                const contentType = resolveResp.headers.get('content-type');
+                console.log(`[PROXY-VIDEO] Resolved Content-Type: ${contentType}`);
+
+                if (contentType && contentType.includes('video')) {
+                    url = resolveResp.url;
+                    console.log(`[PROXY-VIDEO] Using resolved video URL.`);
+                }
+            } catch (resolveErr) {
+                console.error(`[PROXY-VIDEO] Redirect resolution failed: ${resolveErr.message}`);
+            }
+        }
+
         console.log(`[PROXY-VIDEO] Fetching URL: ${url}`);
-        // Use native fetch (Node 18+)
-        // Forward Range header
-        const headers = {};
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://www.flickr.com/'
+        };
         if (req.headers.range) {
             headers['Range'] = req.headers.range;
             console.log(`[PROXY-VIDEO] Range request: ${req.headers.range}`);
@@ -961,31 +991,22 @@ app.get('/api/proxy-video', async (req, res) => {
 
         if (!response.ok) {
             console.error(`[PROXY-VIDEO] Fetch failed: ${response.status} ${response.statusText} for ${url}`);
-            // If range request fails, try without range? Or just return error
             return res.status(response.status).send(`Fetch failed: ${response.statusText}`);
         }
 
-        // Forward important headers
         const contentTypes = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
         contentTypes.forEach(type => {
             const val = response.headers.get(type);
             if (val) res.setHeader(type, val);
         });
 
-        // Set disposition if it's an image or we want dl
-        // For video streaming, we usually don't force attachment unless requested
-        // res.setHeader('Content-Disposition', `inline; filename="media"`);
-
         res.status(response.status);
 
-        // Pipe the body
         if (response.body && typeof response.body.pipe === 'function') {
             response.body.pipe(res);
         } else {
-            // Fallback for native fetch (ReadableStream)
             const { Readable } = require('stream');
             if (response.body) {
-                // @ts-ignore
                 Readable.fromWeb(response.body).pipe(res);
             } else {
                 res.end();
@@ -1935,7 +1956,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #38`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #39`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
