@@ -12,7 +12,10 @@
       "Bash(railway whoami:*)",
       "Bash(railway status:*)",
       "Bash(railway redeploy:*)",
-      "Bash(railway logs:*)"
+      "Bash(railway logs:*)",
+      "Bash(git push:*)",
+      "Bash(printf:*)",
+      "Bash(node tools/update_deployment_version.js:*)"
     ]
   }
 }
