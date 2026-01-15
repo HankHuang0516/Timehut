@@ -625,6 +625,8 @@ app.post('/api/photos/delete', async (req, res) => {
     console.log(`[DELETE] Batch delete complete: ${successCount}/${photoIds.length} succeeded`);
 
     res.json({
+        success: successCount > 0,
+        deleted: successCount,
         message: `刪除完成：${successCount}/${photoIds.length} 張成功`,
         results
     });
