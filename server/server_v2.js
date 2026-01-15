@@ -1412,85 +1412,10 @@ app.post('/api/photo/:id/set_public', async (req, res) => {
 });
 
 
-// Temporary Debug Endpoint to inspect Flickr API responses directy
-app.get('/api/debug_flickr/:id', async (req, res) => {
-    const { id } = req.params;
-    const url = 'https://api.flickr.com/services/rest/';
+// Debug Endpoint REMOVED for Ghostbusting
 
-    try {
-        const results = {
-            DEBUG_VERSION: "V3-NUCLEAR",
-            step0_set_public: null,
-            step1_auth_sizes: null,
-            step2_anon_sizes: null,
-            logs: []
-        };
-        const log = (msg) => results.logs.push("FORCE_UPDATE: " + msg);
-
-        // 0. Force Public
-        try {
-            // Re-use logic from setPhotoPublic but inline for debug simplicity or call helper if available
-            // Since uploadToFlickr is below, helper might be available? 
-            // setPhotoPublic is defined in this file?
-            // Let's assume setPhotoPublic is available or re-implement
-            const setRes = await setPhotoPublic(id);
-            results.step0_set_public = setRes;
-            log(`Set Public: ${setRes}`);
-        } catch (e) {
-            results.step0_set_public = e.message;
-            log(`Set Public Failed: ${e.message}`);
-        }
-
-        // 1. Authenticated Call
-        const params = {
-            method: 'flickr.photos.getSizes',
-            api_key: process.env.FLICKR_API_KEY,
-            photo_id: id,
-            format: 'json',
-            nojsoncallback: '1',
-            oauth_consumer_key: process.env.FLICKR_API_KEY,
-            oauth_token: oauthTokens.accessToken,
-            oauth_signature_method: 'HMAC-SHA1',
-            oauth_timestamp: Math.floor(Date.now() / 1000),
-            oauth_nonce: Math.random().toString(36).substring(2),
-            oauth_version: '1.0'
-        };
-
-        const crypto = require('crypto');
-        const baseString = buildBaseString('GET', url, params);
-        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
-        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
-        params.oauth_signature = signature;
-
-        const qs = Object.keys(params).sort().map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
-        const authResp = await fetch(`${url}?${qs}`);
-        const authData = await authResp.json();
-        results.step1_auth_sizes = authData;
-
-        // Check for MP4
-        const authHasMp4 = authData.sizes && authData.sizes.size && authData.sizes.size.some(s => s.label.includes('MP4') || s.source.includes('.mp4'));
-        log(`Authenticated Has MP4: ${authHasMp4}`);
-
-        // 2. Anonymous Call
-        const anonParams = {
-            method: 'flickr.photos.getSizes',
-            api_key: process.env.FLICKR_API_KEY,
-            photo_id: id,
-            format: 'json',
-            nojsoncallback: '1'
-        };
-        const anonQs = Object.keys(anonParams).map(k => `${k}=${anonParams[k]}`).join('&');
-        const anonResp = await fetch(`${url}?${anonQs}`);
-        const anonData = await anonResp.json();
-        results.step2_anon_sizes = anonData;
-
-        const anonHasMp4 = anonData.sizes && anonData.sizes.size && anonData.sizes.size.some(s => s.label.includes('MP4') || s.source.includes('.mp4'));
-        log(`Anonymous Has MP4: ${anonHasMp4}`);
-
-        res.json(results);
-    } catch (e) {
-        res.status(500).json({ error: e.message, stack: e.stack });
-    }
+app.get('/api/version', (req, res) => {
+    res.json({ version: 'v4.0-GHOSTBUSTING', timestamp: Date.now() });
 });
 
 
