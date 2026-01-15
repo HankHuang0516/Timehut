@@ -1201,6 +1201,67 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
     }
 });
 
+// 設定照片權限為公開 API
+app.post('/api/photo/:id/set_public', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { id } = req.params;
+    const url = 'https://api.flickr.com/services/rest/';
+
+    // 參數準備
+    const params = {
+        method: 'flickr.photos.setPerms',
+        api_key: process.env.FLICKR_API_KEY,
+        photo_id: id,
+        is_public: '1',
+        is_friend: '0',
+        is_family: '0',
+        perm_comment: '3',
+        perm_addmeta: '3',
+        format: 'json',
+        nojsoncallback: '1',
+        oauth_consumer_key: process.env.FLICKR_API_KEY,
+        oauth_token: oauthTokens.accessToken,
+        oauth_signature_method: 'HMAC-SHA1',
+        oauth_timestamp: Math.floor(Date.now() / 1000),
+        oauth_nonce: Math.random().toString(36).substring(2),
+        oauth_version: '1.0'
+    };
+
+    try {
+        const crypto = require('crypto');
+        const baseString = buildBaseString('POST', url, params);
+        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+        params.oauth_signature = signature;
+
+        const formData = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            formData.append(key, value);
+        });
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        });
+        const data = await response.json();
+
+        if (data.stat === 'ok') {
+            console.log(`[PERMS] Set public for photo ${id}: Success`);
+            res.json({ success: true, message: 'Permissions updated to public' });
+        } else {
+            console.error('Flickr API Error (setPerms):', data);
+            res.status(500).json({ error: data.message });
+        }
+    } catch (error) {
+        console.error('設定權限失敗:', error);
+        res.status(500).json({ error: '伺服器內部錯誤' });
+    }
+});
+
 
 async function uploadToFlickr(file, title, description, tags) {
     return new Promise((resolve, reject) => {
@@ -1665,7 +1726,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #9`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #10`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
