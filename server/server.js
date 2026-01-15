@@ -1293,38 +1293,57 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
                 const videoSizes = data.sizes.size.filter(s => s.media === 'video');
                 console.log(`[getSizes] Video ${id} available sizes:`, videoSizes.map(s => `${s.label}: ${s.source?.substring(0, 80)}...`));
 
-                // Try to resolve the 1080p or best quality video URL
-                const preferredLabels = ['1080p', '720p', '360p'];
-                for (const label of preferredLabels) {
-                    const videoSize = videoSizes.find(s => s.label === label);
-                    if (videoSize && videoSize.source) {
-                        const mp4Url = await resolveFlickrVideoUrl(videoSize.source);
-                        if (mp4Url) {
-                            // Add the resolved MP4 URL as a new size entry
-                            data.sizes.size.push({
-                                label: 'Site MP4',
-                                width: videoSize.width,
-                                height: videoSize.height,
-                                source: mp4Url,
-                                url: mp4Url,
-                                media: 'video'
-                            });
-                            console.log(`[getSizes] Added resolved Site MP4: ${mp4Url.substring(0, 80)}...`);
-                            break;
+                if (data.stat === 'ok' && isVideo && data.sizes && data.sizes.size) {
+                    // 3. Resolve /play/ URLs
+                    const videoSizes = data.sizes.size.filter(s => s.media === 'video');
+                    console.log(`[getSizes] Found ${videoSizes.length} video sizes to check.`);
+
+                    for (const s of videoSizes) {
+                        // Check widely for play URLs
+                        if (s.source && s.source.includes('/play/') && (s.label === '1080p' || s.label === '720p' || s.label === 'Video Original')) {
+                            console.log(`[getSizes] Attempting to resolve URL for ${s.label}: ${s.source}`);
+                            try {
+                                // Try GET with range 0-1 to force initial response/redirect check without full download
+                                // Native fetch 'follow' should follow redirects to the final destination
+                                const getResp = await fetch(s.source, {
+                                    headers: { 'Range': 'bytes=0-1' },
+                                    redirect: 'follow'
+                                });
+                                console.log(`[getSizes] GET Response for ${s.label}: status=${getResp.status}, final_url=${getResp.url}`);
+
+                                if (getResp.url && getResp.url.includes('.mp4')) {
+                                    console.log(`[getSizes] Resolved ${s.label} to direct MP4: ${getResp.url}`);
+                                    // UNSHIFT to put it at the top
+                                    data.sizes.size.unshift({
+                                        label: `Site MP4 Resolved (${s.label})`,
+                                        width: s.width,
+                                        height: s.height,
+                                        source: getResp.url,
+                                        url: getResp.url,
+                                        media: 'video'
+                                    });
+                                    // Keep searching? Usually one is enough, but deeper debug is good
+                                    // break; 
+                                } else {
+                                    console.log(`[getSizes] GET followed to ${getResp.url} (Not .mp4)`);
+                                }
+                            } catch (e) {
+                                console.error(`[getSizes] Resolve failed for ${s.source}:`, e);
+                            }
+                        } else {
+                            // console.log(`[getSizes] Skipping ${s.label} (${s.source})`);
                         }
                     }
+                    res.json(data);
+                } else {
+                    console.error('Flickr API Error (getSizes):', data);
+                    res.status(500).json({ error: data.message });
                 }
+            } catch (error) {
+                console.error('取得 Sizes 失敗:', error);
+                res.status(500).json({ error: '伺服器內部錯誤' });
             }
-            res.json(data);
-        } else {
-            console.error('Flickr API Error (getSizes):', data);
-            res.status(500).json({ error: data.message });
-        }
-    } catch (error) {
-        console.error('取得 Sizes 失敗:', error);
-        res.status(500).json({ error: '伺服器內部錯誤' });
-    }
-});
+        });
 
 // 設定照片權限為公開 API
 app.post('/api/photo/:id/set_public', async (req, res) => {
