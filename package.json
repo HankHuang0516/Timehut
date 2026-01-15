@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
-        "start": "node server/server_v2.js",
+        "start": "node server/server_v3.js",
         "build": "cd server && npm install",
         "cache_bust": "echo 'burst'"
     },
