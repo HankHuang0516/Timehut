@@ -1,0 +1,12 @@
+{
+    "name": "timehut-root",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "start": "node server/server.js",
+        "build": "cd server && npm install"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
