@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(node --check:*)",
+      "Bash(railway up:*)",
+      "Bash(railway --version:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway status:*)",
+      "Bash(railway redeploy:*)",
+      "Bash(railway logs:*)"
+    ]
+  }
+}

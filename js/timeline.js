@@ -1228,7 +1228,11 @@ async function batchAddToAlbum() {
 window.batchAddToAlbum = batchAddToAlbum;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', initTimeline);
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('timelineContainer')) {
+        initTimeline();
+    }
+});
 
 // Make functions globally available for onclick handlers
 window.closeModal = closeModal;

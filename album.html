@@ -67,7 +67,9 @@
             object-fit: cover;
         }
 
-        .album-photo-card .select-checkbox {
+        /* Checkbox style is managed by global style.css now if .select-mode is active */
+        /* But we keep local overrides if needed */
+        .select-checkbox {
             position: absolute;
             top: 8px;
             left: 8px;
@@ -102,82 +104,6 @@
             outline: 3px solid var(--color-primary);
         }
 
-        .album-actions {
-            display: flex;
-            gap: var(--spacing-md);
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: var(--spacing-lg);
-        }
-
-        .album-actions button {
-            padding: var(--spacing-sm) var(--spacing-lg);
-            border-radius: var(--radius-md);
-            font-weight: var(--font-weight-medium);
-            transition: all var(--transition-fast);
-        }
-
-        .btn-primary {
-            background: var(--color-primary);
-            color: var(--color-secondary);
-        }
-
-        .btn-primary:hover {
-            background: var(--color-primary-dark);
-        }
-
-        .btn-danger {
-            background: #ff4444;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #cc0000;
-        }
-
-        .btn-danger:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .btn-tag {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-        }
-
-        .btn-tag:hover {
-            background: linear-gradient(135deg, #059669, #047857);
-        }
-
-        .btn-tag:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: var(--color-background);
-            color: var(--color-text);
-            border: 1px solid var(--color-border);
-        }
-
-        .btn-secondary:hover {
-            background: var(--color-border);
-        }
-
-        .btn-download {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            color: white;
-        }
-
-        .btn-download:hover {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        }
-
-        .btn-download:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
         .selection-info {
             text-align: center;
             margin-bottom: var(--spacing-md);
@@ -186,8 +112,6 @@
         }
 
         @media (max-width: 768px) {
-
-            /* Override main-content flex layout for album page */
             .main-content.album-page-content {
                 display: block;
                 width: 100%;
@@ -210,15 +134,6 @@
                 gap: var(--spacing-xs);
             }
 
-            .album-actions {
-                flex-direction: column;
-                padding: 0 var(--spacing-sm);
-            }
-
-            .album-actions button {
-                width: 100%;
-            }
-
             .header-center {
                 display: none;
             }
@@ -239,33 +154,37 @@
             <h2 id="albumTitle" style="font-size: 1.1rem;">相集</h2>
         </div>
         <div class="header-right">
-            <a href="timeline.html" class="header-btn" title="返回時間軸">← 返回</a>
+            <!-- Select Mode Button inserted via JS or static -->
+            <button class="header-btn" id="headerSelectBtn" onclick="toggleSelectMode()" title="選擇模式">
+                <span class="btn-icon">☑️</span>
+            </button>
+            <a href="timeline.html" class="header-btn" title="返回時間軸">
+                <span class="btn-icon">↩️</span>
+            </a>
         </div>
     </header>
+
+    <!-- Selection Bar for Batch Operations -->
+    <div class="selection-bar hidden" id="selectionBar">
+        <div class="selection-info">
+            <span id="selectedCount">0</span> 張已選
+        </div>
+        <div class="selection-actions">
+            <!-- P1: Add Batch Add to Album Button -->
+            <button class="action-btn" id="batchAlbumBtn" onclick="batchAddToAlbum()">📁 加入相簿</button>
+            <!-- Existing Batch Actions -->
+            <button class="action-btn" id="downloadSelectedBtn" onclick="downloadSelected()">⬇️ 下載</button>
+            <button class="action-btn" id="tagSelectedBtn" onclick="showTagModal()">🏷️ 加標籤</button>
+            <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()">🗑️ 刪除選取</button>
+            <button class="btn-secondary" id="cancelBtn" onclick="cancelSelection()">取消</button>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="main-content album-page-content">
         <div class="album-header">
             <h2 id="momentDate">相集詳情</h2>
             <p id="momentInfo">載入中...</p>
-        </div>
-
-        <div class="album-actions">
-            <button class="btn-primary" id="selectModeBtn" onclick="toggleSelectMode()">
-                ☑️ 選擇模式
-            </button>
-            <button class="btn-download" id="downloadSelectedBtn" onclick="downloadSelected()" disabled>
-                ⬇️ 下載選取 (<span id="downloadCount">0</span>)
-            </button>
-            <button class="btn-tag" id="tagSelectedBtn" onclick="showTagModal()" disabled>
-                🏷️ 加標籤 (<span id="tagCount">0</span>)
-            </button>
-            <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>
-                🗑️ 刪除選取 (<span id="selectedCount">0</span>)
-            </button>
-            <button class="btn-secondary" id="cancelBtn" onclick="cancelSelection()" style="display: none;">
-                取消選擇
-            </button>
         </div>
 
         <div class="selection-info" id="selectionInfo" style="display: none;">
@@ -292,6 +211,9 @@
             <div class="modal-info">
                 <h3 id="modalTitle"></h3>
                 <p id="modalDate"></p>
+                <button class="modal-download-btn" id="modalDownloadBtn" onclick="downloadCurrentPhoto()" title="下載原圖">
+                    📥 下載原圖
+                </button>
             </div>
         </div>
     </div>
@@ -333,6 +255,7 @@
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/flickr.js"></script>
+    <script src="js/timeline.js"></script>
     <script>
         // Album state
         const AlbumState = {
@@ -397,12 +320,27 @@
             AlbumState.isSelectMode = !AlbumState.isSelectMode;
             document.body.classList.toggle('select-mode', AlbumState.isSelectMode);
 
-            document.getElementById('selectModeBtn').textContent = AlbumState.isSelectMode ? '✅ 選擇中...' : '☑️ 選擇模式';
-            document.getElementById('cancelBtn').style.display = AlbumState.isSelectMode ? 'inline-block' : 'none';
-            document.getElementById('selectionInfo').style.display = AlbumState.isSelectMode ? 'block' : 'none';
+            // Toggle Selection Bar
+            const selectionBar = document.getElementById('selectionBar');
+            if (AlbumState.isSelectMode) {
+                selectionBar.classList.remove('hidden');
+                document.getElementById('selectionInfo').style.display = 'block';
 
-            if (!AlbumState.isSelectMode) {
+                const btn = document.getElementById('headerSelectBtn');
+                if (btn) {
+                    btn.classList.add('active');
+                    btn.innerHTML = '<span class="btn-icon">✅</span>';
+                }
+            } else {
+                selectionBar.classList.add('hidden');
+                document.getElementById('selectionInfo').style.display = 'none';
                 clearSelection();
+
+                const btn = document.getElementById('headerSelectBtn');
+                if (btn) {
+                    btn.classList.remove('active');
+                    btn.innerHTML = '<span class="btn-icon">☑️</span>';
+                }
             }
         }
 
@@ -425,11 +363,12 @@
         function updateSelectionUI() {
             const count = AlbumState.selectedPhotos.size;
             document.getElementById('selectedCount').textContent = count;
-            document.getElementById('downloadCount').textContent = count;
-            document.getElementById('tagCount').textContent = count;
-            document.getElementById('deleteSelectedBtn').disabled = count === 0;
-            document.getElementById('downloadSelectedBtn').disabled = count === 0;
-            document.getElementById('tagSelectedBtn').disabled = count === 0;
+            if (document.getElementById('tagModalCount'))
+                document.getElementById('tagModalCount').textContent = count;
+
+            // Enable/disable buttons
+            const btns = document.querySelectorAll('.selection-actions button:not(#cancelBtn)');
+            btns.forEach(btn => btn.disabled = count === 0);
         }
 
         function clearSelection() {
@@ -481,14 +420,13 @@
 
                 const result = await response.json();
 
-                if (result.results) {
-                    const successCount = result.results.filter(r => r.success).length;
+                if (response.ok) {
+                    const successCount = result.results ? result.results.filter(r => r.success).length : photoIds.length;
                     alert(`成功為 ${successCount}/${photoIds.length} 張照片加上標籤`);
                     closeTagModal();
-                    clearSelection();
-                    toggleSelectMode();
+                    cancelSelection();
                 } else {
-                    alert(`加標籤失敗: ${result.error || '未知錯誤'}`);
+                    alert(`加標籤失敗: ${result.error || result.message || '未知錯誤'}`);
                 }
             } catch (error) {
                 console.error('Tag error:', error);
@@ -521,35 +459,32 @@
             downloadBtn.textContent = '準備下載...';
 
             try {
-                // Get selected photo objects
                 const selectedPhotos = AlbumState.photos.filter(p =>
                     AlbumState.selectedPhotos.has(p.id)
                 );
 
-                // Create ZIP file using JSZip
                 const zip = new JSZip();
                 let successCount = 0;
                 let failCount = 0;
 
-                // Fetch and add each photo to ZIP
                 for (let i = 0; i < selectedPhotos.length; i++) {
                     const photo = selectedPhotos[i];
                     downloadBtn.textContent = `下載中... (${i + 1}/${selectedPhotos.length})`;
 
                     try {
+                        // Use proxy-image if needed or get large size
                         const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
 
-                        // Fetch image as blob
+                        // Use backend proxy to avoid CORS if needed
+                        // const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-image?url=${encodeURIComponent(url)}`;
+                        // Using direct fetch for now, mostly works with Flickr
                         const response = await fetch(url);
                         if (!response.ok) throw new Error('下載失敗');
 
                         const blob = await response.blob();
-
-                        // Extract filename from URL or use photo ID
                         const urlParts = url.split('/');
                         const filename = urlParts[urlParts.length - 1] || `photo_${photo.id}.jpg`;
 
-                        // Add to ZIP
                         zip.file(filename, blob);
                         successCount++;
                     } catch (e) {
@@ -561,15 +496,13 @@
                 if (successCount === 0) {
                     alert('所有照片下載失敗，請稍後再試');
                     downloadBtn.disabled = false;
-                    downloadBtn.innerHTML = '⬇️ 下載選取 (<span id="downloadCount">0</span>)';
+                    downloadBtn.innerHTML = '⬇️ 下載';
                     return;
                 }
 
-                // Generate ZIP and trigger download
                 downloadBtn.textContent = '打包中...';
                 const zipBlob = await zip.generateAsync({ type: 'blob' });
 
-                // Create download link
                 const downloadUrl = URL.createObjectURL(zipBlob);
                 const a = document.createElement('a');
                 a.href = downloadUrl;
@@ -583,16 +516,14 @@
                     ? `成功下載 ${successCount} 張，失敗 ${failCount} 張`
                     : `成功下載 ${successCount} 張照片`;
                 alert(message);
-
             } catch (error) {
                 console.error('Batch download error:', error);
                 alert('下載失敗: ' + error.message);
             }
 
             downloadBtn.disabled = false;
-            downloadBtn.innerHTML = '⬇️ 下載選取 (<span id="downloadCount">0</span>)';
-            clearSelection();
-            toggleSelectMode();
+            downloadBtn.innerHTML = '⬇️ 下載';
+            cancelSelection();
         }
 
         async function deleteSelected() {
@@ -621,21 +552,20 @@
 
                 const result = await response.json();
 
-                if (result.success) {
-                    // Remove deleted photos from grid
+                if (response.ok || result.success) {
                     photoIds.forEach(id => {
                         const card = document.querySelector(`.album-photo-card[data-id="${id}"]`);
                         if (card) card.remove();
-
-                        // Remove from state
                         AlbumState.photos = AlbumState.photos.filter(p => p.id !== id);
                     });
 
-                    clearSelection();
+                    cancelSelection();
                     document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
-                    alert(`成功刪除 ${result.deleted || count} 張照片`);
+
+                    const successCount = result.results ? result.results.filter(r => r.success).length : count;
+                    alert(`成功刪除 ${successCount} 張照片`);
                 } else {
-                    alert(`刪除失敗: ${result.error}`);
+                    alert(`刪除失敗: ${result.error || result.message}`);
                 }
             } catch (error) {
                 console.error('Delete error:', error);
@@ -643,8 +573,56 @@
             }
 
             deleteBtn.disabled = false;
-            deleteBtn.innerHTML = '🗑️ 刪除選取 (<span id="selectedCount">0</span>)';
-            toggleSelectMode();
+            deleteBtn.innerHTML = '🗑️ 刪除選取';
+        }
+
+        // Batch Add to Album (Ported from Timeline)
+        async function batchAddToAlbum() {
+            const count = AlbumState.selectedPhotos.size;
+            if (count === 0) return alert('請先選擇照片');
+
+            // Simple prompts for selection
+            let albumList = "請輸入目標相簿 ID 或選擇:\n";
+            CONFIG.CHILDREN.forEach((child, index) => {
+                albumList += `${index + 1}. ${child.name} (${child.emoji})\n`;
+            });
+
+            const input = prompt(albumList);
+            if (!input) return;
+
+            let albumId = input.trim();
+            const index = parseInt(input) - 1;
+            if (!isNaN(index) && CONFIG.CHILDREN[index]) {
+                albumId = CONFIG.CHILDREN[index].albumId;
+            }
+
+            if (!albumId) return alert('無效的相簿 ID');
+
+            const photoIds = Array.from(AlbumState.selectedPhotos);
+            const btn = document.getElementById('batchAlbumBtn');
+            btn.disabled = true;
+            btn.textContent = '處理中...';
+
+            try {
+                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photoIds })
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message || '加入相簿成功');
+                    cancelSelection();
+                } else {
+                    alert('加入相簿失敗: ' + (result.error || result.message));
+                }
+            } catch (error) {
+                alert('加入相簿失敗: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📁 加入相簿';
+            }
         }
 
         function showConfirmModal(title, message, confirmText = '確認') {
@@ -680,7 +658,6 @@
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
             document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
 
-            // Update page indicator (e.g., "1 / 10")
             const pageIndicator = document.getElementById('modalPageIndicator');
             if (pageIndicator) {
                 pageIndicator.textContent = `${index + 1} / ${AlbumState.photos.length}`;
@@ -688,6 +665,53 @@
 
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return dateStr;
+            const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            return `${date.getFullYear()}年${months[date.getMonth()]}${date.getDate()}日`;
+        }
+
+        async function downloadCurrentPhoto() {
+            const photo = AlbumState.photos[AlbumState.currentModalIndex];
+            if (!photo) return;
+
+            const btn = document.getElementById('modalDownloadBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ 下載中...';
+            btn.disabled = true;
+
+            try {
+                const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = photo.title || `photo_${photo.id}.jpg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(blobUrl);
+
+                btn.innerHTML = '✅ 下載完成';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 1500);
+            } catch (error) {
+                console.error('Download error:', error);
+                // Fallback
+                window.open(FlickrAPI.getPhotoUrl(photo, 'b'), '_blank');
+                btn.innerHTML = '⚠️ 已開新分頁';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 1500);
+            }
         }
 
         function closeModal() {
@@ -702,7 +726,6 @@
             }
         }
 
-        // Keyboard navigation
         document.addEventListener('keydown', (e) => {
             const modal = document.getElementById('photoModal');
             if (!modal.classList.contains('active')) return;
