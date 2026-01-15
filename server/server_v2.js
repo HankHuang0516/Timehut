@@ -22,6 +22,10 @@ console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 console.log("!!!!!!!! SERVER STARTING - VERSION DEBUG - TIMESTAMP: " + Date.now() + " !!!!!!!");
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
+app.get('/api/version', (req, res) => {
+    res.json({ version: 'v2.0-NUCLEAR-DETECTED', timestamp: Date.now() });
+});
+
 // ==================== 上傳佇列管理 ====================
 const QUEUE_FILE = path.join(__dirname, 'uploads', 'queue.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
