@@ -108,7 +108,7 @@ const FlickrAPI = {
     async getPublicPhotos(page = 1, perPage = CONFIG.PHOTOS_PER_PAGE) {
         const data = await this.call('flickr.people.getPublicPhotos', {
             user_id: CONFIG.FLICKR_USER_ID,
-            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,url_o',
+            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,url_o,media',
             page,
             per_page: perPage
         });
@@ -203,7 +203,7 @@ const FlickrAPI = {
                 text: query,
                 tags: query.replace(/\s+/g, ','),
                 tag_mode: 'any',
-                extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l',
+                extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,media',
                 page: options.page || 1,
                 per_page: options.perPage || CONFIG.PHOTOS_PER_PAGE
             });

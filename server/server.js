@@ -1020,7 +1020,7 @@ app.get('/api/album/:id/photos', async (req, res) => {
             api_key: process.env.FLICKR_API_KEY,
             user_id: process.env.FLICKR_USER_ID,
             photoset_id: id,
-            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,url_o',
+            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,url_o,media',
             page: page.toString(),
             per_page: per_page.toString(),
             format: 'json',
