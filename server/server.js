@@ -1139,7 +1139,7 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
 
     try {
         // 建立簽名
-        constcrypto = require('crypto');
+        const crypto = require('crypto');
         const baseString = buildBaseString('GET', url, params);
         const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
         const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
@@ -1184,7 +1184,7 @@ async function uploadToFlickr(file, title, description, tags) {
 
         // 非二進制的表單參數（這些需要參與簽名）
         const uploadParams = {
-            is_public: '0',
+            is_public: '1',
             is_friend: '1',
             is_family: '1'
         };
@@ -1630,7 +1630,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #3`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #4`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
