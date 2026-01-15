@@ -898,17 +898,20 @@ app.get('/api/proxy-video', async (req, res) => {
     if (!url) return res.status(400).send('Missing url');
 
     try {
+        console.log(`[PROXY-VIDEO] Fetching URL: ${url}`);
         // Use native fetch (Node 18+)
         // Forward Range header
         const headers = {};
         if (req.headers.range) {
             headers['Range'] = req.headers.range;
+            console.log(`[PROXY-VIDEO] Range request: ${req.headers.range}`);
         }
 
         const response = await fetch(url, { headers });
+        console.log(`[PROXY-VIDEO] Response status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
-            console.error(`Proxy fetch failed: ${response.status} ${response.statusText}`);
+            console.error(`[PROXY-VIDEO] Fetch failed: ${response.status} ${response.statusText} for ${url}`);
             // If range request fails, try without range? Or just return error
             return res.status(response.status).send(`Fetch failed: ${response.statusText}`);
         }
@@ -1662,7 +1665,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #6`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #7`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
