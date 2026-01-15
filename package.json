@@ -4,7 +4,8 @@
     "private": true,
     "scripts": {
         "start": "node server/server.js",
-        "build": "cd server && npm install"
+        "build": "cd server && npm install",
+        "cache_bust": "echo 'burst'"
     },
     "engines": {
         "node": ">=18.0.0"
