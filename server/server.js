@@ -1411,11 +1411,26 @@ app.get('/api/debug_flickr/:id', async (req, res) => {
 
     try {
         const results = {
+            step0_set_public: null,
             step1_auth_sizes: null,
             step2_anon_sizes: null,
             logs: []
         };
         const log = (msg) => results.logs.push(msg);
+
+        // 0. Force Public
+        try {
+            // Re-use logic from setPhotoPublic but inline for debug simplicity or call helper if available
+            // Since uploadToFlickr is below, helper might be available? 
+            // setPhotoPublic is defined in this file?
+            // Let's assume setPhotoPublic is available or re-implement
+            const setRes = await setPhotoPublic(id);
+            results.step0_set_public = setRes;
+            log(`Set Public: ${setRes}`);
+        } catch (e) {
+            results.step0_set_public = e.message;
+            log(`Set Public Failed: ${e.message}`);
+        }
 
         // 1. Authenticated Call
         const params = {
@@ -1930,7 +1945,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #26`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #27`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
