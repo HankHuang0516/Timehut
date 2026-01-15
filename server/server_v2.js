@@ -1419,6 +1419,7 @@ app.get('/api/debug_flickr/:id', async (req, res) => {
 
     try {
         const results = {
+            DEBUG_VERSION: "V3-NUCLEAR",
             step0_set_public: null,
             step1_auth_sizes: null,
             step2_anon_sizes: null,
