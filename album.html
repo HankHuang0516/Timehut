@@ -375,8 +375,22 @@
                 document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
                 document.getElementById('loadingIndicator').style.display = 'none';
                 renderPhotos();
+            } else if (AlbumState.momentId) {
+                // Fetch from API if direct link
+                try {
+                    const data = await FlickrAPI.getAlbumPhotos(AlbumState.momentId, 1, 500); // Fetch all/max
+                    AlbumState.photos = data.photos;
+                    document.getElementById('momentDate').textContent = '相集詳情'; // Default title since we don't have Moment name easily
+                    document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    renderPhotos();
+                } catch (error) {
+                    console.error('Failed to load deep link album:', error);
+                    document.getElementById('momentInfo').textContent = '無法載入相集資料';
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                }
             } else {
-                document.getElementById('momentInfo').textContent = '無法載入相集資料';
+                document.getElementById('momentInfo').textContent = '無效的相集 ID';
                 document.getElementById('loadingIndicator').style.display = 'none';
             }
         });
@@ -743,7 +757,7 @@
             });
         }
 
-        function openModal(index) {
+        async function openModal(index) {
             if (AlbumState.isSelectMode) return;
 
             AlbumState.currentModalIndex = index;
@@ -762,10 +776,21 @@
             videoEl.style.display = 'none';
             videoEl.pause();
 
+            // Show modal immediately to indicate loading
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+
             if (isVideo) {
-                videoEl.src = originalUrl;
-                videoEl.style.display = 'block';
-                // videoEl.play(); // Auto play if allowed
+                // Show loading state or placeholder if needed
+                try {
+                    const videoSrc = await FlickrAPI.getVideoUrl(photo);
+                    videoEl.src = videoSrc;
+                    videoEl.style.display = 'block';
+                    // videoEl.play(); // Auto play if allowed
+                } catch (e) {
+                    console.error('Video load failed', e);
+                    alert('影片載入失敗');
+                }
             } else {
                 imgEl.src = originalUrl || FlickrAPI.getPhotoUrl(photo, 'm');
                 imgEl.style.display = 'block';
@@ -778,9 +803,6 @@
             if (pageIndicator) {
                 pageIndicator.textContent = `${index + 1} / ${AlbumState.photos.length}`;
             }
-
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
         }
 
         function formatDate(dateStr) {

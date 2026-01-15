@@ -137,6 +137,47 @@ const FlickrAPI = {
     },
 
     /**
+     * 取得影片來源 URL (透過 getSizes)
+     * @param {Object} photo - 照片物件
+     * @returns {Promise<string>} 影片 URL (MP4)
+     */
+    async getVideoUrl(photo) {
+        try {
+            const data = await this.call('flickr.photos.getSizes', {
+                photo_id: photo.id
+            });
+
+            const sizes = data.sizes.size;
+            // 找尋 media="video" 的來源，或者最大的 video 格式
+            // 通常 label 為 "Site MP4", "Mobile MP4", "HD MP4", "Video Original"
+
+            // 優先找 Video Original
+            let videoSource = sizes.find(s => s.label === 'Video Original' && s.media === 'video');
+
+            // 其次找 HD MP4
+            if (!videoSource) {
+                videoSource = sizes.find(s => s.label === 'HD MP4' && s.media === 'video');
+            }
+
+            // 再次找 Site MP4
+            if (!videoSource) {
+                videoSource = sizes.find(s => s.label === 'Site MP4' && s.media === 'video');
+            }
+
+            // 最後隨便找一個是 video 的
+            if (!videoSource) {
+                videoSource = sizes.find(s => s.media === 'video');
+            }
+
+            return videoSource ? videoSource.source : this.getPhotoUrl(photo, 'o');
+        } catch (error) {
+            console.error('Failed to get video url:', error);
+            // Fallback to original photo url (likely jpg but worth a shot if API fails)
+            return this.getPhotoUrl(photo, 'o');
+        }
+    },
+
+    /**
      * 建構照片 URL
      * @param {Object} photo - 照片物件
      * @param {string} size - 尺寸代碼 (sq, t, s, m, l, o)
