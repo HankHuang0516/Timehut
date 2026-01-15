@@ -334,6 +334,27 @@
         // 初始化
         document.addEventListener('DOMContentLoaded', renderChildren);
     </script>
+    <!-- Version Footer -->
+    <div style="text-align: center; color: #666; padding: 20px; font-size: 0.8em; margin-top: auto;">
+        Frontend Version: <span id="fe-version">Loading...</span><br>
+        Backend Version: <span id="be-version">Checking...</span>
+    </div>
+
+    <script>
+        // Frontend Version (Using Last Modified as proxy for static site)
+        document.getElementById('fe-version').textContent = new Date(document.lastModified).toISOString().split('T')[0] + ' (Latest)';
+
+        // Backend Version (Fetch from server)
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://just-healing-production.up.railway.app';
+        fetch(`${API_BASE}/health`)
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('be-version').textContent = d.version || 'Unknown';
+            })
+            .catch(() => {
+                document.getElementById('be-version').textContent = 'Disconnected';
+            });
+    </script>
 </body>
 
 </html>

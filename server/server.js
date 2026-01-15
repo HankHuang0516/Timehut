@@ -1575,8 +1575,12 @@ async function addPhotoTags(photoId, tags) {
 }
 
 // ==================== 啟動伺服器 ====================
-
-app.listen(PORT, () => {
+// 啟動伺服器
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
+    console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
+    console.log(`Uploads directory: ${UPLOADS_DIR}`);
     console.log(`\n🏠 黃家小屋 Flickr 上傳服務 v2.0 (Staged Upload)`);
     console.log(`📡 運行於 http://localhost:${PORT}`);
     console.log(`\n狀態：`);
