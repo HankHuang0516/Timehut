@@ -67,8 +67,36 @@
             object-fit: cover;
         }
 
-        /* Checkbox style is managed by global style.css now if .select-mode is active */
-        /* But we keep local overrides if needed */
+        /* Play Icon Overlay */
+        .play-icon-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 48px;
+            height: 48px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .play-icon-overlay::after {
+            content: '';
+            display: block;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 10px 0 10px 16px;
+            border-color: transparent transparent transparent white;
+            margin-left: 4px;
+            /* Optical center */
+        }
+
+        /* Checkbox style */
         .select-checkbox {
             position: absolute;
             top: 8px;
@@ -109,6 +137,17 @@
             margin-bottom: var(--spacing-md);
             font-size: 0.9rem;
             color: var(--color-text-muted);
+        }
+
+        /* Video Player in Modal */
+        .modal-video {
+            max-width: 90vw;
+            max-height: 80vh;
+            display: none;
+        }
+
+        .modal-video.active {
+            display: block;
         }
 
         @media (max-width: 768px) {
@@ -206,7 +245,16 @@
             <div class="modal-page-indicator" id="modalPageIndicator">1 / 1</div>
             <button class="modal-close" onclick="closeModal()">✕</button>
             <button class="modal-nav modal-prev" onclick="navigatePhoto(-1)">‹</button>
+
+            <!-- Image Player -->
             <img src="" alt="" class="modal-image" id="modalImage">
+
+            <!-- Video Player -->
+            <video controls autoplay class="modal-video" id="modalVideo">
+                <source src="" type="video/mp4">
+                您的瀏覽器不支援影片標籤。
+            </video>
+
             <button class="modal-nav modal-next" onclick="navigatePhoto(1)">›</button>
             <div class="modal-info">
                 <h3 id="modalTitle"></h3>
@@ -257,7 +305,7 @@
     <script src="js/flickr.js"></script>
     <script src="js/timeline.js"></script>
     <script>
-        // Album state
+        // AlbumState updated to be more robust
         const AlbumState = {
             photos: [],
             selectedPhotos: new Set(),
@@ -298,10 +346,14 @@
                 card.dataset.index = index;
 
                 const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm');
+                // Check if it's a video
+                const isVideo = photo.media === 'video';
+                const playIconHtml = isVideo ? '<div class="play-icon-overlay"></div>' : '';
 
                 card.innerHTML = `
                     <div class="select-checkbox" onclick="event.stopPropagation(); togglePhotoSelection('${photo.id}')"></div>
                     <img src="${imgUrl}" alt="${photo.title || ''}" loading="lazy" onclick="handleCardClick(event, ${index}, '${photo.id}')">
+                    ${playIconHtml}
                 `;
 
                 gridEl.appendChild(card);
@@ -654,7 +706,26 @@
             if (!photo) return;
 
             const modal = document.getElementById('photoModal');
-            document.getElementById('modalImage').src = FlickrAPI.getPhotoUrl(photo, 'l') || FlickrAPI.getPhotoUrl(photo, 'm');
+            const imgEl = document.getElementById('modalImage');
+            const videoEl = document.getElementById('modalVideo');
+
+            const isVideo = photo.media === 'video';
+            const originalUrl = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+
+            // Reset
+            imgEl.style.display = 'none';
+            videoEl.style.display = 'none';
+            videoEl.pause();
+
+            if (isVideo) {
+                videoEl.src = originalUrl;
+                videoEl.style.display = 'block';
+                // videoEl.play(); // Auto play if allowed
+            } else {
+                imgEl.src = originalUrl || FlickrAPI.getPhotoUrl(photo, 'm');
+                imgEl.style.display = 'block';
+            }
+
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
             document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
 
@@ -715,6 +786,9 @@
         }
 
         function closeModal() {
+            const videoEl = document.getElementById('modalVideo');
+            if (videoEl) videoEl.pause();
+
             document.getElementById('photoModal').classList.remove('active');
             document.body.style.overflow = '';
         }
