@@ -140,6 +140,20 @@
             cursor: not-allowed;
         }
 
+        .btn-tag {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-tag:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+        }
+
+        .btn-tag:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         .btn-secondary {
             background: var(--color-background);
             color: var(--color-text);
@@ -243,6 +257,9 @@
             <button class="btn-download" id="downloadSelectedBtn" onclick="downloadSelected()" disabled>
                 ⬇️ 下載選取 (<span id="downloadCount">0</span>)
             </button>
+            <button class="btn-tag" id="tagSelectedBtn" onclick="showTagModal()" disabled>
+                🏷️ 加標籤 (<span id="tagCount">0</span>)
+            </button>
             <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>
                 🗑️ 刪除選取 (<span id="selectedCount">0</span>)
             </button>
@@ -288,6 +305,26 @@
             <div class="confirm-actions">
                 <button class="btn-secondary" id="confirmCancelBtn">取消</button>
                 <button class="btn-danger" id="confirmOkBtn">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Modal -->
+    <div id="tagModal" class="modal-overlay hidden">
+        <div class="confirm-card" style="max-width: 400px;">
+            <div class="confirm-icon">🏷️</div>
+            <h3 class="confirm-title">批量加標籤</h3>
+            <p class="confirm-message">為選取的 <span id="tagModalCount">0</span> 張照片加上標籤</p>
+            <div style="margin: 16px 0;">
+                <input type="text" id="tagInput" placeholder="輸入標籤（多個用空格分隔）"
+                    style="width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 1rem;">
+                <div style="margin-top: 8px; font-size: 0.85rem; color: var(--color-text-muted);">
+                    例如：生日 家庭 旅遊
+                </div>
+            </div>
+            <div class="confirm-actions">
+                <button class="btn-secondary" onclick="closeTagModal()">取消</button>
+                <button class="btn-tag" id="tagConfirmBtn" onclick="addTagsToSelected()">確認加標籤</button>
             </div>
         </div>
     </div>
@@ -389,8 +426,10 @@
             const count = AlbumState.selectedPhotos.size;
             document.getElementById('selectedCount').textContent = count;
             document.getElementById('downloadCount').textContent = count;
+            document.getElementById('tagCount').textContent = count;
             document.getElementById('deleteSelectedBtn').disabled = count === 0;
             document.getElementById('downloadSelectedBtn').disabled = count === 0;
+            document.getElementById('tagSelectedBtn').disabled = count === 0;
         }
 
         function clearSelection() {
@@ -405,6 +444,72 @@
             clearSelection();
             toggleSelectMode();
         }
+
+        // ========== 批量標籤功能 ==========
+        function showTagModal() {
+            const count = AlbumState.selectedPhotos.size;
+            if (count === 0) return;
+
+            document.getElementById('tagModalCount').textContent = count;
+            document.getElementById('tagInput').value = '';
+            document.getElementById('tagModal').classList.remove('hidden');
+            document.getElementById('tagInput').focus();
+        }
+
+        function closeTagModal() {
+            document.getElementById('tagModal').classList.add('hidden');
+        }
+
+        async function addTagsToSelected() {
+            const tags = document.getElementById('tagInput').value.trim();
+            if (!tags) {
+                alert('請輸入標籤');
+                return;
+            }
+
+            const photoIds = Array.from(AlbumState.selectedPhotos);
+            const tagBtn = document.getElementById('tagConfirmBtn');
+            tagBtn.disabled = true;
+            tagBtn.textContent = '處理中...';
+
+            try {
+                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photoIds, tags })
+                });
+
+                const result = await response.json();
+
+                if (result.results) {
+                    const successCount = result.results.filter(r => r.success).length;
+                    alert(`成功為 ${successCount}/${photoIds.length} 張照片加上標籤`);
+                    closeTagModal();
+                    clearSelection();
+                    toggleSelectMode();
+                } else {
+                    alert(`加標籤失敗: ${result.error || '未知錯誤'}`);
+                }
+            } catch (error) {
+                console.error('Tag error:', error);
+                alert(`加標籤失敗: ${error.message}`);
+            }
+
+            tagBtn.disabled = false;
+            tagBtn.textContent = '確認加標籤';
+        }
+
+        // 支援 Enter 鍵提交標籤
+        document.addEventListener('DOMContentLoaded', () => {
+            const tagInput = document.getElementById('tagInput');
+            if (tagInput) {
+                tagInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        addTagsToSelected();
+                    }
+                });
+            }
+        });
 
         // Batch download selected photos as ZIP
         async function downloadSelected() {
