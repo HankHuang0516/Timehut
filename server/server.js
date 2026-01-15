@@ -1416,7 +1416,7 @@ app.get('/api/debug_flickr/:id', async (req, res) => {
             step2_anon_sizes: null,
             logs: []
         };
-        const log = (msg) => results.logs.push(msg);
+        const log = (msg) => results.logs.push("FORCE_UPDATE: " + msg);
 
         // 0. Force Public
         try {
@@ -1945,7 +1945,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #27`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #28`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
