@@ -1244,27 +1244,29 @@ async function resolveFlickrVideoUrl(playUrl) {
 
 // 取得照片尺寸/影片來源 (Proxy)
 // 對於影片，會先設為公開以取得可播放的 MP4 URL
+// 取得照片尺寸/影片來源 (Proxy)
+// 對於影片，會先設為公開以取得可播放的 MP4 URL，並嘗試匿名存取以獲得真實連結
 app.get('/api/photo/:id/sizes', async (req, res) => {
     if (!oauthTokens.accessToken) {
         return res.status(401).json({ error: '尚未授權 Flickr' });
     }
 
     const { id } = req.params;
-    const isVideo = req.query.media === 'video'; // Frontend can hint if it's a video
+    const isVideo = req.query.media === 'video';
     const url = 'https://api.flickr.com/services/rest/';
 
+    console.log(`[getSizes] Request for ${id}, isVideo=${isVideo}`);
+
     try {
-        // For videos, set to public first to get playable MP4 URL
-        // Private videos only return "Video Original" which is a web player page
+        // 1. Force Public for Videos
         if (isVideo) {
-            console.log(`[getSizes] Setting video ${id} to public for playback`);
-            const publicResult = await setPhotoPublic(id);
-            console.log(`[getSizes] setPhotoPublic result: ${publicResult}`);
-            // Longer delay to ensure Flickr processes the permission change
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            console.log(`[getSizes] Setting video ${id} to public...`);
+            await setPhotoPublic(id);
+            // Wait for Flickr propagation
+            await new Promise(r => setTimeout(r, 2000));
         }
 
-        // 參數準備
+        // 2. Authenticated Call
         const params = {
             method: 'flickr.photos.getSizes',
             api_key: process.env.FLICKR_API_KEY,
@@ -1279,71 +1281,84 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
             oauth_version: '1.0'
         };
 
-        // 建立簽名
         const crypto = require('crypto');
         const baseString = buildBaseString('GET', url, params);
         const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
         const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
         params.oauth_signature = signature;
 
-        // 建立 Query String
-        const queryString = Object.keys(params)
-            .sort()
-            .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
-            .join('&');
+        const qs = Object.keys(params).sort().map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
+        const authRes = await fetch(`${url}?${qs}`);
+        const authData = await authRes.json();
 
-        const response = await fetch(`${url}?${queryString}`);
-        const data = await response.json();
-
-        if (data.stat === 'ok') {
-            // For videos, try to resolve /play/ URLs to actual MP4 URLs
-            if (isVideo && data.sizes && data.sizes.size) {
-                const videoSizes = data.sizes.size.filter(s => s.media === 'video');
-                console.log(`[getSizes] Found ${videoSizes.length} video sizes to check.`);
-
-                for (const s of videoSizes) {
-                    if (s.source && s.source.includes('/play/') && (s.label === '1080p' || s.label === '720p' || s.label === 'Video Original')) {
-                        console.log(`[getSizes] Attempting to resolve URL for ${s.label}: ${s.source}`);
-                        try {
-                            // Force GET with byte range and spoof headers to look like a browser
-                            const getResp = await fetch(s.source, {
-                                headers: {
-                                    'Range': 'bytes=0-1',
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                    'Referer': 'https://www.flickr.com/'
-                                },
-                                redirect: 'follow'
-                            });
-
-                            console.log(`[getSizes] Fetch Result for ${s.label}: status=${getResp.status}, final_url=${getResp.url}`);
-
-                            // Check if final URL is different or looks like an MP4
-                            if (getResp.url && (getResp.url.includes('.mp4') || getResp.url.includes('googlevideo') || getResp.url.includes('flickr.com/video'))) {
-                                console.log(`[getSizes] >>> RESOLVED MP4 for ${s.label}: ${getResp.url}`);
-
-                                // INSERT parsed URL at the top
-                                data.sizes.size.unshift({
-                                    label: `Site MP4 Resolved (${s.label})`,
-                                    width: s.width,
-                                    height: s.height,
-                                    source: getResp.url,
-                                    url: getResp.url,
-                                    media: 'video'
-                                });
-                            } else {
-                                console.log(`[getSizes] Followed link but verified as NOT MP4: ${getResp.url}`);
-                            }
-                        } catch (e) {
-                            console.error(`[getSizes] Resolve Exception for ${s.source}:`, e);
-                        }
-                    }
-                }
-            }
-            res.json(data);
-        } else {
-            console.error('Flickr API Error (getSizes):', data);
-            res.status(500).json({ error: data.message });
+        if (authData.stat !== 'ok') {
+            console.error('[getSizes] Auth call failed:', authData);
+            return res.status(500).json({ error: authData.message });
         }
+
+        // 3. Scan for Direct MP4 in Auth Response
+        let foundMp4 = null;
+        if (authData.sizes && authData.sizes.size) {
+            const mp4Size = authData.sizes.size.find(s =>
+                s.label.includes('Site MP4') ||
+                s.label.includes('Mobile MP4') ||
+                (s.source && s.source.includes('.mp4'))
+            );
+            if (mp4Size) {
+                console.log(`[getSizes] Found MP4 in Auth response: ${mp4Size.label}`);
+                foundMp4 = mp4Size;
+            }
+        }
+
+        // 4. Anonymous Fallback (if no MP4 found yet)
+        if (isVideo && !foundMp4) {
+            console.log('[getSizes] No MP4 in auth response. Attempting Anonymous Fallback...');
+
+            const anonParams = {
+                method: 'flickr.photos.getSizes',
+                api_key: process.env.FLICKR_API_KEY,
+                photo_id: id,
+                format: 'json',
+                nojsoncallback: '1'
+            };
+            const anonQs = Object.keys(anonParams).map(k => `${k}=${anonParams[k]}`).join('&');
+
+            try {
+                const anonRes = await fetch(`${url}?${anonQs}`);
+                const anonData = await anonRes.json();
+
+                if (anonData.stat === 'ok' && anonData.sizes && anonData.sizes.size) {
+                    const anonMp4 = anonData.sizes.size.find(s =>
+                        s.label.includes('Site MP4') ||
+                        s.label.includes('Mobile MP4') ||
+                        s.label.includes('HD') ||
+                        (s.source && s.source.includes('.mp4'))
+                    );
+
+                    if (anonMp4) {
+                        console.log(`[getSizes] Found MP4 in Anonymous response: ${anonMp4.label} -> ${anonMp4.source}`);
+                        // Inject into Auth Data
+                        authData.sizes.size.unshift({
+                            label: `Site MP4 (Anon-${anonMp4.label})`,
+                            width: anonMp4.width,
+                            height: anonMp4.height,
+                            source: anonMp4.source,
+                            url: anonMp4.url,
+                            media: 'video'
+                        });
+                    } else {
+                        console.log('[getSizes] Anonymous call succeeded but no MP4 found.');
+                    }
+                } else {
+                    console.log('[getSizes] Anonymous call failed or empty:', anonData.message);
+                }
+            } catch (e) {
+                console.error('[getSizes] Anonymous fallback exception:', e);
+            }
+        }
+
+        res.json(authData);
+
     } catch (error) {
         console.error('取得 Sizes 失敗:', error);
         res.status(500).json({ error: '伺服器內部錯誤' });
