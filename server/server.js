@@ -432,19 +432,8 @@ const upload = multer({
 });
 
 // CORS 設定
-const allowedOrigins = [
-    'https://hankhuang0516.github.io',
-    ...(process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim())
-].filter(Boolean);
 app.use(cors({
-    origin: (origin, callback) => {
-        // 允許無 origin（如 Postman）或在允許清單中
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('CORS not allowed'));
-        }
-    },
+    origin: true, // Reflects the request origin, invalid for production but fixes dev blockers
     credentials: true
 }));
 
