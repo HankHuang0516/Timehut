@@ -1374,48 +1374,49 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
 
         // 4. Anonymous Fallback (if no MP4 found yet)
         if (isVideo && !foundMp4) {
-            console.log('[getSizes] No MP4 in auth response. Attempting Anonymous Fallback...');
+            console.log('[getSizes] No MP4 in auth response. Constructing CDN URL...');
 
-            const anonParams = {
-                method: 'flickr.photos.getSizes',
-                api_key: process.env.FLICKR_API_KEY,
-                photo_id: id,
-                format: 'json',
-                nojsoncallback: '1'
-            };
-            const anonQs = Object.keys(anonParams).map(k => `${k}=${anonParams[k]}`).join('&');
+            // Extract secret from existing photo URLs to construct video CDN URL
+            // Pattern: https://live.staticflickr.com/31337/{id}_{secret}_{size}.jpg
+            // Video pattern: https://live.staticflickr.com/video/{id}_{secret}_mobile.mp4
+            const photoSize = authData.sizes.size.find(s => s.source && s.source.includes('live.staticflickr.com'));
+            if (photoSize) {
+                const match = photoSize.source.match(/\/(\d+)_(\w+)_/);
+                if (match) {
+                    const photoId = match[1];
+                    const secret = match[2];
 
-            try {
-                const anonRes = await fetch(`${url}?${anonQs}`);
-                const anonData = await anonRes.json();
+                    // Try multiple CDN URL patterns
+                    const cdnPatterns = [
+                        `https://live.staticflickr.com/video/${photoId}_${secret}_mobile.mp4`,
+                        `https://live.staticflickr.com/video/${photoId}_${secret}.mp4`,
+                        `https://live.staticflickr.com/video/${photoId}/${secret}/720p.mp4`
+                    ];
 
-                if (anonData.stat === 'ok' && anonData.sizes && anonData.sizes.size) {
-                    const anonMp4 = anonData.sizes.size.find(s =>
-                        s.label.includes('Site MP4') ||
-                        s.label.includes('Mobile MP4') ||
-                        s.label.includes('HD') ||
-                        (s.source && s.source.includes('.mp4'))
-                    );
+                    console.log(`[getSizes] Trying CDN patterns with secret: ${secret}`);
 
-                    if (anonMp4) {
-                        console.log(`[getSizes] Found MP4 in Anonymous response: ${anonMp4.label} -> ${anonMp4.source}`);
-                        // Inject into Auth Data
-                        authData.sizes.size.unshift({
-                            label: `Site MP4 (Anon-${anonMp4.label})`,
-                            width: anonMp4.width,
-                            height: anonMp4.height,
-                            source: anonMp4.source,
-                            url: anonMp4.url,
-                            media: 'video'
-                        });
-                    } else {
-                        console.log('[getSizes] Anonymous call succeeded but no MP4 found.');
+                    for (const cdnUrl of cdnPatterns) {
+                        try {
+                            const headResp = await fetch(cdnUrl, { method: 'HEAD' });
+                            console.log(`[getSizes] HEAD ${cdnUrl}: ${headResp.status}`);
+
+                            if (headResp.ok) {
+                                console.log(`[getSizes] Found working CDN URL: ${cdnUrl}`);
+                                authData.sizes.size.unshift({
+                                    label: 'Site MP4 (CDN)',
+                                    width: '720',
+                                    height: '1280',
+                                    source: cdnUrl,
+                                    url: cdnUrl,
+                                    media: 'video'
+                                });
+                                break;
+                            }
+                        } catch (e) {
+                            console.error(`[getSizes] CDN probe failed for ${cdnUrl}: ${e.message}`);
+                        }
                     }
-                } else {
-                    console.log('[getSizes] Anonymous call failed or empty:', anonData.message);
                 }
-            } catch (e) {
-                console.error('[getSizes] Anonymous fallback exception:', e);
             }
         }
 
@@ -1956,7 +1957,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #39`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #40`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
