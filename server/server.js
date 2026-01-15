@@ -26,6 +26,47 @@ app.get('/api/version', (req, res) => {
     res.json({ version: 'v5.0-UNIFIED', timestamp: Date.now() });
 });
 
+// Debug endpoint to test video resolution logic
+app.get('/api/test_video_fix/:id', async (req, res) => {
+    const { id } = req.params;
+    const url = 'https://api.flickr.com/services/rest/';
+    const results = { step0_setPublic: null, step1_anonSizes: null, foundMp4: null };
+
+    try {
+        // 1. Force public
+        results.step0_setPublic = await setPhotoPublic(id);
+
+        // 2. Wait
+        await new Promise(r => setTimeout(r, 3000));
+
+        // 3. Anonymous call
+        const anonParams = {
+            method: 'flickr.photos.getSizes',
+            api_key: process.env.FLICKR_API_KEY,
+            photo_id: id,
+            format: 'json',
+            nojsoncallback: '1'
+        };
+        const anonQs = Object.keys(anonParams).map(k => `${k}=${anonParams[k]}`).join('&');
+        const anonRes = await fetch(`${url}?${anonQs}`);
+        results.step1_anonSizes = await anonRes.json();
+
+        // 4. Check for MP4
+        if (results.step1_anonSizes.stat === 'ok' && results.step1_anonSizes.sizes && results.step1_anonSizes.sizes.size) {
+            results.foundMp4 = results.step1_anonSizes.sizes.size.find(s =>
+                s.label.includes('Site MP4') ||
+                s.label.includes('Mobile MP4') ||
+                s.label.includes('HD') ||
+                (s.source && s.source.includes('.mp4'))
+            );
+        }
+
+        res.json(results);
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 // ==================== 上傳佇列管理 ====================
 const QUEUE_FILE = path.join(__dirname, 'uploads', 'queue.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -1894,7 +1935,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #36`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #37`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
