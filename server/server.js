@@ -1291,59 +1291,47 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
             // For videos, try to resolve /play/ URLs to actual MP4 URLs
             if (isVideo && data.sizes && data.sizes.size) {
                 const videoSizes = data.sizes.size.filter(s => s.media === 'video');
-                console.log(`[getSizes] Video ${id} available sizes:`, videoSizes.map(s => `${s.label}: ${s.source?.substring(0, 80)}...`));
+                console.log(`[getSizes] Found ${videoSizes.length} video sizes to check.`);
 
-                if (data.stat === 'ok' && isVideo && data.sizes && data.sizes.size) {
-                    // 3. Resolve /play/ URLs
-                    const videoSizes = data.sizes.size.filter(s => s.media === 'video');
-                    console.log(`[getSizes] Found ${videoSizes.length} video sizes to check.`);
+                for (const s of videoSizes) {
+                    if (s.source && s.source.includes('/play/') && (s.label === '1080p' || s.label === '720p' || s.label === 'Video Original')) {
+                        console.log(`[getSizes] Attempting to resolve URL for ${s.label}: ${s.source}`);
+                        try {
+                            const getResp = await fetch(s.source, {
+                                headers: { 'Range': 'bytes=0-1' },
+                                redirect: 'follow'
+                            });
+                            console.log(`[getSizes] GET Response for ${s.label}: status=${getResp.status}, final_url=${getResp.url}`);
 
-                    for (const s of videoSizes) {
-                        // Check widely for play URLs
-                        if (s.source && s.source.includes('/play/') && (s.label === '1080p' || s.label === '720p' || s.label === 'Video Original')) {
-                            console.log(`[getSizes] Attempting to resolve URL for ${s.label}: ${s.source}`);
-                            try {
-                                // Try GET with range 0-1 to force initial response/redirect check without full download
-                                // Native fetch 'follow' should follow redirects to the final destination
-                                const getResp = await fetch(s.source, {
-                                    headers: { 'Range': 'bytes=0-1' },
-                                    redirect: 'follow'
+                            if (getResp.url && getResp.url.includes('.mp4')) {
+                                console.log(`[getSizes] Resolved ${s.label} to direct MP4: ${getResp.url}`);
+                                data.sizes.size.unshift({
+                                    label: `Site MP4 Resolved (${s.label})`,
+                                    width: s.width,
+                                    height: s.height,
+                                    source: getResp.url,
+                                    url: getResp.url,
+                                    media: 'video'
                                 });
-                                console.log(`[getSizes] GET Response for ${s.label}: status=${getResp.status}, final_url=${getResp.url}`);
-
-                                if (getResp.url && getResp.url.includes('.mp4')) {
-                                    console.log(`[getSizes] Resolved ${s.label} to direct MP4: ${getResp.url}`);
-                                    // UNSHIFT to put it at the top
-                                    data.sizes.size.unshift({
-                                        label: `Site MP4 Resolved (${s.label})`,
-                                        width: s.width,
-                                        height: s.height,
-                                        source: getResp.url,
-                                        url: getResp.url,
-                                        media: 'video'
-                                    });
-                                    // Keep searching? Usually one is enough, but deeper debug is good
-                                    // break; 
-                                } else {
-                                    console.log(`[getSizes] GET followed to ${getResp.url} (Not .mp4)`);
-                                }
-                            } catch (e) {
-                                console.error(`[getSizes] Resolve failed for ${s.source}:`, e);
+                            } else {
+                                console.log(`[getSizes] GET followed to ${getResp.url} (Not .mp4)`);
                             }
-                        } else {
-                            // console.log(`[getSizes] Skipping ${s.label} (${s.source})`);
+                        } catch (e) {
+                            console.error(`[getSizes] Resolve failed for ${s.source}:`, e);
                         }
                     }
-                    res.json(data);
-                } else {
-                    console.error('Flickr API Error (getSizes):', data);
-                    res.status(500).json({ error: data.message });
                 }
-            } catch (error) {
-                console.error('取得 Sizes 失敗:', error);
-                res.status(500).json({ error: '伺服器內部錯誤' });
             }
-        });
+            res.json(data);
+        } else {
+            console.error('Flickr API Error (getSizes):', data);
+            res.status(500).json({ error: data.message });
+        }
+    } catch (error) {
+        console.error('取得 Sizes 失敗:', error);
+        res.status(500).json({ error: '伺服器內部錯誤' });
+    }
+});
 
 // 設定照片權限為公開 API
 app.post('/api/photo/:id/set_public', async (req, res) => {
@@ -1870,7 +1858,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #18`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #19`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
