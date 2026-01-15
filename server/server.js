@@ -431,11 +431,31 @@ const upload = multer({
     }
 });
 
-// CORS 設定
-app.use(cors({
-    origin: true, // Reflects the request origin, invalid for production but fixes dev blockers
-    credentials: true
-}));
+// 取得 Git 版本資訊
+const GIT_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA ||
+    (fs.existsSync('.git') ? require('child_process').execSync('git rev-parse --short HEAD').toString().trim() : 'dev');
+
+// 強制 CORS 設定 (Manual Headers)
+app.use((req, res, next) => {
+    // 允許任何來源 (Reflect origin)
+    const origin = req.headers.origin;
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    // 允許的 Headers
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    // 處理 Preflight
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 app.use(express.json());
 
@@ -464,10 +484,40 @@ let tempRequestTokens = {};
 
 // ==================== API 路由 ====================
 
+// 版本檢查頁面
+app.get('/version', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Timehut Backend Version</title>
+            <style>
+                body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+                .box { border: 1px solid #333; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }
+                h1 { margin-top: 0; color: #fff; }
+                .label { color: #888; }
+                .value { font-size: 1.2em; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="box">
+                <h1>Backend Status</h1>
+                <p><span class="label">Version (Git SHA):</span><br><span class="value">${GIT_VERSION}</span></p>
+                <p><span class="label">Time:</span><br><span class="value">${new Date().toISOString()}</span></p>
+                <p><span class="label">Environment:</span><br><span class="value">${process.env.RAILWAY_ENVIRONMENT || 'Local'}</span></p>
+                <hr style="border-color: #333">
+                <p style="color: #aaa">CORS is enabled for all origins.</p>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
 // 健康檢查
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
+        version: GIT_VERSION,
         authenticated: !!oauthTokens.accessToken,
         timestamp: new Date().toISOString()
     });
