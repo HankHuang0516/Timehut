@@ -153,21 +153,27 @@
         /* Modal Info Layout - preventing overlap */
         .modal-info {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            /* Stack vertically */
             gap: var(--spacing-md);
             padding-top: var(--spacing-md);
         }
 
         .modal-details {
-            flex: 1;
-            min-width: 0;
-            /* Allow text truncate if needed */
+            width: 100%;
         }
 
         .modal-actions {
-            flex-shrink: 0;
-            margin-left: var(--spacing-sm);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            /* Center the button */
+        }
+
+        /* Make button full width or nice looking block */
+        .modal-download-btn {
+            width: 100%;
+            justify-content: center;
         }
 
         @media (max-width: 768px) {
