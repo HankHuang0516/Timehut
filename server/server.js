@@ -1148,20 +1148,22 @@ app.get('/api/album/:id/photos', async (req, res) => {
     }
 });
 
-// 取得照片尺寸/影片來源 (Proxy)
-app.get('/api/photo/:id/sizes', async (req, res) => {
+// Helper: Set photo to public using Flickr API
+async function setPhotoPublic(photoId) {
     if (!oauthTokens.accessToken) {
-        return res.status(401).json({ error: '尚未授權 Flickr' });
+        throw new Error('尚未授權 Flickr');
     }
 
-    const { id } = req.params;
     const url = 'https://api.flickr.com/services/rest/';
-
-    // 參數準備
     const params = {
-        method: 'flickr.photos.getSizes',
+        method: 'flickr.photos.setPerms',
         api_key: process.env.FLICKR_API_KEY,
-        photo_id: id,
+        photo_id: photoId,
+        is_public: '1',
+        is_friend: '0',
+        is_family: '0',
+        perm_comment: '3',
+        perm_addmeta: '3',
         format: 'json',
         nojsoncallback: '1',
         oauth_consumer_key: process.env.FLICKR_API_KEY,
@@ -1172,7 +1174,67 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
         oauth_version: '1.0'
     };
 
+    const crypto = require('crypto');
+    const baseString = buildBaseString('POST', url, params);
+    const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+    const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+    params.oauth_signature = signature;
+
+    const body = Object.keys(params)
+        .sort()
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+        .join('&');
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    });
+    const data = await response.json();
+
+    if (data.stat !== 'ok') {
+        console.warn(`[setPhotoPublic] Failed for ${photoId}:`, data.message);
+        return false;
+    }
+    return true;
+}
+
+// 取得照片尺寸/影片來源 (Proxy)
+// 對於影片，會先設為公開以取得可播放的 MP4 URL
+app.get('/api/photo/:id/sizes', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { id } = req.params;
+    const isVideo = req.query.media === 'video'; // Frontend can hint if it's a video
+    const url = 'https://api.flickr.com/services/rest/';
+
     try {
+        // For videos, set to public first to get playable MP4 URL
+        // Private videos only return "Video Original" which is a web player page
+        if (isVideo) {
+            console.log(`[getSizes] Setting video ${id} to public for playback`);
+            await setPhotoPublic(id);
+            // Small delay to ensure Flickr processes the permission change
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // 參數準備
+        const params = {
+            method: 'flickr.photos.getSizes',
+            api_key: process.env.FLICKR_API_KEY,
+            photo_id: id,
+            format: 'json',
+            nojsoncallback: '1',
+            oauth_consumer_key: process.env.FLICKR_API_KEY,
+            oauth_token: oauthTokens.accessToken,
+            oauth_signature_method: 'HMAC-SHA1',
+            oauth_timestamp: Math.floor(Date.now() / 1000),
+            oauth_nonce: Math.random().toString(36).substring(2),
+            oauth_version: '1.0'
+        };
+
         // 建立簽名
         const crypto = require('crypto');
         const baseString = buildBaseString('GET', url, params);

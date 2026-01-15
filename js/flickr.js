@@ -149,7 +149,8 @@ const FlickrAPI = {
     async getVideoUrl(photo) {
         try {
             // Use backend proxy to access private video sizes
-            const url = `${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/sizes`;
+            // Pass media=video to hint backend to set video public first (required for playable MP4)
+            const url = `${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/sizes?media=video`;
             const response = await fetch(url);
 
             if (!response.ok) {
