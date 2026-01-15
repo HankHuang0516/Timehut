@@ -1199,6 +1199,41 @@ async function setPhotoPublic(photoId) {
     return true;
 }
 
+// Helper: 從 Flickr /play/ URL 取得真實的 MP4 URL
+async function resolveFlickrVideoUrl(playUrl) {
+    try {
+        // Flickr /play/ URLs 會重定向到實際的 MP4 URL
+        // 我們需要跟隨重定向取得最終的 URL
+        const response = await fetch(playUrl, {
+            method: 'HEAD',
+            redirect: 'follow'
+        });
+
+        // 檢查最終 URL 是否是 MP4
+        const finalUrl = response.url;
+        if (finalUrl && finalUrl.includes('.mp4')) {
+            console.log(`[resolveVideoUrl] Resolved to: ${finalUrl.substring(0, 100)}...`);
+            return finalUrl;
+        }
+
+        // 如果 HEAD 不行，嘗試 GET 並檢查重定向
+        const getResponse = await fetch(playUrl, {
+            redirect: 'manual'
+        });
+
+        const location = getResponse.headers.get('location');
+        if (location && location.includes('.mp4')) {
+            console.log(`[resolveVideoUrl] Redirect to: ${location.substring(0, 100)}...`);
+            return location;
+        }
+
+        return null;
+    } catch (error) {
+        console.error(`[resolveVideoUrl] Error: ${error.message}`);
+        return null;
+    }
+}
+
 // 取得照片尺寸/影片來源 (Proxy)
 // 對於影片，會先設為公開以取得可播放的 MP4 URL
 app.get('/api/photo/:id/sizes', async (req, res) => {
@@ -1253,10 +1288,32 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
         const data = await response.json();
 
         if (data.stat === 'ok') {
-            // Log available sizes for debugging
+            // For videos, try to resolve /play/ URLs to actual MP4 URLs
             if (isVideo && data.sizes && data.sizes.size) {
                 const videoSizes = data.sizes.size.filter(s => s.media === 'video');
                 console.log(`[getSizes] Video ${id} available sizes:`, videoSizes.map(s => `${s.label}: ${s.source?.substring(0, 80)}...`));
+
+                // Try to resolve the 1080p or best quality video URL
+                const preferredLabels = ['1080p', '720p', '360p'];
+                for (const label of preferredLabels) {
+                    const videoSize = videoSizes.find(s => s.label === label);
+                    if (videoSize && videoSize.source) {
+                        const mp4Url = await resolveFlickrVideoUrl(videoSize.source);
+                        if (mp4Url) {
+                            // Add the resolved MP4 URL as a new size entry
+                            data.sizes.size.push({
+                                label: 'Site MP4',
+                                width: videoSize.width,
+                                height: videoSize.height,
+                                source: mp4Url,
+                                url: mp4Url,
+                                media: 'video'
+                            });
+                            console.log(`[getSizes] Added resolved Site MP4: ${mp4Url.substring(0, 80)}...`);
+                            break;
+                        }
+                    }
+                }
             }
             res.json(data);
         } else {
@@ -1794,7 +1851,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #15`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #16`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);

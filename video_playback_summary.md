@@ -50,3 +50,14 @@
 - **Video Permission**: Set to Public.
 - **Playback**: Should now work using the direct CDN link provided by Flickr.
 - **Future Prevention**: Future uploads are already configured to be Public by default.
+
+### 6. Force Public + Resolve Redirects (Current Solution)
+- **Problem**: Even after making videos public, `getSizes` may still return `/play/` URLs (redirects) instead of direct `.mp4` links for the "1080p" or "Video Original" sizes.
+- **Action**:
+  - **Backend**: Updated `/api/photo/:id/sizes` to:
+    1. Force video permission to Public.
+    2. Call `getSizes`.
+    3. If video sizes point to `/play/` URLs, perform a server-side HTTP request to follow the redirect and capture the actual `.mp4` URL (with token).
+    4. Inject this resolved URL back into the response as a new size "Site MP4".
+  - **Frontend**: Updated `flickr.js` to request `?media=video` (triggering the backend logic) and prioritize "Site MP4".
+- **Result**: Frontend receives a valid, playable `.mp4` link.
