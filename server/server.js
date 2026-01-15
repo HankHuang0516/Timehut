@@ -898,7 +898,7 @@ app.get('/api/proxy-video', async (req, res) => {
     if (!url) return res.status(400).send('Missing url');
 
     try {
-        const fetch = require('node-fetch'); // Ensure node-fetch is used (or native in Node 18+)
+        // Use native fetch (Node 18+)
         // Forward Range header
         const headers = {};
         if (req.headers.range) {
@@ -1662,7 +1662,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #5`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #6`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
