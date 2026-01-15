@@ -1297,14 +1297,23 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
                     if (s.source && s.source.includes('/play/') && (s.label === '1080p' || s.label === '720p' || s.label === 'Video Original')) {
                         console.log(`[getSizes] Attempting to resolve URL for ${s.label}: ${s.source}`);
                         try {
+                            // Force GET with byte range and spoof headers to look like a browser
                             const getResp = await fetch(s.source, {
-                                headers: { 'Range': 'bytes=0-1' },
+                                headers: {
+                                    'Range': 'bytes=0-1',
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                    'Referer': 'https://www.flickr.com/'
+                                },
                                 redirect: 'follow'
                             });
-                            console.log(`[getSizes] GET Response for ${s.label}: status=${getResp.status}, final_url=${getResp.url}`);
 
-                            if (getResp.url && getResp.url.includes('.mp4')) {
-                                console.log(`[getSizes] Resolved ${s.label} to direct MP4: ${getResp.url}`);
+                            console.log(`[getSizes] Fetch Result for ${s.label}: status=${getResp.status}, final_url=${getResp.url}`);
+
+                            // Check if final URL is different or looks like an MP4
+                            if (getResp.url && (getResp.url.includes('.mp4') || getResp.url.includes('googlevideo') || getResp.url.includes('flickr.com/video'))) {
+                                console.log(`[getSizes] >>> RESOLVED MP4 for ${s.label}: ${getResp.url}`);
+
+                                // INSERT parsed URL at the top
                                 data.sizes.size.unshift({
                                     label: `Site MP4 Resolved (${s.label})`,
                                     width: s.width,
@@ -1314,10 +1323,10 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
                                     media: 'video'
                                 });
                             } else {
-                                console.log(`[getSizes] GET followed to ${getResp.url} (Not .mp4)`);
+                                console.log(`[getSizes] Followed link but verified as NOT MP4: ${getResp.url}`);
                             }
                         } catch (e) {
-                            console.error(`[getSizes] Resolve failed for ${s.source}:`, e);
+                            console.error(`[getSizes] Resolve Exception for ${s.source}:`, e);
                         }
                     }
                 }
@@ -1858,7 +1867,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #20`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #21`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
