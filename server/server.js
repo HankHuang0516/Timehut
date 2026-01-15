@@ -1215,9 +1215,10 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
         // Private videos only return "Video Original" which is a web player page
         if (isVideo) {
             console.log(`[getSizes] Setting video ${id} to public for playback`);
-            await setPhotoPublic(id);
-            // Small delay to ensure Flickr processes the permission change
-            await new Promise(resolve => setTimeout(resolve, 500));
+            const publicResult = await setPhotoPublic(id);
+            console.log(`[getSizes] setPhotoPublic result: ${publicResult}`);
+            // Longer delay to ensure Flickr processes the permission change
+            await new Promise(resolve => setTimeout(resolve, 1500));
         }
 
         // 參數準備
@@ -1252,6 +1253,11 @@ app.get('/api/photo/:id/sizes', async (req, res) => {
         const data = await response.json();
 
         if (data.stat === 'ok') {
+            // Log available sizes for debugging
+            if (isVideo && data.sizes && data.sizes.size) {
+                const videoSizes = data.sizes.size.filter(s => s.media === 'video');
+                console.log(`[getSizes] Video ${id} available sizes:`, videoSizes.map(s => `${s.label}: ${s.source?.substring(0, 80)}...`));
+            }
             res.json(data);
         } else {
             console.error('Flickr API Error (getSizes):', data);
@@ -1788,7 +1794,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #14`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #15`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
