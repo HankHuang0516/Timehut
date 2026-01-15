@@ -1,6 +1,8 @@
 /**
  * 黃家小屋 - Flickr 上傳後端服務
  * 支援批量上傳、照片、影片
+ *
+ * v2.0: Staged Upload - 先存本地，背景上傳 Flickr
  */
 
 require('dotenv').config();
@@ -15,6 +17,235 @@ const FormData = require('form-data');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ==================== 上傳佇列管理 ====================
+const QUEUE_FILE = path.join(__dirname, 'uploads', 'queue.json');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
+// 確保 uploads 目錄存在
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+/**
+ * 讀取上傳佇列
+ */
+function readQueue() {
+    try {
+        if (fs.existsSync(QUEUE_FILE)) {
+            const data = fs.readFileSync(QUEUE_FILE, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (error) {
+        console.error('[QUEUE] Error reading queue:', error);
+    }
+    return [];
+}
+
+/**
+ * 寫入上傳佇列
+ */
+function writeQueue(queue) {
+    try {
+        fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
+    } catch (error) {
+        console.error('[QUEUE] Error writing queue:', error);
+    }
+}
+
+/**
+ * 新增項目到佇列
+ */
+function addToQueue(item) {
+    const queue = readQueue();
+    queue.push(item);
+    writeQueue(queue);
+    return item;
+}
+
+/**
+ * 更新佇列項目
+ */
+function updateQueueItem(localId, updates) {
+    const queue = readQueue();
+    const index = queue.findIndex(item => item.localId === localId);
+    if (index !== -1) {
+        queue[index] = { ...queue[index], ...updates };
+        writeQueue(queue);
+        return queue[index];
+    }
+    return null;
+}
+
+/**
+ * 從佇列移除項目
+ */
+function removeFromQueue(localId) {
+    const queue = readQueue();
+    const filtered = queue.filter(item => item.localId !== localId);
+    writeQueue(filtered);
+}
+
+/**
+ * 取得待處理的佇列項目
+ */
+function getPendingItems() {
+    return readQueue().filter(item => item.status === 'pending');
+}
+
+/**
+ * 取得指定相簿的本地照片
+ */
+function getLocalPhotosForAlbum(albumId) {
+    return readQueue().filter(item =>
+        item.albumId === albumId &&
+        (item.status === 'pending' || item.status === 'uploading')
+    );
+}
+
+// ==================== 背景上傳 Worker ====================
+let isProcessingQueue = false;
+
+/**
+ * 處理上傳佇列（背景執行）
+ */
+async function processUploadQueue() {
+    if (isProcessingQueue) {
+        console.log('[WORKER] Already processing queue, skipping...');
+        return;
+    }
+
+    if (!oauthTokens.accessToken) {
+        console.log('[WORKER] No OAuth token, skipping queue processing');
+        return;
+    }
+
+    const pendingItems = getPendingItems();
+    if (pendingItems.length === 0) {
+        console.log('[WORKER] No pending items in queue');
+        return;
+    }
+
+    isProcessingQueue = true;
+    console.log(`[WORKER] Starting to process ${pendingItems.length} pending uploads...`);
+
+    for (const item of pendingItems) {
+        try {
+            console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
+
+            // 更新狀態為上傳中
+            updateQueueItem(item.localId, { status: 'uploading' });
+
+            // 檢查檔案是否存在
+            if (!fs.existsSync(item.localPath)) {
+                console.error(`[WORKER] File not found: ${item.localPath}`);
+                updateQueueItem(item.localId, {
+                    status: 'error',
+                    error: 'File not found'
+                });
+                continue;
+            }
+
+            // 上傳到 Flickr
+            const file = {
+                path: item.localPath,
+                originalname: item.originalFilename,
+                mimetype: item.mimetype
+            };
+
+            const photoId = await uploadToFlickr(file, item.title, item.description, item.tags);
+            console.log(`[WORKER] Uploaded to Flickr, photoId: ${photoId}`);
+
+            if (photoId) {
+                // 加入相簿
+                if (item.albumId) {
+                    try {
+                        await addPhotoToAlbumWithRetry(photoId, item.albumId);
+                        console.log(`[WORKER] Added to album ${item.albumId}`);
+                    } catch (albumError) {
+                        console.error(`[WORKER] Failed to add to album:`, albumError);
+                    }
+                }
+
+                // 設定日期（如果有）
+                if (item.date) {
+                    try {
+                        await setPhotoDate(photoId, item.date);
+                    } catch (dateError) {
+                        console.error(`[WORKER] Failed to set date:`, dateError);
+                    }
+                }
+
+                // 更新佇列：標記完成並記錄 Flickr photoId
+                updateQueueItem(item.localId, {
+                    status: 'completed',
+                    flickrPhotoId: photoId,
+                    completedAt: new Date().toISOString()
+                });
+
+                // 刪除本地檔案
+                try {
+                    fs.unlinkSync(item.localPath);
+                    console.log(`[WORKER] Deleted local file: ${item.localPath}`);
+                } catch (e) {
+                    console.error(`[WORKER] Failed to delete local file:`, e);
+                }
+
+                // 從佇列移除已完成的項目
+                removeFromQueue(item.localId);
+                console.log(`[WORKER] Completed: ${item.originalFilename}`);
+
+            } else {
+                // Flickr 返回 null（可能是影片處理中）
+                updateQueueItem(item.localId, {
+                    status: 'processing',
+                    message: 'Video is being processed by Flickr'
+                });
+            }
+
+        } catch (error) {
+            console.error(`[WORKER] Error processing ${item.localId}:`, error);
+            updateQueueItem(item.localId, {
+                status: 'error',
+                error: error.message
+            });
+        }
+    }
+
+    isProcessingQueue = false;
+    console.log('[WORKER] Queue processing completed');
+}
+
+/**
+ * 建立模擬 Flickr 照片物件（用於前端渲染）
+ */
+function createLocalPhotoObject(item, baseUrl) {
+    const localUrl = `${baseUrl}/uploads/${item.localFilename}`;
+    return {
+        id: item.localId,
+        title: item.title || item.originalFilename,
+        isprimary: '0',
+        ispublic: '0',
+        isfriend: '1',
+        isfamily: '1',
+        tags: item.tags || '',
+        datetaken: item.createdAt,
+        dateupload: Math.floor(new Date(item.createdAt).getTime() / 1000).toString(),
+        // 本地 URL（模擬 Flickr URL 結構）
+        url_sq: localUrl,
+        url_t: localUrl,
+        url_s: localUrl,
+        url_m: localUrl,
+        url_l: localUrl,
+        url_o: localUrl,
+        // 標記為本地照片
+        _isLocal: true,
+        _localStatus: item.status,
+        _localId: item.localId,
+        // 媒體類型
+        media: item.mimetype?.startsWith('video/') ? 'video' : 'photo'
+    };
+}
 
 // Multer 設定 - 暫存上傳檔案
 const storage = multer.diskStorage({
@@ -64,6 +295,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// 靜態檔案服務 - 提供本地上傳檔案存取
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // OAuth 設定
 const oauth = new OAuth(
@@ -189,12 +423,105 @@ app.get('/api/auth/callback', (req, res) => {
     );
 });
 
-// 上傳照片/影片到 Flickr
+// 上傳照片/影片 - Staged Upload (v2.0)
+// 先存本地並立即回應，背景上傳到 Flickr
 app.post('/api/upload', upload.array('files', 20), async (req, res) => {
-    console.log('[DEBUG] Received upload request');
-    // 檢查授權
+    console.log('[UPLOAD] Received staged upload request');
+
+    // 檢查授權（仍需授權，但上傳會在背景進行）
     if (!oauthTokens.accessToken) {
-        console.log('[DEBUG] Unauthorized: Missing access token');
+        console.log('[UPLOAD] Unauthorized: Missing access token');
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: '請選擇要上傳的檔案' });
+    }
+
+    const { albumId, title, description, tags, date } = req.body;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    console.log('[UPLOAD] Request Body:', { albumId, title, description, tags, date });
+
+    const results = [];
+    const queuedItems = [];
+
+    for (const file of req.files) {
+        try {
+            // 產生唯一 ID
+            const localId = `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            const localFilename = path.basename(file.path);
+
+            // 建立佇列項目
+            const queueItem = {
+                localId,
+                localFilename,
+                localPath: file.path,
+                originalFilename: file.originalname,
+                mimetype: file.mimetype,
+                size: file.size,
+                albumId: albumId || null,
+                title: title || file.originalname,
+                description: description || '',
+                tags: tags || '',
+                date: date || null,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                flickrPhotoId: null
+            };
+
+            // 加入佇列
+            addToQueue(queueItem);
+            queuedItems.push(queueItem);
+
+            // 建立本地照片物件（模擬 Flickr 格式）
+            const localPhotoObject = createLocalPhotoObject(queueItem, baseUrl);
+
+            results.push({
+                filename: file.originalname,
+                success: true,
+                localId: localId,
+                photo: localPhotoObject,
+                _staged: true
+            });
+
+            console.log(`[UPLOAD] Queued: ${file.originalname} -> ${localId}`);
+
+        } catch (error) {
+            console.error(`[UPLOAD] Error queuing ${file.originalname}:`, error);
+            results.push({
+                filename: file.originalname,
+                success: false,
+                error: error.message
+            });
+
+            // 嘗試清理檔案
+            try { fs.unlinkSync(file.path); } catch (e) { }
+        }
+    }
+
+    // 立即回應前端
+    const successCount = results.filter(r => r.success).length;
+    console.log(`[UPLOAD] Queued ${successCount}/${results.length} files, starting background processing...`);
+
+    res.json({
+        message: `已收到 ${successCount}/${results.length} 個檔案，正在背景上傳到 Flickr`,
+        results,
+        _staged: true
+    });
+
+    // 觸發背景上傳（fire-and-forget）
+    setImmediate(() => {
+        processUploadQueue().catch(err => {
+            console.error('[UPLOAD] Background processing error:', err);
+        });
+    });
+});
+
+// 傳統同步上傳 API（保留用於需要立即確認的場景）
+app.post('/api/upload/sync', upload.array('files', 20), async (req, res) => {
+    console.log('[UPLOAD-SYNC] Received synchronous upload request');
+
+    if (!oauthTokens.accessToken) {
         return res.status(401).json({ error: '尚未授權 Flickr' });
     }
 
@@ -203,39 +530,26 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
     }
 
     const { albumId, title, description, tags } = req.body;
-    console.log('Upload Request Body:', { albumId, title, description, tags });
-
     const results = [];
 
     for (const file of req.files) {
         try {
-            console.log(`Uploading file: ${file.originalname}`);
+            console.log(`[UPLOAD-SYNC] Uploading: ${file.originalname}`);
             const photoId = await uploadToFlickr(file, title, description, tags);
-            console.log(`Uploaded to Flickr. Photo ID: ${photoId}`);
 
-            // 如果指定了相簿，加入相簿
             if (albumId && photoId) {
-                console.log(`Adding photo ${photoId} to album ${albumId}...`);
                 try {
                     await addPhotoToAlbumWithRetry(photoId, albumId);
-                    console.log(`Successfully added to album.`);
                 } catch (albumError) {
-                    console.error(`Failed to add to album after retries:`, albumError);
-                    // Add warning to results
-                    results[results.length - 1].albumError = albumError.message;
+                    console.error(`[UPLOAD-SYNC] Album error:`, albumError);
                 }
-            } else {
-                console.log('Skipping album addition (no albumId or photoId).');
             }
 
-            // 如果指定了日期，設定日期
             if (req.body.date && photoId) {
-                console.log(`Setting date for photo ${photoId} to ${req.body.date}...`);
                 try {
                     await setPhotoDate(photoId, req.body.date);
-                    console.log(`Successfully set date.`);
                 } catch (dateError) {
-                    console.error(`Failed to set date:`, dateError);
+                    console.error(`[UPLOAD-SYNC] Date error:`, dateError);
                 }
             }
 
@@ -245,25 +559,21 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
                 photoId
             });
 
-            // 清理暫存檔案
             fs.unlinkSync(file.path);
 
         } catch (error) {
-            console.error(`上傳失敗 ${file.originalname}:`, error);
+            console.error(`[UPLOAD-SYNC] Failed ${file.originalname}:`, error);
             results.push({
                 filename: file.originalname,
                 success: false,
                 error: error.message
             });
-
-            // 嘗試清理暫存檔案
             try { fs.unlinkSync(file.path); } catch (e) { }
         }
     }
 
-    const successCount = results.filter(r => r.success).length;
     res.json({
-        message: `上傳完成：${successCount}/${results.length} 個檔案成功`,
+        message: `上傳完成：${results.filter(r => r.success).length}/${results.length} 個檔案成功`,
         results
     });
 });
@@ -434,7 +744,106 @@ app.get('/api/albums', async (req, res) => {
     // ... (保持原樣)
 });
 
-// 取得相簿照片 (Proxy)
+// ==================== 上傳狀態 API (v2.0) ====================
+
+// 取得上傳佇列狀態
+app.get('/api/uploads/status', (req, res) => {
+    const queue = readQueue();
+    const pending = queue.filter(item => item.status === 'pending').length;
+    const uploading = queue.filter(item => item.status === 'uploading').length;
+    const completed = queue.filter(item => item.status === 'completed').length;
+    const error = queue.filter(item => item.status === 'error').length;
+
+    res.json({
+        total: queue.length,
+        pending,
+        uploading,
+        completed,
+        error,
+        isProcessing: isProcessingQueue,
+        items: queue.map(item => ({
+            localId: item.localId,
+            filename: item.originalFilename,
+            status: item.status,
+            flickrPhotoId: item.flickrPhotoId,
+            error: item.error,
+            createdAt: item.createdAt
+        }))
+    });
+});
+
+// 取得單一上傳項目狀態
+app.get('/api/uploads/status/:localId', (req, res) => {
+    const { localId } = req.params;
+    const queue = readQueue();
+    const item = queue.find(i => i.localId === localId);
+
+    if (!item) {
+        return res.status(404).json({ error: 'Upload not found' });
+    }
+
+    res.json({
+        localId: item.localId,
+        filename: item.originalFilename,
+        status: item.status,
+        flickrPhotoId: item.flickrPhotoId,
+        error: item.error,
+        createdAt: item.createdAt,
+        completedAt: item.completedAt
+    });
+});
+
+// 重試失敗的上傳
+app.post('/api/uploads/retry', async (req, res) => {
+    const { localIds } = req.body;
+    const queue = readQueue();
+
+    let retryCount = 0;
+    for (const localId of (localIds || [])) {
+        const item = queue.find(i => i.localId === localId && i.status === 'error');
+        if (item) {
+            updateQueueItem(localId, { status: 'pending', error: null });
+            retryCount++;
+        }
+    }
+
+    if (retryCount > 0) {
+        // 觸發背景處理
+        setImmediate(() => processUploadQueue().catch(console.error));
+    }
+
+    res.json({
+        message: `已重新排入 ${retryCount} 個項目`,
+        retryCount
+    });
+});
+
+// 取消/刪除上傳項目
+app.delete('/api/uploads/:localId', (req, res) => {
+    const { localId } = req.params;
+    const queue = readQueue();
+    const item = queue.find(i => i.localId === localId);
+
+    if (!item) {
+        return res.status(404).json({ error: 'Upload not found' });
+    }
+
+    // 刪除本地檔案（如果存在）
+    if (item.localPath && fs.existsSync(item.localPath)) {
+        try {
+            fs.unlinkSync(item.localPath);
+        } catch (e) {
+            console.error('[DELETE-UPLOAD] Failed to delete file:', e);
+        }
+    }
+
+    // 從佇列移除
+    removeFromQueue(localId);
+
+    res.json({ success: true, localId });
+});
+
+// 取得相簿照片 (Proxy) - v2.0: 合併本地待上傳照片
 app.get('/api/album/:id/photos', async (req, res) => {
     if (!oauthTokens.accessToken) {
         return res.status(401).json({ error: '尚未授權 Flickr' });
@@ -442,8 +851,16 @@ app.get('/api/album/:id/photos', async (req, res) => {
 
     const { id } = req.params;
     const { page = 1, per_page = 50 } = req.query;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     try {
+        // 1. 取得本地待上傳照片
+        const localPhotos = getLocalPhotosForAlbum(id);
+        const localPhotoObjects = localPhotos.map(item => createLocalPhotoObject(item, baseUrl));
+
+        console.log(`[ALBUM] Found ${localPhotoObjects.length} local photos for album ${id}`);
+
+        // 2. 取得 Flickr 照片
         const url = 'https://api.flickr.com/services/rest/';
         const params = {
             method: 'flickr.photosets.getPhotos',
@@ -481,6 +898,15 @@ app.get('/api/album/:id/photos', async (req, res) => {
         const data = await response.json();
 
         if (data.stat === 'ok') {
+            // 3. 合併：本地照片在前，Flickr 照片在後（僅第一頁）
+            if (parseInt(page) === 1 && localPhotoObjects.length > 0) {
+                data.photoset.photo = [...localPhotoObjects, ...data.photoset.photo];
+                data.photoset.total = (parseInt(data.photoset.total) + localPhotoObjects.length).toString();
+                data._hasLocalPhotos = true;
+                data._localCount = localPhotoObjects.length;
+                console.log(`[ALBUM] Merged ${localPhotoObjects.length} local + ${data.photoset.photo.length - localPhotoObjects.length} Flickr photos`);
+            }
+
             res.json(data);
         } else {
             console.error('Flickr API Error (getPhotos):', data);
@@ -918,15 +1344,34 @@ async function addPhotoTags(photoId, tags) {
 // ==================== 啟動伺服器 ====================
 
 app.listen(PORT, () => {
-    console.log(`\n🏠 黃家小屋 Flickr 上傳服務`);
+    console.log(`\n🏠 黃家小屋 Flickr 上傳服務 v2.0 (Staged Upload)`);
     console.log(`📡 運行於 http://localhost:${PORT}`);
     console.log(`\n狀態：`);
     console.log(`  • API Key: ${process.env.FLICKR_API_KEY ? '✅ 已設定' : '❌ 未設定'}`);
     console.log(`  • API Secret: ${process.env.FLICKR_API_SECRET ? '✅ 已設定' : '❌ 未設定'}`);
     console.log(`  • OAuth Token: ${oauthTokens.accessToken ? '✅ 已授權' : '⚠️ 需要授權'}`);
 
+    // 檢查待處理佇列
+    const pendingQueue = getPendingItems();
+    if (pendingQueue.length > 0) {
+        console.log(`\n📦 發現 ${pendingQueue.length} 個待處理上傳項目`);
+        // 啟動背景處理
+        setTimeout(() => {
+            console.log('[STARTUP] Starting background queue processing...');
+            processUploadQueue().catch(err => {
+                console.error('[STARTUP] Queue processing error:', err);
+            });
+        }, 3000); // 延遲 3 秒啟動，確保伺服器完全啟動
+    }
+
     if (!oauthTokens.accessToken) {
         console.log(`\n⚠️ 首次使用請訪問以下網址進行授權：`);
         console.log(`   http://localhost:${PORT}/api/auth/start`);
     }
+
+    console.log(`\n📝 API 端點：`);
+    console.log(`  • POST /api/upload - 分階段上傳（立即回應，背景處理）`);
+    console.log(`  • POST /api/upload/sync - 同步上傳（等待完成）`);
+    console.log(`  • GET  /api/uploads/status - 查看上傳佇列狀態`);
+    console.log(`  • GET  /api/album/:id/photos - 取得相簿照片（含本地待上傳）`);
 });
