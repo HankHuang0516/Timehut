@@ -8,3 +8,5 @@ node_modules/
 server/.env
 server/uploads/
 download/
+server/node_modules/
+server/uploads/queue.json
