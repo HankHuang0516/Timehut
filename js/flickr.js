@@ -168,9 +168,6 @@ const FlickrAPI = {
             // 找尋 media="video" 的來源，或者最大的 video 格式
             // 通常 label 為 "Site MP4", "Mobile MP4", "HD MP4", "Video Original"
 
-            const sizes = data.sizes.size;
-            console.log('[FlickrAPI] Video Sizes Available:', sizes.filter(s => s.media === 'video'));
-
             // 優先順序: Site MP4 (通常是最佳 MP4) > HD MP4 > Mobile MP4 > Video Original
             // 因為 "Video Original" 可能是網頁播放器連結，而非直接檔案
             const videoLabels = ['Site MP4', 'HD MP4', 'Mobile MP4', 'Video Original'];
