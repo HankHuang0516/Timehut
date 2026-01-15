@@ -150,6 +150,26 @@
             display: block;
         }
 
+        /* Modal Info Layout - preventing overlap */
+        .modal-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding-top: var(--spacing-md);
+        }
+
+        .modal-details {
+            flex: 1;
+            min-width: 0;
+            /* Allow text truncate if needed */
+        }
+
+        .modal-actions {
+            flex-shrink: 0;
+            margin-left: var(--spacing-sm);
+        }
+
         @media (max-width: 768px) {
             .main-content.album-page-content {
                 display: block;
@@ -257,11 +277,16 @@
 
             <button class="modal-nav modal-next" onclick="navigatePhoto(1)">›</button>
             <div class="modal-info">
-                <h3 id="modalTitle"></h3>
-                <p id="modalDate"></p>
-                <button class="modal-download-btn" id="modalDownloadBtn" onclick="downloadCurrentPhoto()" title="下載原圖">
-                    📥 下載原圖
-                </button>
+                <div class="modal-details">
+                    <h3 id="modalTitle"></h3>
+                    <p id="modalDate"></p>
+                </div>
+                <div class="modal-actions">
+                    <button class="modal-download-btn" id="modalDownloadBtn" onclick="downloadCurrentPhoto()"
+                        title="下載原圖">
+                        📥 下載原圖
+                    </button>
+                </div>
             </div>
         </div>
     </div>
