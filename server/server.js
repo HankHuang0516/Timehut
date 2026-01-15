@@ -892,24 +892,56 @@ app.post('/api/album/:albumId/add_photos', async (req, res) => {
     });
 });
 
-// 圖片代理 API (P1 for Download)
-app.get('/api/proxy-image', async (req, res) => {
+// 圖片/影片代理 API (Streaming with Range Support)
+app.get('/api/proxy-video', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).send('Missing url');
 
     try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+        const fetch = require('node-fetch'); // Ensure node-fetch is used (or native in Node 18+)
+        // Forward Range header
+        const headers = {};
+        if (req.headers.range) {
+            headers['Range'] = req.headers.range;
+        }
 
-        // Forward headers
-        res.setHeader('Content-Type', response.headers.get('content-type'));
-        res.setHeader('Content-Disposition', `attachment; filename="photo.jpg"`);
+        const response = await fetch(url, { headers });
 
-        const buffer = await response.arrayBuffer();
-        res.send(Buffer.from(buffer));
+        if (!response.ok) {
+            console.error(`Proxy fetch failed: ${response.status} ${response.statusText}`);
+            // If range request fails, try without range? Or just return error
+            return res.status(response.status).send(`Fetch failed: ${response.statusText}`);
+        }
+
+        // Forward important headers
+        const contentTypes = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
+        contentTypes.forEach(type => {
+            const val = response.headers.get(type);
+            if (val) res.setHeader(type, val);
+        });
+
+        // Set disposition if it's an image or we want dl
+        // For video streaming, we usually don't force attachment unless requested
+        // res.setHeader('Content-Disposition', `inline; filename="media"`);
+
+        res.status(response.status);
+
+        // Pipe the body
+        if (response.body && typeof response.body.pipe === 'function') {
+            response.body.pipe(res);
+        } else {
+            // Fallback for native fetch (ReadableStream)
+            const { Readable } = require('stream');
+            if (response.body) {
+                // @ts-ignore
+                Readable.fromWeb(response.body).pipe(res);
+            } else {
+                res.end();
+            }
+        }
     } catch (error) {
         console.error('Proxy Error:', error);
-        res.status(500).send('Failed to fetch image');
+        if (!res.headersSent) res.status(500).send('Failed to fetch media');
     }
 });
 
@@ -1630,7 +1662,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #4`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #5`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);

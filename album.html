@@ -377,11 +377,19 @@
                 document.getElementById('loadingIndicator').style.display = 'none';
                 renderPhotos();
             } else if (AlbumState.momentId) {
-                // Fetch from API if direct link
+                if (AlbumState.momentId.startsWith('moment_')) {
+                    // Handle deep link to moment (which doesn't exist as a real album)
+                    document.getElementById('momentDate').textContent = '無法直接存取';
+                    document.getElementById('momentInfo').innerHTML = '此為時間軸動態，請從時間軸進入。<br><br><a href="timeline.html" class="btn">返回時間軸</a>';
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    return;
+                }
+
+                // Fetch from API if direct link (real album)
                 try {
-                    const data = await FlickrAPI.getAlbumPhotos(AlbumState.momentId, 1, 500); // Fetch all/max
+                    const data = await FlickrAPI.getAlbumPhotos(AlbumState.momentId, 1, 500);
                     AlbumState.photos = data.photos;
-                    document.getElementById('momentDate').textContent = '相集詳情'; // Default title since we don't have Moment name easily
+                    document.getElementById('momentDate').textContent = '相集詳情';
                     document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
                     document.getElementById('loadingIndicator').style.display = 'none';
                     renderPhotos();
@@ -785,7 +793,9 @@
                 // Show loading state or placeholder if needed
                 try {
                     const videoSrc = await FlickrAPI.getVideoUrl(photo);
-                    videoEl.src = videoSrc;
+                    // Use backend proxy to bypass CORS/Auth issues for video streaming
+                    const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-video?url=${encodeURIComponent(videoSrc)}`;
+                    videoEl.src = proxyUrl;
                     videoEl.style.display = 'block';
                     // videoEl.play(); // Auto play if allowed
                 } catch (e) {
