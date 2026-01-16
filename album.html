@@ -252,6 +252,8 @@
         <div class="selection-actions">
             <!-- P1: Add Batch Add to Album Button -->
             <button class="action-btn" id="batchAlbumBtn" onclick="batchAddToAlbum()">📁 加入相簿</button>
+            <!-- Move to Album -->
+            <button class="action-btn" id="batchMoveBtn" onclick="showMoveModal()">📦 移動</button>
             <!-- Existing Batch Actions -->
             <button class="action-btn" id="downloadSelectedBtn" onclick="downloadSelected()">⬇️ 下載</button>
             <button class="action-btn" id="tagSelectedBtn" onclick="showTagModal()">🏷️ 加標籤</button>
@@ -344,6 +346,25 @@
             <div class="confirm-actions">
                 <button class="btn-secondary" onclick="closeTagModal()">取消</button>
                 <button class="btn-tag" id="tagConfirmBtn" onclick="addTagsToSelected()">確認加標籤</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move to Album Modal -->
+    <div id="moveModal" class="modal-overlay hidden">
+        <div class="confirm-card" style="max-width: 400px;">
+            <div class="confirm-icon">📦</div>
+            <h3 class="confirm-title">移動到其他相集</h3>
+            <p class="confirm-message">將選取的 <span id="moveModalCount">0</span> 張照片移動到：</p>
+            <div style="margin: 16px 0;">
+                <select id="moveTargetAlbum"
+                    style="width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 1rem;">
+                    <option value="">-- 選擇目標相集 --</option>
+                </select>
+            </div>
+            <div class="confirm-actions">
+                <button class="btn-secondary" onclick="closeMoveModal()">取消</button>
+                <button class="action-btn" id="moveConfirmBtn" onclick="executeMoveToAlbum()">確認移動</button>
             </div>
         </div>
     </div>
@@ -745,6 +766,95 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = '📁 加入相簿';
+            }
+        }
+
+        // ========== 移動到其他相集功能 ==========
+        function showMoveModal() {
+            const count = AlbumState.selectedPhotos.size;
+            if (count === 0) return;
+
+            document.getElementById('moveModalCount').textContent = count;
+
+            // Populate album options (excluding current album)
+            const select = document.getElementById('moveTargetAlbum');
+            select.innerHTML = '<option value="">-- 選擇目標相集 --</option>';
+
+            CONFIG.CHILDREN.forEach(child => {
+                // Skip current album
+                if (child.albumId === AlbumState.momentId) return;
+
+                const option = document.createElement('option');
+                option.value = child.albumId;
+                option.textContent = `${child.emoji} ${child.name}`;
+                select.appendChild(option);
+            });
+
+            document.getElementById('moveModal').classList.remove('hidden');
+        }
+
+        function closeMoveModal() {
+            document.getElementById('moveModal').classList.add('hidden');
+        }
+
+        async function executeMoveToAlbum() {
+            const targetAlbumId = document.getElementById('moveTargetAlbum').value;
+            if (!targetAlbumId) {
+                alert('請選擇目標相集');
+                return;
+            }
+
+            const fromAlbumId = AlbumState.momentId;
+            if (!fromAlbumId) {
+                alert('無法取得目前相簿 ID');
+                return;
+            }
+
+            const photoIds = Array.from(AlbumState.selectedPhotos);
+            const btn = document.getElementById('moveConfirmBtn');
+            btn.disabled = true;
+            btn.textContent = '移動中...';
+
+            try {
+                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        photoIds,
+                        fromAlbumId,
+                        toAlbumId: targetAlbumId
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Remove moved photos from current view
+                    const successIds = result.results
+                        .filter(r => r.success)
+                        .map(r => r.photoId);
+
+                    successIds.forEach(id => {
+                        const card = document.querySelector(`.album-photo-card[data-id="${id}"]`);
+                        if (card) card.remove();
+                        AlbumState.photos = AlbumState.photos.filter(p => p.id !== id);
+                    });
+
+                    // Update photo count
+                    document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+
+                    closeMoveModal();
+                    cancelSelection();
+                    alert(result.message || `成功移動 ${successIds.length} 張照片`);
+                } else {
+                    alert('移動失敗: ' + (result.error || result.message));
+                }
+            } catch (error) {
+                console.error('Move error:', error);
+                alert('移動失敗: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '確認移動';
             }
         }
 

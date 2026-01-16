@@ -23,6 +23,12 @@ const SelectionState = {
     selectedPhotos: new Set()
 };
 
+// Moment Selection state for batch moment operations
+const MomentSelectionState = {
+    isSelectMode: false,
+    selectedMoments: new Map() // Map of momentDataId -> { photos: [], timestamp: ... }
+};
+
 /**
  * 導向搜尋結果頁面
  */
@@ -1777,3 +1783,347 @@ document.addEventListener('DOMContentLoaded', initAlbumSidebar);
 window.addEventListener('beforeunload', () => {
     sessionStorage.setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
 });
+
+// =====================================================
+// MOMENT BATCH OPERATIONS (相集批量操作)
+// =====================================================
+
+/**
+ * 切換相集選擇模式
+ */
+function toggleMomentSelectMode() {
+    MomentSelectionState.isSelectMode = !MomentSelectionState.isSelectMode;
+    document.body.classList.toggle('moment-select-mode', MomentSelectionState.isSelectMode);
+    document.getElementById('momentSelectionBar').classList.toggle('hidden', !MomentSelectionState.isSelectMode);
+    document.getElementById('batchMomentBtn').classList.toggle('active', MomentSelectionState.isSelectMode);
+
+    if (!MomentSelectionState.isSelectMode) {
+        // Clear selections when exiting select mode
+        MomentSelectionState.selectedMoments.clear();
+        document.querySelectorAll('.moment-item.selected').forEach(item => {
+            item.classList.remove('selected');
+        });
+    }
+
+    // Add click handlers to moment items
+    updateMomentClickHandlers();
+    updateMomentSelectionUI();
+}
+
+/**
+ * 更新相集點擊事件
+ */
+function updateMomentClickHandlers() {
+    document.querySelectorAll('.moment-item').forEach(item => {
+        if (MomentSelectionState.isSelectMode) {
+            item.onclick = (e) => {
+                // Prevent click on photos from triggering selection
+                if (e.target.closest('.moment-photo-container')) return;
+                toggleMomentSelection(item);
+            };
+        } else {
+            item.onclick = null;
+        }
+    });
+}
+
+/**
+ * 切換相集選擇狀態
+ */
+function toggleMomentSelection(momentItem) {
+    if (!MomentSelectionState.isSelectMode) return;
+
+    // Find the momentDataId from the item
+    const albumLink = momentItem.querySelector('.moment-album-link');
+    if (!albumLink) return;
+
+    const onclick = albumLink.getAttribute('onclick');
+    const match = onclick && onclick.match(/navigateToAlbum\('([^']+)'\)/);
+    const momentDataId = match ? match[1] : null;
+
+    if (!momentDataId) return;
+
+    if (MomentSelectionState.selectedMoments.has(momentDataId)) {
+        MomentSelectionState.selectedMoments.delete(momentDataId);
+        momentItem.classList.remove('selected');
+    } else {
+        const momentData = TimelineState.momentData.get(momentDataId);
+        if (momentData) {
+            MomentSelectionState.selectedMoments.set(momentDataId, momentData);
+            momentItem.classList.add('selected');
+        }
+    }
+
+    updateMomentSelectionUI();
+}
+
+/**
+ * 更新相集選擇 UI
+ */
+function updateMomentSelectionUI() {
+    const count = MomentSelectionState.selectedMoments.size;
+    document.getElementById('selectedMomentCount').textContent = count;
+
+    // Enable/disable action buttons
+    const disableActions = count === 0;
+    document.getElementById('momentBatchTagBtn').disabled = disableActions;
+    document.getElementById('momentMoveCollectionBtn').disabled = disableActions;
+    document.getElementById('momentMoveAlbumBtn').disabled = disableActions;
+    document.getElementById('momentDeleteBtn').disabled = disableActions;
+}
+
+/**
+ * 取得所有選中相集的照片ID
+ */
+function getSelectedMomentPhotoIds() {
+    const photoIds = [];
+    MomentSelectionState.selectedMoments.forEach(momentData => {
+        momentData.photos.forEach(photo => {
+            if (!photoIds.includes(photo.id)) {
+                photoIds.push(photo.id);
+            }
+        });
+    });
+    return photoIds;
+}
+
+/**
+ * 批量刪除相集
+ */
+async function batchMomentDelete() {
+    const count = MomentSelectionState.selectedMoments.size;
+    if (count === 0) return alert('請先選擇相集');
+
+    const photoIds = getSelectedMomentPhotoIds();
+    const photoCount = photoIds.length;
+
+    if (!confirm(`確定要刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！`)) return;
+
+    const btn = document.getElementById('momentDeleteBtn');
+    btn.disabled = true;
+    btn.textContent = '刪除中...';
+
+    try {
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            const successCount = result.results?.filter(r => r.success).length || 0;
+            showToast(`刪除完成！成功：${successCount} 張照片`, 'success');
+
+            // Exit select mode and reload
+            MomentSelectionState.selectedMoments.clear();
+            toggleMomentSelectMode();
+
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            alert(`刪除失敗：${result.error}`);
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('刪除時發生錯誤，請稍後再試');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🗑️ 刪除';
+    }
+}
+
+/**
+ * 批量為相集加標籤
+ */
+async function batchMomentAddTags() {
+    const count = MomentSelectionState.selectedMoments.size;
+    if (count === 0) return alert('請先選擇相集');
+
+    const photoIds = getSelectedMomentPhotoIds();
+    const tags = prompt(`為 ${count} 個相集（${photoIds.length} 張照片）增加標籤（以空格分隔）:`);
+    if (!tags) return;
+
+    const btn = document.getElementById('momentBatchTagBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+
+    try {
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds, tags })
+        });
+
+        const result = await response.json();
+        showToast(result.message || '標籤添加成功', 'success');
+
+        // Reload to update UI
+        MomentSelectionState.selectedMoments.clear();
+        toggleMomentSelectMode();
+        loadPhotos();
+    } catch (error) {
+        alert('加標籤失敗: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🏷️ 加標籤';
+    }
+}
+
+/**
+ * 批量移動相集到其他時間點（合併相集）
+ */
+async function batchMomentMoveCollection() {
+    const count = MomentSelectionState.selectedMoments.size;
+    if (count === 0) return alert('請先選擇相集');
+
+    // Get list of available moments (dates) from current timeline
+    const moments = Array.from(TimelineState.momentData.entries());
+    if (moments.length < 2) {
+        return alert('需要至少兩個相集才能合併');
+    }
+
+    // Build selection options
+    let options = '選擇目標相集（輸入編號）:\n\n';
+    const unselectedMoments = moments.filter(([id]) => !MomentSelectionState.selectedMoments.has(id));
+
+    unselectedMoments.forEach(([id, data], idx) => {
+        options += `${idx + 1}. ${data.dateStr} (${data.photos.length} 張)\n`;
+    });
+
+    const input = prompt(options);
+    if (!input) return;
+
+    const targetIdx = parseInt(input) - 1;
+    if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= unselectedMoments.length) {
+        return alert('無效的選擇');
+    }
+
+    const targetMoment = unselectedMoments[targetIdx];
+    const targetDate = targetMoment[1].timestamp;
+
+    // Get photos to move and update their date_taken
+    const photoIds = getSelectedMomentPhotoIds();
+
+    if (!confirm(`確定要將 ${count} 個相集（${photoIds.length} 張照片）移動到「${targetMoment[1].dateStr}」嗎？`)) return;
+
+    const btn = document.getElementById('momentMoveCollectionBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+
+    try {
+        // Update photo date_taken to target date
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                photoIds,
+                targetDate: new Date(targetDate).toISOString()
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast(`成功移動 ${photoIds.length} 張照片到「${targetMoment[1].dateStr}」`, 'success');
+            MomentSelectionState.selectedMoments.clear();
+            toggleMomentSelectMode();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert(`移動失敗：${result.error || '未知錯誤'}`);
+        }
+    } catch (error) {
+        console.error('Move error:', error);
+        alert('移動相集時發生錯誤：' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📂 移動相集';
+    }
+}
+
+/**
+ * 批量移動相集到其他相簿
+ */
+async function batchMomentMoveAlbum() {
+    const count = MomentSelectionState.selectedMoments.size;
+    if (count === 0) return alert('請先選擇相集');
+
+    const photoIds = getSelectedMomentPhotoIds();
+
+    // Build album selection options
+    let albumList = '選擇目標相簿（輸入編號）:\n\n';
+    CONFIG.CHILDREN.forEach((child, index) => {
+        const current = index === TimelineState.currentChildIndex ? ' (目前)' : '';
+        albumList += `${index + 1}. ${child.emoji} ${child.name}${current}\n`;
+    });
+
+    const input = prompt(albumList);
+    if (!input) return;
+
+    const targetIdx = parseInt(input) - 1;
+    if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= CONFIG.CHILDREN.length) {
+        return alert('無效的選擇');
+    }
+
+    if (targetIdx === TimelineState.currentChildIndex) {
+        return alert('照片已在此相簿中');
+    }
+
+    const targetChild = CONFIG.CHILDREN[targetIdx];
+    const targetAlbumId = targetChild.albumId;
+
+    if (!confirm(`確定要將 ${count} 個相集（${photoIds.length} 張照片）移動到「${targetChild.name}」的相簿嗎？`)) return;
+
+    const btn = document.getElementById('momentMoveAlbumBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+
+    try {
+        // First add photos to new album
+        const addResponse = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${targetAlbumId}/add_photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds })
+        });
+
+        const addResult = await addResponse.json();
+
+        if (!addResponse.ok) {
+            throw new Error(addResult.error || '加入新相簿失敗');
+        }
+
+        // Then remove from current album
+        const currentAlbumId = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
+        const removeResponse = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${currentAlbumId}/remove_photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds })
+        });
+
+        const removeResult = await removeResponse.json();
+
+        if (removeResponse.ok) {
+            showToast(`成功將 ${photoIds.length} 張照片移動到「${targetChild.name}」的相簿`, 'success');
+            MomentSelectionState.selectedMoments.clear();
+            toggleMomentSelectMode();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(`照片已加入新相簿，但從原相簿移除失敗：${removeResult.error}`, 'warning');
+        }
+    } catch (error) {
+        console.error('Move album error:', error);
+        alert('移動相簿時發生錯誤：' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📚 移動相簿';
+    }
+}
+
+// Export moment batch operation functions
+window.toggleMomentSelectMode = toggleMomentSelectMode;
+window.batchMomentDelete = batchMomentDelete;
+window.batchMomentAddTags = batchMomentAddTags;
+window.batchMomentMoveCollection = batchMomentMoveCollection;
+window.batchMomentMoveAlbum = batchMomentMoveAlbum;

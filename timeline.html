@@ -66,6 +66,10 @@
                 </a>
             </div>
             <div class="header-right">
+                <button class="header-btn batch-moment-btn" id="batchMomentBtn" title="批量處理相集" onclick="toggleMomentSelectMode()">
+                    <span class="btn-icon">☑️</span>
+                    <span class="btn-label">多選</span>
+                </button>
                 <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
                     <span class="btn-icon">📤</span>
                     <span class="btn-label">上傳</span>
@@ -103,7 +107,7 @@
     </div>
 
 
-    <!-- Selection Bar for Batch Operations -->
+    <!-- Selection Bar for Batch Operations (Photos) -->
     <div class="selection-bar hidden" id="selectionBar">
         <div class="selection-info">
             <span id="selectedCount">0</span> 張已選
@@ -114,6 +118,20 @@
             <button class="action-btn" id="batchAlbumBtn" onclick="batchAddToAlbum()">📁 加入相簿</button>
             <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelectedPhotos()">🗑️ 刪除選取</button>
             <button class="btn-secondary" id="cancelSelectBtn">取消</button>
+        </div>
+    </div>
+
+    <!-- Selection Bar for Batch Moment Operations -->
+    <div class="moment-selection-bar hidden" id="momentSelectionBar">
+        <div class="selection-info">
+            <span id="selectedMomentCount">0</span> 個相集已選
+        </div>
+        <div class="selection-actions">
+            <button class="action-btn" id="momentBatchTagBtn" onclick="batchMomentAddTags()">🏷️ 加標籤</button>
+            <button class="action-btn" id="momentMoveCollectionBtn" onclick="batchMomentMoveCollection()">📂 移動相集</button>
+            <button class="action-btn" id="momentMoveAlbumBtn" onclick="batchMomentMoveAlbum()">📚 移動相簿</button>
+            <button class="btn-danger" id="momentDeleteBtn" onclick="batchMomentDelete()">🗑️ 刪除</button>
+            <button class="btn-secondary" id="cancelMomentSelectBtn" onclick="toggleMomentSelectMode()">取消</button>
         </div>
     </div>
 

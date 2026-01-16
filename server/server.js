@@ -950,6 +950,132 @@ app.post('/api/album/:albumId/add_photos', async (req, res) => {
     });
 });
 
+// 批量從相簿移除 API
+app.post('/api/album/:albumId/remove_photos', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { albumId } = req.params;
+    const { photoIds } = req.body;
+
+    if (!photoIds || !Array.isArray(photoIds)) {
+        return res.status(400).json({ error: '請提供照片 ID' });
+    }
+
+    console.log(`[BATCH-REMOVE] Removing ${photoIds.length} photos from album ${albumId}`);
+
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            await removePhotoFromAlbum(photoId, albumId);
+            results.push({ photoId, success: true });
+        } catch (error) {
+            // Error code 2: Photo not in set - treat as success
+            if (error.message.includes('code 2') || error.message.includes('not in set')) {
+                results.push({ photoId, success: true, message: 'Not in album' });
+            } else {
+                results.push({ photoId, success: false, error: error.message });
+            }
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+        message: `從相簿移除完成：${successCount}/${photoIds.length} 張成功`,
+        results
+    });
+});
+
+// 批量移動照片到另一個相簿 API
+app.post('/api/photos/move', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { photoIds, fromAlbumId, toAlbumId } = req.body;
+
+    if (!photoIds || !Array.isArray(photoIds) || photoIds.length === 0) {
+        return res.status(400).json({ error: '請提供照片 ID' });
+    }
+    if (!fromAlbumId || !toAlbumId) {
+        return res.status(400).json({ error: '請提供來源和目標相簿 ID' });
+    }
+    if (fromAlbumId === toAlbumId) {
+        return res.status(400).json({ error: '來源和目標相簿不能相同' });
+    }
+
+    console.log(`[MOVE] Moving ${photoIds.length} photos from ${fromAlbumId} to ${toAlbumId}`);
+
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            // Step 1: Add to target album
+            await addPhotoToAlbum(photoId, toAlbumId);
+
+            // Step 2: Remove from source album
+            await removePhotoFromAlbum(photoId, fromAlbumId);
+
+            results.push({ photoId, success: true });
+            console.log(`[MOVE] ✅ Moved ${photoId}`);
+        } catch (error) {
+            results.push({ photoId, success: false, error: error.message });
+            console.error(`[MOVE] ❌ Failed to move ${photoId}:`, error.message);
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+        message: `移動完成：${successCount}/${photoIds.length} 張成功`,
+        results,
+        success: successCount > 0
+    });
+});
+
+// Helper function: Remove photo from album
+function removePhotoFromAlbum(photoId, albumId) {
+    return new Promise((resolve, reject) => {
+        const url = 'https://api.flickr.com/services/rest/';
+        const params = {
+            method: 'flickr.photosets.removePhoto',
+            api_key: process.env.FLICKR_API_KEY,
+            photoset_id: albumId,
+            photo_id: photoId,
+            format: 'json',
+            nojsoncallback: '1'
+        };
+
+        const queryString = Object.keys(params)
+            .map(key => `${key}=${encodeURIComponent(params[key])}`)
+            .join('&');
+
+        oauth.post(
+            `${url}?${queryString}`,
+            oauthTokens.accessToken,
+            oauthTokens.accessTokenSecret,
+            {},
+            'application/x-www-form-urlencoded',
+            (error, data) => {
+                if (error) {
+                    console.error('Remove from album error:', error);
+                    return reject(new Error(error.data || error.message || 'Remove failed'));
+                }
+
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.stat === 'ok') {
+                        resolve(true);
+                    } else {
+                        reject(new Error(`Flickr error: ${parsed.message} (code ${parsed.code})`));
+                    }
+                } catch (e) {
+                    reject(new Error('Failed to parse Flickr response'));
+                }
+            }
+        );
+    });
+}
+
 // 圖片/影片代理 API (Enhanced: Resolves /play/ URLs)
 app.get('/api/proxy-video', async (req, res) => {
     let url = req.query.url;
@@ -1966,7 +2092,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #44`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #45`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);

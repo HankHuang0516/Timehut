@@ -1956,6 +1956,85 @@ img {
     background: rgba(255, 255, 255, 0.1);
 }
 
+/* Moment Selection Bar */
+.moment-selection-bar {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    height: 50px;
+    background: linear-gradient(135deg, #6b7fff, #5a6aee);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--spacing-lg);
+    z-index: 99;
+    box-shadow: var(--shadow-md);
+}
+
+.moment-selection-bar.hidden {
+    display: none;
+}
+
+/* Moment Select Mode - Moment Item Checkbox */
+body.moment-select-mode .moment-item {
+    position: relative;
+    cursor: pointer;
+}
+
+body.moment-select-mode .moment-item::before {
+    content: '○';
+    position: absolute;
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: var(--color-text-muted);
+    z-index: 10;
+    box-shadow: var(--shadow-sm);
+}
+
+body.moment-select-mode .moment-item.selected::before {
+    content: '✓';
+    background: #6b7fff;
+    border-color: #5a6aee;
+    color: white;
+}
+
+body.moment-select-mode .moment-item.selected {
+    outline: 3px solid #6b7fff;
+    outline-offset: -3px;
+    border-radius: var(--radius-lg);
+}
+
+body.moment-select-mode .moment-item:hover {
+    background: rgba(107, 127, 255, 0.05);
+}
+
+/* Main content offset when moment selection bar is visible */
+body.moment-select-mode .main-content {
+    margin-top: 50px;
+}
+
+/* Batch moment button active state */
+.batch-moment-btn.active {
+    background: #6b7fff;
+    color: white;
+}
+
+.batch-moment-btn.active .btn-icon,
+.batch-moment-btn.active .btn-label {
+    color: white;
+}
+
 /* Select Mode - Photo Card Checkbox Overlay */
 body.select-mode .photo-card {
     position: relative;
