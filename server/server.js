@@ -260,7 +260,120 @@ async function uploadToFlickrWithRetry(file, title, description, tags, maxRetrie
 }
 
 /**
- * 處理上傳佇列（背景執行）- 增強版
+ * 處理單一上傳項目的核心邏輯
+ */
+async function processSingleItem(item) {
+    console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
+
+    // 更新狀態為上傳中，記錄嘗試次數
+    const retryCount = (item.retryCount || 0) + 1;
+    updateQueueItem(item.localId, {
+        status: 'uploading',
+        retryCount,
+        lastAttempt: new Date().toISOString()
+    });
+
+    // 檢查檔案是否存在
+    if (!fs.existsSync(item.localPath)) {
+        console.error(`[WORKER] File not found: ${item.localPath}`);
+        updateQueueItem(item.localId, {
+            status: 'error',
+            error: 'File not found (永久錯誤)'
+        });
+        return { success: false, type: 'permanent' };
+    }
+
+    try {
+        // 上傳到 Flickr（帶重試）
+        const file = {
+            path: item.localPath,
+            originalname: item.originalFilename,
+            mimetype: item.mimetype
+        };
+
+        const photoId = await uploadToFlickrWithRetry(file, item.title, item.description, item.tags);
+        console.log(`[WORKER] Uploaded to Flickr, photoId: ${photoId}`);
+
+        if (photoId) {
+            // 加入相簿（帶重試）
+            if (item.albumId) {
+                try {
+                    await addPhotoToAlbumWithRetry(photoId, item.albumId);
+                    console.log(`[WORKER] Added to album ${item.albumId}`);
+                } catch (albumError) {
+                    console.error(`[WORKER] Failed to add to album (will continue):`, albumError.message);
+                }
+            }
+
+            // 設定日期（如果有）
+            if (item.date) {
+                try {
+                    await setPhotoDate(photoId, item.date);
+                } catch (dateError) {
+                    console.error(`[WORKER] Failed to set date (will continue):`, dateError.message);
+                }
+            }
+
+            // 更新佇列：標記完成並記錄 Flickr photoId
+            updateQueueItem(item.localId, {
+                status: 'completed',
+                flickrPhotoId: photoId,
+                completedAt: new Date().toISOString()
+            });
+
+            // 刪除本地檔案
+            try {
+                fs.unlinkSync(item.localPath);
+                console.log(`[WORKER] Deleted local file: ${item.localPath}`);
+            } catch (e) {
+                console.error(`[WORKER] Failed to delete local file:`, e.message);
+            }
+
+            // 從佇列移除已完成的項目
+            removeFromQueue(item.localId);
+            console.log(`[WORKER] ✅ Completed: ${item.originalFilename}`);
+            return { success: true, type: 'completed' };
+
+        } else {
+            // Flickr 返回 null（可能是影片處理中）
+            updateQueueItem(item.localId, {
+                status: 'processing',
+                message: 'Video is being processed by Flickr'
+            });
+            console.log(`[WORKER] ⏳ Video processing: ${item.originalFilename}`);
+            return { success: true, type: 'processing' };
+        }
+
+    } catch (error) {
+        console.error(`[WORKER] Error processing ${item.localId}:`, error.message);
+
+        const currentRetryCount = (item.retryCount || 0);
+        const isRetryable = isRetryableError(error);
+
+        if (isRetryable && currentRetryCount < 5) {
+            // 可重試錯誤，標記為 pending 稍後重試
+            updateQueueItem(item.localId, {
+                status: 'pending',
+                error: `${error.message} (將自動重試)`,
+                retryCount: currentRetryCount
+            });
+            console.log(`[WORKER] ⏳ Will retry later: ${item.originalFilename} (attempt ${currentRetryCount})`);
+            return { success: false, type: 'retry' };
+        } else {
+            // 永久錯誤或超過重試次數
+            updateQueueItem(item.localId, {
+                status: 'error',
+                error: isRetryable ? `${error.message} (已達最大重試次數)` : error.message
+            });
+            console.log(`[WORKER] ❌ Failed permanently: ${item.originalFilename}`);
+            return { success: false, type: 'permanent' };
+        }
+    }
+}
+
+/**
+ * 處理上傳佇列（背景執行）- 並發版本
+ * 支援 3 個並發 worker 同時處理上傳
  */
 async function processUploadQueue() {
     if (isProcessingQueue) {
@@ -273,8 +386,8 @@ async function processUploadQueue() {
         return;
     }
 
-    const pendingItems = getPendingItems();
-    if (pendingItems.length === 0) {
+    const initialPendingItems = getPendingItems();
+    if (initialPendingItems.length === 0) {
         console.log('[WORKER] No pending items in queue');
         return;
     }
@@ -288,132 +401,76 @@ async function processUploadQueue() {
     }
 
     isProcessingQueue = true;
-    console.log(`[WORKER] Starting to process ${pendingItems.length} pending uploads...`);
+    console.log(`[WORKER] Starting to process ${initialPendingItems.length} pending uploads with concurrency...`);
 
+    const CONCURRENCY_LIMIT = 3;
+    const activePromises = new Set();
     let successCount = 0;
     let failCount = 0;
     let retryLaterCount = 0;
 
-    for (const item of pendingItems) {
-        try {
-            console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
+    try {
+        while (true) {
+            // 動態讀取待處理項目（可能有新加入的）
+            const pendingItems = getPendingItems();
 
-            // 更新狀態為上傳中，記錄嘗試次數
-            const retryCount = (item.retryCount || 0) + 1;
-            updateQueueItem(item.localId, {
-                status: 'uploading',
-                retryCount,
-                lastAttempt: new Date().toISOString()
-            });
-
-            // 檢查檔案是否存在
-            if (!fs.existsSync(item.localPath)) {
-                console.error(`[WORKER] File not found: ${item.localPath}`);
-                updateQueueItem(item.localId, {
-                    status: 'error',
-                    error: 'File not found (永久錯誤)'
-                });
-                failCount++;
-                continue;
+            // 如果沒有待處理項目且沒有正在執行的任務，結束
+            if (pendingItems.length === 0 && activePromises.size === 0) {
+                break;
             }
 
-            // 上傳到 Flickr（帶重試）
-            const file = {
-                path: item.localPath,
-                originalname: item.originalFilename,
-                mimetype: item.mimetype
-            };
+            // 填充 worker slots 直到達到並發限制
+            while (activePromises.size < CONCURRENCY_LIMIT && pendingItems.length > 0) {
+                const item = pendingItems.shift();
 
-            const photoId = await uploadToFlickrWithRetry(file, item.title, item.description, item.tags);
-            console.log(`[WORKER] Uploaded to Flickr, photoId: ${photoId}`);
-
-            if (photoId) {
-                // 加入相簿（帶重試）
-                if (item.albumId) {
+                // 建立處理 promise
+                const promise = (async () => {
                     try {
-                        await addPhotoToAlbumWithRetry(photoId, item.albumId);
-                        console.log(`[WORKER] Added to album ${item.albumId}`);
-                    } catch (albumError) {
-                        console.error(`[WORKER] Failed to add to album (will continue):`, albumError.message);
+                        const result = await processSingleItem(item);
+
+                        // 統計結果
+                        if (result.success) {
+                            if (result.type === 'completed') {
+                                successCount++;
+                            }
+                        } else {
+                            if (result.type === 'retry') {
+                                retryLaterCount++;
+                            } else {
+                                failCount++;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[WORKER] Unexpected error in worker:', e);
+                        failCount++;
                     }
-                }
+                })();
 
-                // 設定日期（如果有）
-                if (item.date) {
-                    try {
-                        await setPhotoDate(photoId, item.date);
-                    } catch (dateError) {
-                        console.error(`[WORKER] Failed to set date (will continue):`, dateError.message);
-                    }
-                }
+                // 加入 active set
+                activePromises.add(promise);
 
-                // 更新佇列：標記完成並記錄 Flickr photoId
-                updateQueueItem(item.localId, {
-                    status: 'completed',
-                    flickrPhotoId: photoId,
-                    completedAt: new Date().toISOString()
-                });
+                // Promise 完成後從 set 中移除
+                promise.then(() => activePromises.delete(promise))
+                       .catch(() => activePromises.delete(promise));
 
-                // 刪除本地檔案
-                try {
-                    fs.unlinkSync(item.localPath);
-                    console.log(`[WORKER] Deleted local file: ${item.localPath}`);
-                } catch (e) {
-                    console.error(`[WORKER] Failed to delete local file:`, e.message);
-                }
-
-                // 從佇列移除已完成的項目
-                removeFromQueue(item.localId);
-                console.log(`[WORKER] ✅ Completed: ${item.originalFilename}`);
-                successCount++;
-
-            } else {
-                // Flickr 返回 null（可能是影片處理中）
-                updateQueueItem(item.localId, {
-                    status: 'processing',
-                    message: 'Video is being processed by Flickr'
-                });
-                console.log(`[WORKER] ⏳ Video processing: ${item.originalFilename}`);
+                // 小延遲避免同時啟動太多請求
+                await delay(100);
             }
 
-        } catch (error) {
-            console.error(`[WORKER] Error processing ${item.localId}:`, error.message);
-
-            const retryCount = (item.retryCount || 0);
-            const isRetryable = isRetryableError(error);
-
-            if (isRetryable && retryCount < 5) {
-                // 可重試錯誤，標記為 pending 稍後重試
-                updateQueueItem(item.localId, {
-                    status: 'pending',
-                    error: `${error.message} (將自動重試)`,
-                    retryCount: retryCount
-                });
-                retryLaterCount++;
-                console.log(`[WORKER] ⏳ Will retry later: ${item.originalFilename} (attempt ${retryCount})`);
-            } else {
-                // 永久錯誤或超過重試次數
-                updateQueueItem(item.localId, {
-                    status: 'error',
-                    error: isRetryable ? `${error.message} (已達最大重試次數)` : error.message
-                });
-                failCount++;
-                console.log(`[WORKER] ❌ Failed permanently: ${item.originalFilename}`);
+            // 等待至少一個任務完成
+            if (activePromises.size > 0) {
+                await Promise.race(activePromises);
             }
         }
-
-        // 每個檔案之間稍微延遲，避免過快請求
-        await delay(500);
+    } finally {
+        isProcessingQueue = false;
+        console.log(`[WORKER] Queue processing completed: ${successCount} success, ${failCount} failed, ${retryLaterCount} retry later`);
     }
 
-    isProcessingQueue = false;
-    console.log(`[WORKER] Queue processing completed: ${successCount} success, ${failCount} failed, ${retryLaterCount} retry later`);
-
-    // 重新檢查是否有新增的待處理項目（解決批量上傳時新項目被遺漏的問題）
+    // 重新檢查是否有新增的待處理項目
     const newPendingItems = getPendingItems();
     if (newPendingItems.length > 0) {
         console.log(`[WORKER] Found ${newPendingItems.length} new pending items, processing immediately...`);
-        // 使用 setImmediate 避免遞迴太深
         setImmediate(() => processUploadQueue().catch(console.error));
         return;
     }
@@ -2002,7 +2059,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #52`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #53`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);

@@ -15,7 +15,8 @@
       "Bash(railway logs:*)",
       "Bash(git push:*)",
       "Bash(printf:*)",
-      "Bash(node tools/update_deployment_version.js:*)"
+      "Bash(node tools/update_deployment_version.js:*)",
+      "Bash(node -c:*)"
     ]
   }
 }
