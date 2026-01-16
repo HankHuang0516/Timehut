@@ -451,7 +451,7 @@ async function processUploadQueue() {
 
                 // Promise 完成後從 set 中移除
                 promise.then(() => activePromises.delete(promise))
-                       .catch(() => activePromises.delete(promise));
+                    .catch(() => activePromises.delete(promise));
 
                 // 小延遲避免同時啟動太多請求
                 await delay(100);
@@ -1831,7 +1831,7 @@ async function setPhotoDate(photoId, dateStr) {
             api_key: process.env.FLICKR_API_KEY,
             photo_id: photoId,
             date_taken: dateTaken,
-            date_taken_granularity: '4', // 4 = Month level
+            date_taken_granularity: '0', // 0 = Full date level
             format: 'json',
             nojsoncallback: '1',
             oauth_consumer_key: process.env.FLICKR_API_KEY,
@@ -2059,7 +2059,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #55`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #56`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
