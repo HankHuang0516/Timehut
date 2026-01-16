@@ -545,6 +545,9 @@ function createMomentCard(moment, birthDate) {
         timestamp: moment.timestamp
     });
 
+    // Add data attribute for moment selection
+    card.setAttribute('data-moment-id', momentDataId);
+
     // Uploader info (hidden from header per Timehut design)
     const uploaderEmoji = getUploaderEmoji(moment.uploader);
 
@@ -1833,14 +1836,8 @@ function updateMomentClickHandlers() {
 function toggleMomentSelection(momentItem) {
     if (!MomentSelectionState.isSelectMode) return;
 
-    // Find the momentDataId from the item
-    const albumLink = momentItem.querySelector('.moment-album-link');
-    if (!albumLink) return;
-
-    const onclick = albumLink.getAttribute('onclick');
-    const match = onclick && onclick.match(/navigateToAlbum\('([^']+)'\)/);
-    const momentDataId = match ? match[1] : null;
-
+    // Get momentDataId from data attribute
+    const momentDataId = momentItem.getAttribute('data-moment-id');
     if (!momentDataId) return;
 
     if (MomentSelectionState.selectedMoments.has(momentDataId)) {
