@@ -1997,74 +1997,18 @@ window.batchMomentAddTags = async function batchMomentAddTags() {
 }
 
 /**
- * 批量移動相集到其他時間點（合併相集）
+ * 批量移動相集到其他時間點（合併相集）- 視覺化 Modal 版
  */
 window.batchMomentMoveCollection = async function batchMomentMoveCollection() {
     const count = MomentSelectionState.selectedMoments.size;
     if (count === 0) return alert('請先選擇相集');
 
-    // Get list of available moments (dates) from current timeline
-    const moments = Array.from(TimelineState.momentData.entries());
-    if (moments.length < 2) {
-        return alert('需要至少兩個相集才能合併');
-    }
-
-    // Build selection options
-    let options = '選擇目標相集（輸入編號）:\n\n';
-    const unselectedMoments = moments.filter(([id]) => !MomentSelectionState.selectedMoments.has(id));
-
-    unselectedMoments.forEach(([id, data], idx) => {
-        options += `${idx + 1}. ${data.dateStr} (${data.photos.length} 張)\n`;
-    });
-
-    const input = prompt(options);
-    if (!input) return;
-
-    const targetIdx = parseInt(input) - 1;
-    if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= unselectedMoments.length) {
-        return alert('無效的選擇');
-    }
-
-    const targetMoment = unselectedMoments[targetIdx];
-    const targetDate = targetMoment[1].timestamp;
-
-    // Get photos to move and update their date_taken
+    // Get photos to move
     const photoIds = getSelectedMomentPhotoIds();
 
-    if (!confirm(`確定要將 ${count} 個相集（${photoIds.length} 張照片）移動到「${targetMoment[1].dateStr}」嗎？`)) return;
-
-    const btn = document.getElementById('momentMoveCollectionBtn');
-    btn.disabled = true;
-    btn.textContent = '處理中...';
-
-    try {
-        // Update photo date_taken to target date
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                photoIds,
-                targetDate: new Date(targetDate).toISOString()
-            })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            showToast(`成功移動 ${photoIds.length} 張照片到「${targetMoment[1].dateStr}」`, 'success');
-            MomentSelectionState.selectedMoments.clear();
-            toggleMomentSelectMode();
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            alert(`移動失敗：${result.error || '未知錯誤'}`);
-        }
-    } catch (error) {
-        console.error('Move error:', error);
-        alert('移動相集時發生錯誤：' + error.message);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '📂 移動相集';
-    }
+    // Use the visual modal
+    moveCollectionState.isFromMomentSelection = true;
+    showMoveCollectionModal(photoIds.length, photoIds);
 }
 
 /**
