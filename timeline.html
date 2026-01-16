@@ -66,7 +66,8 @@
                 </a>
             </div>
             <div class="header-right">
-                <button class="header-btn batch-moment-btn" id="batchMomentBtn" title="批量處理相集" onclick="toggleMomentSelectMode()">
+                <button class="header-btn batch-moment-btn" id="batchMomentBtn" title="批量處理相集"
+                    onclick="toggleMomentSelectMode()">
                     <span class="btn-icon">☑️</span>
                     <span class="btn-label">多選</span>
                 </button>
@@ -116,6 +117,7 @@
             <button class="action-btn" id="batchDownloadBtn" onclick="batchDownload()">⬇️ 下載</button>
             <button class="action-btn" id="batchTagBtn" onclick="batchAddTags()">🏷️ 加標籤</button>
             <button class="action-btn" id="batchAlbumBtn" onclick="batchAddToAlbum()">📁 加入相簿</button>
+            <button class="action-btn" id="batchMoveCollectionBtn" onclick="batchMoveToCollection()">📂 移動相集</button>
             <button class="btn-danger" id="deleteSelectedBtn" onclick="deleteSelectedPhotos()">🗑️ 刪除選取</button>
             <button class="btn-secondary" id="cancelSelectBtn">取消</button>
         </div>
@@ -128,7 +130,8 @@
         </div>
         <div class="selection-actions">
             <button class="action-btn" id="momentBatchTagBtn" onclick="batchMomentAddTags()">🏷️ 加標籤</button>
-            <button class="action-btn" id="momentMoveCollectionBtn" onclick="batchMomentMoveCollection()">📂 移動相集</button>
+            <button class="action-btn" id="momentMoveCollectionBtn" onclick="batchMomentMoveCollection()">📂
+                移動相集</button>
             <button class="action-btn" id="momentMoveAlbumBtn" onclick="batchMomentMoveAlbum()">📚 移動相簿</button>
             <button class="btn-danger" id="momentDeleteBtn" onclick="batchMomentDelete()">🗑️ 刪除</button>
             <button class="btn-secondary" id="cancelMomentSelectBtn" onclick="toggleMomentSelectMode()">取消</button>

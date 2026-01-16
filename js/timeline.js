@@ -476,47 +476,50 @@ function renderTimeline() {
 
 /**
  * 將照片分組為 Moments (Batches)
- * 規則：同一上傳者 + 上傳時間相差 30 分鐘內
+ * 規則：同一拍攝日期的照片會合併為一個相集
  */
 function groupPhotosToMoments(photos) {
     if (!photos || photos.length === 0) return [];
 
-    const moments = [];
-    let currentMoment = null;
+    // Group by date taken (YYYY-MM-DD)
+    const momentsByDate = new Map();
 
-    // Photos are expected to be sorted by date taken/upload desc
     photos.forEach(photo => {
         // Get uploader
         const tags = photo.tags ? photo.tags.split(' ') : [];
         const uploaderTag = tags.find(t => t.startsWith('uploader:'));
         const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : '未知';
 
-        const photoTime = parseInt(photo.dateupload) * 1000;
-
-        if (currentMoment) {
-            const timeDiff = Math.abs(photoTime - currentMoment.timestamp);
-            const isSameUploader = uploader === currentMoment.uploader;
-            // 30 mins = 30 * 60 * 1000 = 1800000
-            const isWithinTime = timeDiff < 1800000;
-
-            if (isSameUploader && isWithinTime) {
-                currentMoment.photos.push(photo);
-                return;
-            }
+        // Use datetaken for grouping, fallback to dateupload
+        let dateKey;
+        if (photo.datetaken) {
+            dateKey = photo.datetaken.split(' ')[0]; // YYYY-MM-DD
+        } else {
+            const uploadTime = parseInt(photo.dateupload) * 1000;
+            dateKey = new Date(uploadTime).toISOString().split('T')[0];
         }
 
-        // Start new moment
-        currentMoment = {
-            uploader: uploader,
-            timestamp: photoTime,
-            date: photo.datetaken || new Date(photoTime).toISOString(),
-            photos: [photo]
-        };
-        moments.push(currentMoment);
+        if (!momentsByDate.has(dateKey)) {
+            const photoTime = photo.datetaken
+                ? new Date(photo.datetaken).getTime()
+                : parseInt(photo.dateupload) * 1000;
+
+            momentsByDate.set(dateKey, {
+                uploader: uploader,
+                timestamp: photoTime,
+                date: photo.datetaken || new Date(photoTime).toISOString(),
+                dateKey: dateKey,
+                photos: []
+            });
+        }
+        momentsByDate.get(dateKey).photos.push(photo);
     });
 
-    return moments;
+    // Convert to array and sort by date (newest first)
+    return Array.from(momentsByDate.values())
+        .sort((a, b) => b.timestamp - a.timestamp);
 }
+
 
 /**
  * 建立 Moment Card (Batch View)
@@ -2143,3 +2146,72 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
 }
 
 // Note: Functions are exported at the beginning of this section via wrapper functions
+
+// =====================================================
+// INDIVIDUAL PHOTO BATCH MOVE TO COLLECTION
+// =====================================================
+
+/**
+ * 批量移動單獨選取的照片到其他相集（改變拍攝日期）
+ */
+async function batchMoveToCollection() {
+    const count = SelectionState.selectedPhotos.size;
+    if (count === 0) return alert('請先選擇照片');
+
+    // Build list of available date-based collections from current timeline
+    const moments = Array.from(TimelineState.momentData.entries());
+    if (moments.length < 2) {
+        return alert('需要至少兩個相集才能移動');
+    }
+
+    // Build selection options
+    let options = '選擇目標相集（輸入編號）：\n\n';
+    moments.forEach(([id, data], idx) => {
+        options += `${idx + 1}. ${data.dateStr} (${data.photos.length} 張)\n`;
+    });
+
+    const input = prompt(options);
+    if (!input) return;
+
+    const targetIdx = parseInt(input) - 1;
+    if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= moments.length) {
+        return alert('無效的選擇');
+    }
+
+    const targetMoment = moments[targetIdx];
+    const targetDateStr = targetMoment[1].photos[0]?.datetaken?.split(' ')[0];
+
+    if (!targetDateStr) {
+        return alert('無法取得目標日期');
+    }
+
+    const targetDate = targetDateStr + ' 12:00:00';
+    const photoIds = Array.from(SelectionState.selectedPhotos);
+
+    if (!confirm(`確定要將 ${count} 張照片移動到「${targetMoment[1].dateStr}」嗎？`)) return;
+
+    try {
+        showToast('正在移動照片...', 'info');
+
+        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIds, targetDate })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast(result.message || '移動成功', 'success');
+            SelectionState.selectedPhotos.clear();
+            toggleSelectMode();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert('移動失敗: ' + (result.error || result.message));
+        }
+    } catch (error) {
+        alert('移動失敗: ' + error.message);
+    }
+}
+
+window.batchMoveToCollection = batchMoveToCollection;
