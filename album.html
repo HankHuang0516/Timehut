@@ -1038,21 +1038,10 @@
 
             const isVideo = photo.media === 'video';
 
-            // For videos: open directly on Flickr in new window
-            if (isVideo) {
-                const flickrUserId = CONFIG.FLICKR_USER_ID || photo.owner || '158881690@N04';
-                const flickrUrl = `https://www.flickr.com/photos/${flickrUserId}/${photo.id}`;
-                window.open(flickrUrl, '_blank');
-                return; // Don't show modal for videos
-            }
-
-            // For photos: show in modal as before
             const modal = document.getElementById('photoModal');
             const imgEl = document.getElementById('modalImage');
             const videoEl = document.getElementById('modalVideo');
             const iframeEl = document.getElementById('modalIframe');
-
-            const originalUrl = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
 
             // Reset all media elements
             imgEl.style.display = 'none';
@@ -1062,19 +1051,61 @@
             iframeEl.style.display = 'none';
             iframeEl.src = '';
 
-            // Show image
-            imgEl.src = originalUrl || FlickrAPI.getPhotoUrl(photo, 'm');
-            imgEl.style.display = 'block';
-
+            // Show modal first
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
 
+            // Update metadata
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
             document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
 
             const pageIndicator = document.getElementById('modalPageIndicator');
             if (pageIndicator) {
                 pageIndicator.textContent = `${index + 1} / ${AlbumState.photos.length}`;
+            }
+
+            if (isVideo) {
+                // Show loading state
+                imgEl.src = FlickrAPI.getPhotoUrl(photo, 'm'); // Show thumbnail
+                imgEl.style.display = 'block';
+                imgEl.style.opacity = '0.5';
+
+                try {
+                    // Fetch video URL from backend
+                    const videoUrl = await FlickrAPI.getVideoUrl(photo);
+
+                    if (videoUrl) {
+                        // Hide thumbnail and show video
+                        imgEl.style.display = 'none';
+                        videoEl.src = videoUrl;
+                        videoEl.style.display = 'block';
+                        videoEl.controls = true;
+                        videoEl.play().catch(err => {
+                            console.warn('Auto-play prevented:', err);
+                            // Auto-play might be blocked, but controls are visible
+                        });
+                    } else {
+                        throw new Error('No video URL returned');
+                    }
+                } catch (error) {
+                    console.error('Failed to load video:', error);
+                    // Fallback: open Flickr page
+                    imgEl.style.opacity = '1';
+                    const flickrUserId = CONFIG.FLICKR_USER_ID || photo.owner || '158881690@N04';
+                    const flickrUrl = `https://www.flickr.com/photos/${flickrUserId}/${photo.id}`;
+
+                    // Show error and provide option to open Flickr
+                    if (confirm('無法載入影片播放器。是否要在 Flickr 上開啟？')) {
+                        window.open(flickrUrl, '_blank');
+                        closeModal();
+                    }
+                }
+            } else {
+                // For photos: show in modal as before
+                const originalUrl = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+                imgEl.src = originalUrl || FlickrAPI.getPhotoUrl(photo, 'm');
+                imgEl.style.display = 'block';
+                imgEl.style.opacity = '1';
             }
         }
 

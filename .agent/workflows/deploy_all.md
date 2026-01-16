@@ -13,5 +13,11 @@ git commit -m "Deploy: Auto-update version"
 git push
 
 3. Trigger Railway Deployment (Manual CLI)
-// turbo
-railway up
+# Step 3.1: Login (if needed)
+# railway login
+
+# Step 3.2: Link Project (if needed)
+# railway link
+
+# Step 3.3: Deploy (Detach to avoid hanging)
+railway up --detach
