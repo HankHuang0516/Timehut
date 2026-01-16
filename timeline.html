@@ -382,6 +382,19 @@
             if (typeof initTimeline === 'function') {
                 initTimeline();
             }
+
+            // 點擊外部區域關閉移動相集 Modal
+            const moveCollectionModal = document.getElementById('moveCollectionModal');
+            if (moveCollectionModal) {
+                moveCollectionModal.addEventListener('click', (e) => {
+                    // 只在點擊背景時關閉（不是點擊內容卡片）
+                    if (e.target === moveCollectionModal) {
+                        if (typeof closeMoveCollectionModal === 'function') {
+                            closeMoveCollectionModal();
+                        }
+                    }
+                });
+            }
         });
     </script>
 </body>

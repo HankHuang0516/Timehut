@@ -1955,9 +1955,9 @@ img {
 }
 
 .btn-secondary {
-    background: transparent;
+    background: #6c757d;
     color: white;
-    border: 2px solid white;
+    border: 2px solid #6c757d;
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--radius-md);
     font-weight: var(--font-weight-medium);
@@ -1966,7 +1966,9 @@ img {
 }
 
 .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: #5a6268;
+    border-color: #545b62;
+    transform: scale(1.02);
 }
 
 /* Moment Selection Bar */
