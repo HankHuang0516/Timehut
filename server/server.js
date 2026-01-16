@@ -409,6 +409,15 @@ async function processUploadQueue() {
     isProcessingQueue = false;
     console.log(`[WORKER] Queue processing completed: ${successCount} success, ${failCount} failed, ${retryLaterCount} retry later`);
 
+    // 重新檢查是否有新增的待處理項目（解決批量上傳時新項目被遺漏的問題）
+    const newPendingItems = getPendingItems();
+    if (newPendingItems.length > 0) {
+        console.log(`[WORKER] Found ${newPendingItems.length} new pending items, processing immediately...`);
+        // 使用 setImmediate 避免遞迴太深
+        setImmediate(() => processUploadQueue().catch(console.error));
+        return;
+    }
+
     // 如果有需要重試的項目，30 秒後再次處理
     if (retryLaterCount > 0) {
         console.log(`[WORKER] Scheduling retry for ${retryLaterCount} items in 30 seconds...`);
@@ -1957,7 +1966,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #43`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #44`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);
