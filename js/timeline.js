@@ -1791,6 +1791,13 @@ window.addEventListener('beforeunload', () => {
 // MOMENT BATCH OPERATIONS (相集批量操作)
 // =====================================================
 
+// Pre-declare functions for early export (needed for inline onclick handlers)
+window.toggleMomentSelectMode = function() { toggleMomentSelectMode(); };
+window.batchMomentDelete = function() { batchMomentDelete(); };
+window.batchMomentAddTags = function() { batchMomentAddTags(); };
+window.batchMomentMoveCollection = function() { batchMomentMoveCollection(); };
+window.batchMomentMoveAlbum = function() { batchMomentMoveAlbum(); };
+
 /**
  * 切換相集選擇模式
  */
@@ -2118,9 +2125,4 @@ async function batchMomentMoveAlbum() {
     }
 }
 
-// Export moment batch operation functions
-window.toggleMomentSelectMode = toggleMomentSelectMode;
-window.batchMomentDelete = batchMomentDelete;
-window.batchMomentAddTags = batchMomentAddTags;
-window.batchMomentMoveCollection = batchMomentMoveCollection;
-window.batchMomentMoveAlbum = batchMomentMoveAlbum;
+// Note: Functions are exported at the beginning of this section via wrapper functions

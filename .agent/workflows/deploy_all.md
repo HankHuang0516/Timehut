@@ -2,6 +2,8 @@
 description: Auto-increment version, verify code, deploy to GitHub, and trigger Railway
 ---
 
+> ⚠️ **設計原則**：請以手機版面設計為出發點 (Mobile-First Design)
+
 1. Verify code and update version numbers (Frontend & Backend)
 // turbo
 node tools/update_deployment_version.js

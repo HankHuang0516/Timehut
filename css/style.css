@@ -2843,6 +2843,28 @@ body.select-mode .main-content {
         gap: var(--spacing-sm);
         align-items: flex-start;
     }
+
+    /* Compact header buttons for small screens */
+    .header-right {
+        gap: 2px;
+    }
+
+    .header-btn {
+        padding: 4px 6px;
+    }
+
+    .header-btn .btn-icon {
+        font-size: 1rem;
+    }
+
+    .header-btn .btn-label {
+        font-size: 0.55rem;
+    }
+
+    /* Keep batch moment button visible */
+    .batch-moment-btn {
+        min-width: 36px;
+    }
 }
 
 /* Mobile child switcher - floating bottom bar */
