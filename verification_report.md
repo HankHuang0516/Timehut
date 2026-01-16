@@ -43,15 +43,15 @@
 
 ## 此處需要改進 (Issues / Improvements Needed)
 
-### 1. 缺少離開頁面保護 (Missing Navigation Guard)
-目前 `js/uploader.js` 中的 `window.onbeforeunload` 事件監聽器僅檢查了 `BackgroundUploader.isUploading`。
-**問題**：如果使用者在「背景刪除」過程中嘗試關閉分頁或重新整理，系統**不會**發出警告，導致刪除任務被中斷。
+### 1. ~~缺少離開頁面保護 (Missing Navigation Guard)~~ ✅ **[FIXED - 2026-01-16]**
+~~目前 `js/uploader.js` 中的 `window.onbeforeunload` 事件監聽器僅檢查了 `BackgroundUploader.isUploading`。~~
+~~**問題**：如果使用者在「背景刪除」過程中嘗試關閉分頁或重新整理，系統**不會**發出警告，導致刪除任務被中斷。~~
 
-**[PENDING] 建議修改 (`js/uploader.js`)**:
-需要修改 `init` 函數中的警告邏輯，同時檢查 `BackgroundWorker.isBusy`。
+**✅ [FIXED] 已修改 (`js/uploader.js` line 161-167)**:
+已修改 `init` 函數中的警告邏輯，同時檢查 `BackgroundWorker.isBusy`。
 
 ```javascript
-// 在 BackgroundUploader.init 或獨立的 setup function 中
+// 在 BackgroundUploader.init 中
 window.onbeforeunload = (e) => {
     // 同時檢查上傳和刪除狀態
     if (this.isUploading || (window.BackgroundWorker && window.BackgroundWorker.isBusy)) {
@@ -62,8 +62,13 @@ window.onbeforeunload = (e) => {
 };
 ```
 
+**改進效果**：
+- 使用者在背景刪除進行時嘗試離開頁面，會收到警告提示
+- 防止意外中斷刪除操作，提升資料完整性
+- 與上傳保護機制保持一致
+
 ## 結論
-實作完成度極高 (95%)。視覺驗證確認手機版介面修復成功，選取列不再被遮擋。僅需補上 `onbeforeunload` 的保護機制即可完美。
+實作完成度 **100%** ✅。視覺驗證確認手機版介面修復成功，選取列不再被遮擋。離開頁面保護機制已補上，所有待處理項目已完成。
 
 ## 本次實施摘要 (Implementation Summary - 2026-01-16)
 
@@ -97,7 +102,7 @@ window.onbeforeunload = (e) => {
 ### 部署準備 (Deployment Ready)
 - ✅ 所有代碼已實施並驗證
 - ✅ 保持向後兼容性
-- ⚠️ 建議補充：加入 onbeforeunload 保護機制（可選，優先級低）
+- ✅ **[2026-01-16 UPDATE]** 已加入 onbeforeunload 保護機制，防止背景任務執行中意外離開頁面
 
 **附件**:
 - 視覺驗證截圖: `mobile_selection_bar_check`

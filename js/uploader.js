@@ -157,10 +157,10 @@ const BackgroundUploader = {
         this.statusText = document.getElementById('globalStatusText');
         this.percentText = document.getElementById('globalPercentText');
 
-        // Prevent navigation warning
+        // Prevent navigation warning for both upload and delete operations
         window.onbeforeunload = (e) => {
-            if (this.isUploading) {
-                const msg = '上傳正在進行中，離開頁面將會中斷上傳。確定要離開嗎？';
+            if (this.isUploading || (window.BackgroundWorker && window.BackgroundWorker.isBusy)) {
+                const msg = '任務正在背景執行中，離開頁面將會中斷。確定要離開嗎？';
                 e.returnValue = msg;
                 return msg;
             }
