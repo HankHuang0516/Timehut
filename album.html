@@ -833,11 +833,7 @@
         }
 
         // 批量移動到其他相集（改變拍攝日期）
-        let moveCollectionState = {
-            targetDate: null,
-            targetLabel: null,
-            collections: []
-        };
+        // Note: moveCollectionState is declared in timeline.js
 
         async function batchMoveToCollection() {
             const count = AlbumState.selectedPhotos.size;
