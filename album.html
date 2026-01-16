@@ -218,6 +218,35 @@
                 display: none;
             }
         }
+
+        /* Collection item styles for move modal */
+        .collection-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .collection-item:hover {
+            border-color: var(--color-primary);
+            background: rgba(255, 183, 77, 0.1);
+        }
+
+        .collection-item.selected {
+            border-color: var(--color-primary);
+            background: rgba(255, 183, 77, 0.2);
+        }
+
+        .collection-check {
+            color: var(--color-primary);
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -346,6 +375,28 @@
             <div class="confirm-actions">
                 <button class="btn-secondary" onclick="closeTagModal()">取消</button>
                 <button class="btn-tag" id="tagConfirmBtn" onclick="addTagsToSelected()">確認加標籤</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Collection Modal -->
+    <div id="moveCollectionModal" class="modal-overlay hidden">
+        <div class="confirm-card"
+            style="max-width: 450px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="confirm-icon">📂</div>
+            <h3 class="confirm-title">移動到相集</h3>
+            <p class="confirm-message">將 <span id="moveCollectionCount">0</span> 張照片移動到選擇的相集</p>
+            <div id="collectionListContainer" style="flex: 1; overflow-y: auto; margin: 16px 0; max-height: 300px;">
+                <div id="collectionListLoading"
+                    style="text-align: center; padding: 20px; color: var(--color-text-muted);">
+                    載入中...
+                </div>
+                <div id="collectionList" style="display: none;"></div>
+            </div>
+            <div class="confirm-actions">
+                <button class="btn-secondary" onclick="closeMoveCollectionModal()">取消</button>
+                <button class="btn-tag" id="moveCollectionConfirmBtn" onclick="confirmMoveCollection()"
+                    disabled>確認移動</button>
             </div>
         </div>
     </div>
@@ -751,35 +802,152 @@
         }
 
         // 批量移動到其他相集（改變拍攝日期）
+        let moveCollectionState = {
+            targetDate: null,
+            targetLabel: null,
+            collections: []
+        };
+
         async function batchMoveToCollection() {
             const count = AlbumState.selectedPhotos.size;
             if (count === 0) return alert('請先選擇照片');
 
-            // 提供日期輸入選項
-            const dateOptions = '請輸入目標日期：\n\n' +
-                '格式範例：\n' +
-                '• 2024-01-15 (完整日期)\n' +
-                '• 2024年01月 (年月)\n\n' +
-                '輸入日期：';
+            // 顯示 Modal
+            document.getElementById('moveCollectionCount').textContent = count;
+            document.getElementById('moveCollectionModal').classList.remove('hidden');
+            document.getElementById('collectionListLoading').style.display = 'block';
+            document.getElementById('collectionList').style.display = 'none';
+            document.getElementById('moveCollectionConfirmBtn').disabled = true;
+            moveCollectionState.targetDate = null;
 
-            const inputDate = prompt(dateOptions);
-            if (!inputDate) return;
+            try {
+                // 獲取當前孩子的所有照片並分組
+                const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
+                const child = CONFIG.CHILDREN[currentChildIndex];
 
-            // 驗證日期格式
-            let targetDate;
-            if (inputDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                targetDate = inputDate + ' 12:00:00';
-            } else if (inputDate.match(/^\d{4}年\d{2}月$/)) {
-                const match = inputDate.match(/(\d{4})年(\d{2})月/);
-                targetDate = `${match[1]}-${match[2]}-01 12:00:00`;
+                if (!child || !child.albumId) {
+                    throw new Error('無法獲取當前相簿');
+                }
+
+                // 獲取相簿中所有照片
+                const data = await FlickrAPI.getAlbumPhotos(child.albumId, 1, 500);
+                const allPhotos = data.photos || [];
+
+                // 按日期分組
+                const collections = groupPhotosByDate(allPhotos);
+                moveCollectionState.collections = collections;
+
+                // 渲染列表
+                renderCollectionList(collections);
+
+            } catch (error) {
+                console.error('Failed to load collections:', error);
+                document.getElementById('collectionListLoading').innerHTML =
+                    '<div style="color: var(--color-danger);">載入失敗: ' + error.message + '</div>';
+            }
+        }
+
+        function groupPhotosByDate(photos) {
+            const groups = new Map();
+
+            photos.forEach(photo => {
+                // 使用 datetaken 或 dateupload
+                let dateKey;
+                if (photo.datetaken) {
+                    dateKey = photo.datetaken.split(' ')[0]; // YYYY-MM-DD
+                } else if (photo.dateupload) {
+                    const d = new Date(parseInt(photo.dateupload) * 1000);
+                    dateKey = d.toISOString().split('T')[0];
+                } else {
+                    dateKey = 'unknown';
+                }
+
+                if (!groups.has(dateKey)) {
+                    groups.set(dateKey, {
+                        date: dateKey,
+                        photos: [],
+                        label: formatDateLabel(dateKey)
+                    });
+                }
+                groups.get(dateKey).photos.push(photo);
+            });
+
+            // 轉換為數組並排序（新的在前）
+            return Array.from(groups.values()).sort((a, b) => b.date.localeCompare(a.date));
+        }
+
+        function formatDateLabel(dateStr) {
+            if (dateStr === 'unknown') return '未知日期';
+            try {
+                const d = new Date(dateStr);
+                const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+                return `${months[d.getMonth()]} ${d.getDate()}日`;
+            } catch {
+                return dateStr;
+            }
+        }
+
+        function renderCollectionList(collections) {
+            const listEl = document.getElementById('collectionList');
+            const currentDate = sessionStorage.getItem('albumDate');
+
+            // 過濾掉當前相集（可選）
+            const filteredCollections = collections;
+
+            if (filteredCollections.length === 0) {
+                listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted);">無可用的相集</div>';
             } else {
-                return alert('日期格式不正確，請使用 2024-01-15 或 2024年01月 格式');
+                listEl.innerHTML = filteredCollections.map((col, idx) => `
+                    <div class="collection-item" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <img src="${FlickrAPI.getPhotoUrl(col.photos[0], 'sq')}" 
+                                 style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">
+                            <div>
+                                <div style="font-weight: 600;">${col.label}</div>
+                                <div style="font-size: 0.85rem; color: var(--color-text-muted);">${col.date} · ${col.photos.length} 張</div>
+                            </div>
+                        </div>
+                        <div class="collection-check" style="display: none;">✓</div>
+                    </div>
+                `).join('');
             }
 
-            if (!confirm(`確定要將 ${count} 張照片移動到「${inputDate}」嗎？`)) return;
+            document.getElementById('collectionListLoading').style.display = 'none';
+            listEl.style.display = 'block';
+        }
+
+        function selectCollection(element) {
+            // 移除其他選取
+            document.querySelectorAll('.collection-item').forEach(el => {
+                el.classList.remove('selected');
+                el.querySelector('.collection-check').style.display = 'none';
+            });
+
+            // 選取當前
+            element.classList.add('selected');
+            element.querySelector('.collection-check').style.display = 'block';
+
+            moveCollectionState.targetDate = element.dataset.date;
+            moveCollectionState.targetLabel = element.dataset.label;
+            document.getElementById('moveCollectionConfirmBtn').disabled = false;
+        }
+
+        function closeMoveCollectionModal() {
+            document.getElementById('moveCollectionModal').classList.add('hidden');
+            moveCollectionState.targetDate = null;
+        }
+
+        async function confirmMoveCollection() {
+            if (!moveCollectionState.targetDate) return;
+
+            const count = AlbumState.selectedPhotos.size;
+            const targetLabel = moveCollectionState.targetLabel;
+            const targetDate = moveCollectionState.targetDate + ' 12:00:00';
+
+            if (!confirm(`確定要將 ${count} 張照片移動到「${targetLabel}」嗎？`)) return;
 
             const photoIds = Array.from(AlbumState.selectedPhotos);
-            const btn = document.getElementById('batchMoveCollectionBtn');
+            const btn = document.getElementById('moveCollectionConfirmBtn');
             btn.disabled = true;
             btn.textContent = '處理中...';
 
@@ -794,7 +962,10 @@
 
                 if (response.ok) {
                     alert(result.message || '移動成功');
+                    closeMoveCollectionModal();
                     cancelSelection();
+                    // 刷新頁面以顯示變化
+                    location.reload();
                 } else {
                     alert('移動失敗: ' + (result.error || result.message));
                 }
@@ -802,7 +973,7 @@
                 alert('移動失敗: ' + error.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = '📂 移動相集';
+                btn.textContent = '確認移動';
             }
         }
 
