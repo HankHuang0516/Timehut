@@ -37,8 +37,9 @@
 
 4.  **Integration with Album Page (`album.html`)**:
     *   ✅ `deleteSelected` 函數 (line 705) 已整合背景刪除功能。
-    *   ✅ 保持與 timeline.js 相同的實作模式。
-    *   ✅ 同樣包含 fallback 機制確保向後兼容。
+    *   ✅ **[FIXED]** 補上了缺失的 `global-upload-bar` HTML 結構，確保進度條能正常顯示。
+    *   ✅ **[FIXED]** 補上了缺失的 `script src="js/uploader.js"`，確保 `BackgroundWorker` 可被正確調用。
+    *   ✅ 保持與 timeline.js 相同的實作模式，並包含 fallback 機制。
 
 ## 此處需要改進 (Issues / Improvements Needed)
 
@@ -46,7 +47,7 @@
 目前 `js/uploader.js` 中的 `window.onbeforeunload` 事件監聽器僅檢查了 `BackgroundUploader.isUploading`。
 **問題**：如果使用者在「背景刪除」過程中嘗試關閉分頁或重新整理，系統**不會**發出警告，導致刪除任務被中斷。
 
-**建議修改 (`js/uploader.js`)**:
+**[PENDING] 建議修改 (`js/uploader.js`)**:
 需要修改 `init` 函數中的警告邏輯，同時檢查 `BackgroundWorker.isBusy`。
 
 ```javascript
