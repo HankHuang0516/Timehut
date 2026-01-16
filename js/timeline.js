@@ -1791,17 +1791,10 @@ window.addEventListener('beforeunload', () => {
 // MOMENT BATCH OPERATIONS (相集批量操作)
 // =====================================================
 
-// Pre-declare functions for early export (needed for inline onclick handlers)
-window.toggleMomentSelectMode = function() { toggleMomentSelectMode(); };
-window.batchMomentDelete = function() { batchMomentDelete(); };
-window.batchMomentAddTags = function() { batchMomentAddTags(); };
-window.batchMomentMoveCollection = function() { batchMomentMoveCollection(); };
-window.batchMomentMoveAlbum = function() { batchMomentMoveAlbum(); };
-
 /**
  * 切換相集選擇模式
  */
-function toggleMomentSelectMode() {
+window.toggleMomentSelectMode = function toggleMomentSelectMode() {
     MomentSelectionState.isSelectMode = !MomentSelectionState.isSelectMode;
     document.body.classList.toggle('moment-select-mode', MomentSelectionState.isSelectMode);
     document.getElementById('momentSelectionBar').classList.toggle('hidden', !MomentSelectionState.isSelectMode);
@@ -1894,7 +1887,7 @@ function getSelectedMomentPhotoIds() {
 /**
  * 批量刪除相集
  */
-async function batchMomentDelete() {
+window.batchMomentDelete = async function batchMomentDelete() {
     const count = MomentSelectionState.selectedMoments.size;
     if (count === 0) return alert('請先選擇相集');
 
@@ -1942,7 +1935,7 @@ async function batchMomentDelete() {
 /**
  * 批量為相集加標籤
  */
-async function batchMomentAddTags() {
+window.batchMomentAddTags = async function batchMomentAddTags() {
     const count = MomentSelectionState.selectedMoments.size;
     if (count === 0) return alert('請先選擇相集');
 
@@ -1979,7 +1972,7 @@ async function batchMomentAddTags() {
 /**
  * 批量移動相集到其他時間點（合併相集）
  */
-async function batchMomentMoveCollection() {
+window.batchMomentMoveCollection = async function batchMomentMoveCollection() {
     const count = MomentSelectionState.selectedMoments.size;
     if (count === 0) return alert('請先選擇相集');
 
@@ -2050,7 +2043,7 @@ async function batchMomentMoveCollection() {
 /**
  * 批量移動相集到其他相簿
  */
-async function batchMomentMoveAlbum() {
+window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
     const count = MomentSelectionState.selectedMoments.size;
     if (count === 0) return alert('請先選擇相集');
 

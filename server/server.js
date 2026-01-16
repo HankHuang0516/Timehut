@@ -950,6 +950,42 @@ app.post('/api/album/:albumId/add_photos', async (req, res) => {
     });
 });
 
+// 批量更新照片日期 API（用於移動相集功能）
+app.post('/api/photos/update-date', async (req, res) => {
+    if (!oauthTokens.accessToken) {
+        return res.status(401).json({ error: '尚未授權 Flickr' });
+    }
+
+    const { photoIds, targetDate } = req.body;
+
+    if (!photoIds || !Array.isArray(photoIds)) {
+        return res.status(400).json({ error: '請提供照片 ID' });
+    }
+
+    if (!targetDate) {
+        return res.status(400).json({ error: '請提供目標日期' });
+    }
+
+    console.log(`[UPDATE-DATE] Updating ${photoIds.length} photos to ${targetDate}`);
+
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            await setPhotoDate(photoId, targetDate);
+            results.push({ photoId, success: true });
+        } catch (error) {
+            console.error(`[UPDATE-DATE] Failed for ${photoId}:`, error.message);
+            results.push({ photoId, success: false, error: error.message });
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+        message: `更新日期完成：${successCount}/${photoIds.length} 張成功`,
+        results
+    });
+});
+
 // 圖片/影片代理 API (Enhanced: Resolves /play/ URLs)
 app.get('/api/proxy-video', async (req, res) => {
     let url = req.query.url;
@@ -1966,7 +2002,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #48`);
+    console.log(`Deploy Version: Deploy to GitHub Pages #49`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);

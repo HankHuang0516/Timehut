@@ -252,6 +252,8 @@
         <div class="selection-actions">
             <!-- P1: Add Batch Add to Album Button -->
             <button class="action-btn" id="batchAlbumBtn" onclick="batchAddToAlbum()">📁 加入相簿</button>
+            <!-- P2: Move to Collection Button -->
+            <button class="action-btn" id="batchMoveCollectionBtn" onclick="batchMoveToCollection()">📂 移動相集</button>
             <!-- Existing Batch Actions -->
             <button class="action-btn" id="downloadSelectedBtn" onclick="downloadSelected()">⬇️ 下載</button>
             <button class="action-btn" id="tagSelectedBtn" onclick="showTagModal()">🏷️ 加標籤</button>
@@ -745,6 +747,62 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = '📁 加入相簿';
+            }
+        }
+
+        // 批量移動到其他相集（改變拍攝日期）
+        async function batchMoveToCollection() {
+            const count = AlbumState.selectedPhotos.size;
+            if (count === 0) return alert('請先選擇照片');
+
+            // 提供日期輸入選項
+            const dateOptions = '請輸入目標日期：\n\n' +
+                '格式範例：\n' +
+                '• 2024-01-15 (完整日期)\n' +
+                '• 2024年01月 (年月)\n\n' +
+                '輸入日期：';
+
+            const inputDate = prompt(dateOptions);
+            if (!inputDate) return;
+
+            // 驗證日期格式
+            let targetDate;
+            if (inputDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                targetDate = inputDate + ' 12:00:00';
+            } else if (inputDate.match(/^\d{4}年\d{2}月$/)) {
+                const match = inputDate.match(/(\d{4})年(\d{2})月/);
+                targetDate = `${match[1]}-${match[2]}-01 12:00:00`;
+            } else {
+                return alert('日期格式不正確，請使用 2024-01-15 或 2024年01月 格式');
+            }
+
+            if (!confirm(`確定要將 ${count} 張照片移動到「${inputDate}」嗎？`)) return;
+
+            const photoIds = Array.from(AlbumState.selectedPhotos);
+            const btn = document.getElementById('batchMoveCollectionBtn');
+            btn.disabled = true;
+            btn.textContent = '處理中...';
+
+            try {
+                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photoIds, targetDate })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message || '移動成功');
+                    cancelSelection();
+                } else {
+                    alert('移動失敗: ' + (result.error || result.message));
+                }
+            } catch (error) {
+                alert('移動失敗: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📂 移動相集';
             }
         }
 
