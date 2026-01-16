@@ -316,6 +316,28 @@
         </div>
     </div>
 
+    <!-- Move Collection Modal -->
+    <div id="moveCollectionModal" class="modal-overlay hidden">
+        <div class="confirm-card"
+            style="max-width: 450px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="confirm-icon">📂</div>
+            <h3 class="confirm-title">移動到相集</h3>
+            <p class="confirm-message">將 <span id="moveCollectionCount">0</span> 張照片移動到選擇的相集</p>
+            <div id="collectionListContainer" style="flex: 1; overflow-y: auto; margin: 16px 0; max-height: 300px;">
+                <div id="collectionListLoading"
+                    style="text-align: center; padding: 20px; color: var(--color-text-muted);">
+                    載入中...
+                </div>
+                <div id="collectionList" style="display: none;"></div>
+            </div>
+            <div class="confirm-actions">
+                <button class="btn-secondary" onclick="closeMoveCollectionModal()">取消</button>
+                <button class="btn-tag" id="moveCollectionConfirmBtn" onclick="confirmMoveCollection()"
+                    disabled>確認移動</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>

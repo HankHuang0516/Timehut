@@ -2145,54 +2145,137 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
     }
 }
 
-// Note: Functions are exported at the beginning of this section via wrapper functions
+// =====================================================
+// INDIVIDUAL PHOTO BATCH MOVE TO COLLECTION (Visual Modal)
+// =====================================================
 
-// =====================================================
-// INDIVIDUAL PHOTO BATCH MOVE TO COLLECTION
-// =====================================================
+// State for move collection modal
+let moveCollectionState = {
+    targetDate: null,
+    targetLabel: null,
+    collections: [],
+    // Track which selection mode triggered the modal
+    isFromMomentSelection: false
+};
 
 /**
- * 批量移動單獨選取的照片到其他相集（改變拍攝日期）
+ * 批量移動單獨選取的照片到其他相集（改變拍攝日期）- 視覺化 Modal 版
  */
 async function batchMoveToCollection() {
     const count = SelectionState.selectedPhotos.size;
     if (count === 0) return alert('請先選擇照片');
 
-    // Build list of available date-based collections from current timeline
+    moveCollectionState.isFromMomentSelection = false;
+    showMoveCollectionModal(count, Array.from(SelectionState.selectedPhotos));
+}
+
+/**
+ * 顯示移動相集 Modal
+ */
+async function showMoveCollectionModal(count, photoIds) {
+    document.getElementById('moveCollectionCount').textContent = count;
+    document.getElementById('moveCollectionModal').classList.remove('hidden');
+    document.getElementById('collectionListLoading').style.display = 'block';
+    document.getElementById('collectionList').style.display = 'none';
+    document.getElementById('moveCollectionConfirmBtn').disabled = true;
+    moveCollectionState.targetDate = null;
+    moveCollectionState.photoIds = photoIds;
+
+    // Use existing momentData from timeline
     const moments = Array.from(TimelineState.momentData.entries());
+
     if (moments.length < 2) {
-        return alert('需要至少兩個相集才能移動');
+        document.getElementById('collectionListLoading').innerHTML =
+            '<div style="color: var(--color-danger);">需要至少兩個相集才能移動</div>';
+        return;
     }
 
-    // Build selection options
-    let options = '選擇目標相集（輸入編號）：\n\n';
-    moments.forEach(([id, data], idx) => {
-        options += `${idx + 1}. ${data.dateStr} (${data.photos.length} 張)\n`;
+    // Build collections list from momentData
+    const collections = moments.map(([id, data]) => ({
+        id: id,
+        date: data.photos[0]?.datetaken?.split(' ')[0] || 'unknown',
+        label: data.dateStr,
+        photos: data.photos,
+        timestamp: data.timestamp
+    })).sort((a, b) => b.timestamp - a.timestamp);
+
+    moveCollectionState.collections = collections;
+    renderCollectionList(collections);
+}
+
+/**
+ * 渲染相集列表
+ */
+function renderCollectionList(collections) {
+    const listEl = document.getElementById('collectionList');
+
+    if (collections.length === 0) {
+        listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted);">無可用的相集</div>';
+    } else {
+        listEl.innerHTML = collections.map((col, idx) => `
+            <div class="collection-item" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <img src="${FlickrAPI.getPhotoUrl(col.photos[0], 'sq')}" 
+                         style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">
+                    <div>
+                        <div style="font-weight: 600;">${col.label}</div>
+                        <div style="font-size: 0.85rem; color: var(--color-text-muted);">${col.date} · ${col.photos.length} 張</div>
+                    </div>
+                </div>
+                <div class="collection-check" style="display: none;">✓</div>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('collectionListLoading').style.display = 'none';
+    listEl.style.display = 'block';
+}
+
+/**
+ * 選擇相集
+ */
+function selectCollection(element) {
+    // 移除其他選取
+    document.querySelectorAll('.collection-item').forEach(el => {
+        el.classList.remove('selected');
+        el.querySelector('.collection-check').style.display = 'none';
     });
 
-    const input = prompt(options);
-    if (!input) return;
+    // 選取當前
+    element.classList.add('selected');
+    element.querySelector('.collection-check').style.display = 'block';
 
-    const targetIdx = parseInt(input) - 1;
-    if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= moments.length) {
-        return alert('無效的選擇');
-    }
+    moveCollectionState.targetDate = element.dataset.date;
+    moveCollectionState.targetLabel = element.dataset.label;
+    document.getElementById('moveCollectionConfirmBtn').disabled = false;
+}
 
-    const targetMoment = moments[targetIdx];
-    const targetDateStr = targetMoment[1].photos[0]?.datetaken?.split(' ')[0];
+/**
+ * 關閉移動相集 Modal
+ */
+function closeMoveCollectionModal() {
+    document.getElementById('moveCollectionModal').classList.add('hidden');
+    moveCollectionState.targetDate = null;
+}
 
-    if (!targetDateStr) {
-        return alert('無法取得目標日期');
-    }
+/**
+ * 確認移動相集
+ */
+async function confirmMoveCollection() {
+    if (!moveCollectionState.targetDate) return;
 
-    const targetDate = targetDateStr + ' 12:00:00';
-    const photoIds = Array.from(SelectionState.selectedPhotos);
+    const photoIds = moveCollectionState.photoIds;
+    const count = photoIds.length;
+    const targetLabel = moveCollectionState.targetLabel;
+    const targetDate = moveCollectionState.targetDate + ' 12:00:00';
 
-    if (!confirm(`確定要將 ${count} 張照片移動到「${targetMoment[1].dateStr}」嗎？`)) return;
+    if (!confirm(`確定要將 ${count} 張照片移動到「${targetLabel}」嗎？`)) return;
+
+    const btn = document.getElementById('moveCollectionConfirmBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
 
     try {
-        showToast('正在移動照片...', 'info');
-
         const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2203,15 +2286,33 @@ async function batchMoveToCollection() {
 
         if (response.ok) {
             showToast(result.message || '移動成功', 'success');
-            SelectionState.selectedPhotos.clear();
-            toggleSelectMode();
+            closeMoveCollectionModal();
+
+            // Clear selection based on mode
+            if (moveCollectionState.isFromMomentSelection) {
+                MomentSelectionState.selectedMoments.clear();
+                toggleMomentSelectMode();
+            } else {
+                SelectionState.selectedPhotos.clear();
+                toggleSelectMode();
+            }
+
             setTimeout(() => location.reload(), 1000);
         } else {
             alert('移動失敗: ' + (result.error || result.message));
         }
     } catch (error) {
         alert('移動失敗: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '確認移動';
     }
 }
 
+// Export functions
 window.batchMoveToCollection = batchMoveToCollection;
+window.showMoveCollectionModal = showMoveCollectionModal;
+window.selectCollection = selectCollection;
+window.closeMoveCollectionModal = closeMoveCollectionModal;
+window.confirmMoveCollection = confirmMoveCollection;
+window.renderCollectionList = renderCollectionList;
