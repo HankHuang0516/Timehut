@@ -1038,7 +1038,7 @@ async function deleteSelectedPhotos() {
     // Use custom modal instead of native confirm
     const confirmed = await showConfirmModal(
         '確認刪除',
-        `確定要刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
+        `確定要背景刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
         '🗑️ 確認刪除'
     );
 
@@ -1047,45 +1047,57 @@ async function deleteSelectedPhotos() {
     const photoIds = Array.from(SelectionState.selectedPhotos);
     console.log('[DELETE] Deleting IDs:', photoIds);
 
-    const deleteBtn = document.getElementById('deleteSelectedBtn');
-    if (deleteBtn) {
-        deleteBtn.disabled = true;
-        deleteBtn.textContent = '刪除中...';
-    }
+    // Hand off to background worker
+    if (typeof BackgroundWorker !== 'undefined') {
+        BackgroundWorker.startDelete(photoIds);
 
-    try {
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ photoIds })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            const successCount = result.results?.filter(r => r.success).length || 0;
-            showToast(`刪除完成！成功：${successCount} 張`, 'success');
-
-            // Exit select mode and reload entire page for fresh data
-            SelectionState.selectedPhotos.clear();
-            toggleSelectMode();
-
-            // Auto-refresh page after short delay
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
-        } else {
-            alert(`刪除失敗：${result.error}`);
-        }
-    } catch (error) {
-        console.error('Delete error:', error);
-        alert('刪除時發生錯誤，請稍後再試');
-    } finally {
+        // Clear UI immediately
+        SelectionState.selectedPhotos.clear();
+        toggleSelectMode();
+        showToast('已開始在背景刪除', 'info');
+    } else {
+        // Fallback to old blocking method if BackgroundWorker not available
+        console.warn('BackgroundWorker not available, using blocking delete');
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
         if (deleteBtn) {
-            deleteBtn.disabled = false;
-            deleteBtn.textContent = '🗑️ 刪除選取';
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = '刪除中...';
         }
-        updateSelectionUI();
+
+        try {
+            const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ photoIds })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                const successCount = result.results?.filter(r => r.success).length || 0;
+                showToast(`刪除完成！成功：${successCount} 張`, 'success');
+
+                // Exit select mode and reload entire page for fresh data
+                SelectionState.selectedPhotos.clear();
+                toggleSelectMode();
+
+                // Auto-refresh page after short delay
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                alert(`刪除失敗：${result.error}`);
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('刪除時發生錯誤，請稍後再試');
+        } finally {
+            if (deleteBtn) {
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = '🗑️ 刪除選取';
+            }
+            updateSelectionUI();
+        }
     }
 }
 
@@ -1894,41 +1906,53 @@ window.batchMomentDelete = async function batchMomentDelete() {
     const photoIds = getSelectedMomentPhotoIds();
     const photoCount = photoIds.length;
 
-    if (!confirm(`確定要刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！`)) return;
+    if (!confirm(`確定要背景刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！`)) return;
 
-    const btn = document.getElementById('momentDeleteBtn');
-    btn.disabled = true;
-    btn.textContent = '刪除中...';
+    // Hand off to background worker
+    if (typeof BackgroundWorker !== 'undefined') {
+        BackgroundWorker.startDelete(photoIds);
 
-    try {
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ photoIds })
-        });
+        // Clear UI immediately
+        MomentSelectionState.selectedMoments.clear();
+        toggleMomentSelectMode();
+        showToast('已開始在背景刪除', 'info');
+    } else {
+        // Fallback to old blocking method
+        console.warn('BackgroundWorker not available, using blocking delete');
+        const btn = document.getElementById('momentDeleteBtn');
+        btn.disabled = true;
+        btn.textContent = '刪除中...';
 
-        const result = await response.json();
+        try {
+            const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ photoIds })
+            });
 
-        if (response.ok) {
-            const successCount = result.results?.filter(r => r.success).length || 0;
-            showToast(`刪除完成！成功：${successCount} 張照片`, 'success');
+            const result = await response.json();
 
-            // Exit select mode and reload
-            MomentSelectionState.selectedMoments.clear();
-            toggleMomentSelectMode();
+            if (response.ok) {
+                const successCount = result.results?.filter(r => r.success).length || 0;
+                showToast(`刪除完成！成功：${successCount} 張照片`, 'success');
 
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
-        } else {
-            alert(`刪除失敗：${result.error}`);
+                // Exit select mode and reload
+                MomentSelectionState.selectedMoments.clear();
+                toggleMomentSelectMode();
+
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                alert(`刪除失敗：${result.error}`);
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('刪除時發生錯誤，請稍後再試');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🗑️ 刪除';
         }
-    } catch (error) {
-        console.error('Delete error:', error);
-        alert('刪除時發生錯誤，請稍後再試');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🗑️ 刪除';
     }
 }
 

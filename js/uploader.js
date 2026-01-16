@@ -330,6 +330,114 @@ const BackgroundUploader = {
     }
 };
 
+/**
+ * Background Worker - Handles background deletion tasks using the same UI as uploads
+ */
+const BackgroundWorker = {
+    isBusy: false,
+
+    // Reuse UI elements from BackgroundUploader
+    get globalBar() {
+        return document.getElementById('globalUploadBar');
+    },
+    get progressBar() {
+        return document.getElementById('globalProgressBar');
+    },
+    get statusText() {
+        return document.getElementById('globalStatusText');
+    },
+    get percentText() {
+        return document.getElementById('globalPercentText');
+    },
+
+    async startDelete(photoIds) {
+        if (this.isBusy || BackgroundUploader.isUploading) {
+            console.warn('Another background task is running');
+            return;
+        }
+
+        this.isBusy = true;
+        this.showBar();
+
+        const total = photoIds.length;
+        let processed = 0;
+        const chunkSize = 5;
+        let failedCount = 0;
+
+        try {
+            // Split into chunks for better progress tracking
+            for (let i = 0; i < total; i += chunkSize) {
+                const chunk = photoIds.slice(i, i + chunkSize);
+
+                this.updateStatus(`正在刪除... (${processed}/${total})`);
+                this.updateProgress((processed / total) * 100);
+
+                try {
+                    // Call Delete API
+                    const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ photoIds: chunk })
+                    });
+
+                    if (!response.ok) {
+                        console.error('Delete chunk failed:', await response.text());
+                        failedCount += chunk.length;
+                    }
+
+                    processed += chunk.length;
+                } catch (e) {
+                    console.error('Delete chunk failed', e);
+                    failedCount += chunk.length;
+                    // Continue with next chunk
+                }
+            }
+
+            this.updateStatus('刪除完成');
+            this.updateProgress(100);
+
+            setTimeout(() => {
+                const successCount = total - failedCount;
+                let message = `刪除完成！\n成功：${successCount} 個\n失敗：${failedCount} 個`;
+                if (successCount > 0) {
+                    message += '\n\n頁面即將刷新以顯示變更。';
+                }
+                alert(message);
+                this.hideBar();
+                if (successCount > 0) {
+                    location.reload();
+                }
+            }, 1000);
+        } catch (error) {
+            console.error('Critical error in background delete:', error);
+            this.updateStatus('刪除失敗');
+            setTimeout(() => {
+                alert('刪除過程發生錯誤：' + error.message);
+                this.hideBar();
+            }, 1000);
+        } finally {
+            this.isBusy = false;
+        }
+    },
+
+    updateStatus(text) {
+        if (this.statusText) this.statusText.textContent = text;
+    },
+
+    updateProgress(percent) {
+        if (this.progressBar) this.progressBar.style.width = `${percent}%`;
+        if (this.percentText) this.percentText.textContent = `${Math.round(percent)}%`;
+    },
+
+    showBar() {
+        if (this.globalBar) this.globalBar.classList.add('visible');
+    },
+
+    hideBar() {
+        if (this.globalBar) this.globalBar.classList.remove('visible');
+    }
+};
+
 // Start Global Init
 document.addEventListener('DOMContentLoaded', () => {
     BackgroundUploader.init();

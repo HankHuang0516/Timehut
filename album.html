@@ -708,48 +708,61 @@
 
             const confirmed = await showConfirmModal(
                 '確認刪除',
-                `確定要刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
+                `確定要背景刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
                 '🗑️ 確認刪除'
             );
 
             if (!confirmed) return;
 
             const photoIds = Array.from(AlbumState.selectedPhotos);
-            const deleteBtn = document.getElementById('deleteSelectedBtn');
-            deleteBtn.disabled = true;
-            deleteBtn.textContent = '刪除中...';
 
-            try {
-                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ photoIds })
-                });
+            // Hand off to background worker
+            if (typeof BackgroundWorker !== 'undefined') {
+                BackgroundWorker.startDelete(photoIds);
 
-                const result = await response.json();
+                // Clear UI immediately
+                AlbumState.selectedPhotos.clear();
+                cancelSelection();
+                showToast('已開始在背景刪除', 'info');
+            } else {
+                // Fallback to old blocking method
+                console.warn('BackgroundWorker not available, using blocking delete');
+                const deleteBtn = document.getElementById('deleteSelectedBtn');
+                deleteBtn.disabled = true;
+                deleteBtn.textContent = '刪除中...';
 
-                if (response.ok || result.success) {
-                    photoIds.forEach(id => {
-                        const card = document.querySelector(`.album-photo-card[data-id="${id}"]`);
-                        if (card) card.remove();
-                        AlbumState.photos = AlbumState.photos.filter(p => p.id !== id);
+                try {
+                    const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ photoIds })
                     });
 
-                    cancelSelection();
-                    document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+                    const result = await response.json();
 
-                    const successCount = result.results ? result.results.filter(r => r.success).length : count;
-                    alert(`成功刪除 ${successCount} 張照片`);
-                } else {
-                    alert(`刪除失敗: ${result.error || result.message}`);
+                    if (response.ok || result.success) {
+                        photoIds.forEach(id => {
+                            const card = document.querySelector(`.album-photo-card[data-id="${id}"]`);
+                            if (card) card.remove();
+                            AlbumState.photos = AlbumState.photos.filter(p => p.id !== id);
+                        });
+
+                        cancelSelection();
+                        document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+
+                        const successCount = result.results ? result.results.filter(r => r.success).length : count;
+                        alert(`成功刪除 ${successCount} 張照片`);
+                    } else {
+                        alert(`刪除失敗: ${result.error || result.message}`);
+                    }
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    alert(`刪除失敗: ${error.message}`);
                 }
-            } catch (error) {
-                console.error('Delete error:', error);
-                alert(`刪除失敗: ${error.message}`);
-            }
 
-            deleteBtn.disabled = false;
-            deleteBtn.innerHTML = '🗑️ 刪除選取';
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '🗑️ 刪除選取';
+            }
         }
 
         // Batch Add to Album (Ported from Timeline)
