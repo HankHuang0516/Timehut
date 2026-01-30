@@ -1155,6 +1155,20 @@
             if (e.key === 'ArrowLeft') navigatePhoto(-1);
             if (e.key === 'ArrowRight') navigatePhoto(1);
         });
+
+        // Fix: Click background to close photo modal
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('photoModal');
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal || 
+                        e.target.classList.contains('modal-overlay') || 
+                        e.target.classList.contains('modal-content')) {
+                        closeModal();
+                    }
+                });
+            }
+        });
     </script>
 </body>
 

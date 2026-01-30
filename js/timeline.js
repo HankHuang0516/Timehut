@@ -282,6 +282,18 @@ function setupEventListeners() {
             }
         }
     }
+    
+    // Fix: Click background to close photo modal
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            // Close if clicking the modal container itself, the overlay, or the content wrapper (empty space)
+            if (e.target === modal || 
+                e.target.classList.contains('modal-overlay') || 
+                e.target.classList.contains('modal-content')) {
+                closeModal();
+            }
+        });
+    }
 }
 
 /**
