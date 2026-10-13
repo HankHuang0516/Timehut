@@ -27,11 +27,14 @@ jobs:
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
+
+      - name: Build explicit static payload with verified Android package
+        run: python3 tools/build_pages.py
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
       
       - name: Deploy to GitHub Pages
         id: deployment
