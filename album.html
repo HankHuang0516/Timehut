@@ -12,9 +12,9 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20261014.1">
-    <script src="js/vendor/jszip-3.10.1.min.js?v=20261014.1"></script>
-    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261014.1"></script>
+    <link rel="stylesheet" href="css/style.css?v=20261014.2">
+    <script src="js/vendor/jszip-3.10.1.min.js?v=20261014.2"></script>
+    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261014.2"></script>
     <style>
         .album-page-content {
             max-width: 1200px;
@@ -248,14 +248,14 @@
             font-weight: bold;
         }
     </style>
-    <link rel="stylesheet" href="css/storybook.css?v=20261014.1">
-    <script defer src="js/dialogs.js?v=20261014.1"></script>
-    <script defer src="js/storybook.js?v=20261014.1"></script>
+    <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
+    <script defer src="js/dialogs.js?v=20261014.2"></script>
+    <script defer src="js/storybook.js?v=20261014.2"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261014.1"></script>
-<script defer src="js/pwa.js?v=20261014.1"></script>
+    <script defer src="js/transfers.js?v=20261014.2"></script>
+<script defer src="js/pwa.js?v=20261014.2"></script>
 </head>
 
 <body class="storybook-page timeline-page">
@@ -432,12 +432,12 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js?v=20261014.1"></script>
-    <script src="js/results.js?v=20261014.1"></script>
-    <script src="js/utils.js?v=20261014.1"></script>
-    <script src="js/flickr.js?v=20261014.1"></script>
-    <script src="js/uploader.js?v=20261014.1"></script>
-    <script src="js/timeline.js?v=20261014.1"></script>
+    <script src="js/config.js?v=20261014.2"></script>
+    <script src="js/results.js?v=20261014.2"></script>
+    <script src="js/utils.js?v=20261014.2"></script>
+    <script src="js/flickr.js?v=20261014.2"></script>
+    <script src="js/uploader.js?v=20261014.2"></script>
+    <script src="js/timeline.js?v=20261014.2"></script>
     <script>
         // AlbumState updated to be more robust
         const AlbumState = {
@@ -761,7 +761,7 @@
 
                         const blob = await response.blob();
                         const urlParts = url.split('/');
-                        const filename = photo.media === 'video' ? `${photo.id}.mp4` : `${photo.id}-${urlParts[urlParts.length - 1].split('?')[0] || 'media'}`;
+                        const filename = photo.media === 'video' ? `${photo.id}.${blob.type.split(';')[0].trim().toLowerCase() === 'video/quicktime' ? 'mov' : 'mp4'}` : `${photo.id}-${urlParts[urlParts.length - 1].split('?')[0] || 'media'}`;
 
                         zip.file(filename, blob);
                         successCount++;
@@ -1225,7 +1225,7 @@
                 const blobUrl = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.download = photo.media === 'video' ? `${photo.id}.mp4` : `${photo.id}-${new URL(url).pathname.split('/').at(-1) || 'photo.jpg'}`;
+                link.download = photo.media === 'video' ? `${photo.id}.${blob.type.split(';')[0].trim().toLowerCase() === 'video/quicktime' ? 'mov' : 'mp4'}` : `${photo.id}-${new URL(url).pathname.split('/').at(-1) || 'photo.jpg'}`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

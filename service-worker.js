@@ -1,7 +1,7 @@
 /* Only public UI assets. No account config, API receipts or family media is cached. */
-const cacheName='timehut-public-shell-20261014-storybook-v1';
-const offlinePage='offline.html?v=20261014.1';
-const shell=[offlinePage,'css/style.css?v=20261014.1','css/storybook.css?v=20261014.1','assets/storybook-upload-v1.png'];
+const cacheName='timehut-public-shell-20261014-storybook-v2';
+const offlinePage='offline.html?v=20261014.2';
+const shell=[offlinePage,'css/style.css?v=20261014.2','css/storybook.css?v=20261014.2','assets/storybook-upload-v1.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(cacheName).then(cache=>cache.addAll(shell)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(names=>Promise.all(names.filter(name=>name.startsWith('timehut-public-shell-')&&name!==cacheName).map(name=>caches.delete(name)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

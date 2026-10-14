@@ -1298,9 +1298,10 @@ async function batchDownload() {
         for(const photo of photos){
             try{
                 const url=await TimehutTransfers.mediaUrl(photo);
-                const filename=photo.media==='video'?`${photo.id}.mp4`:`${photo.id}-${new URL(url).pathname.split('/').at(-1)||'media'}`;
                 const response=await fetch(url);if(!response.ok)throw new Error('下載失敗');
-                zip.file(filename,await response.blob());acquired.push(photo.id);
+                const blob=await response.blob();
+                const filename=photo.media==='video'?`${photo.id}.${blob.type.split(';')[0].trim().toLowerCase()==='video/quicktime'?'mov':'mp4'}`:`${photo.id}-${new URL(url).pathname.split('/').at(-1)||'media'}`;
+                zip.file(filename,blob);acquired.push(photo.id);
                 if(revision===SelectionState.revision)btn.textContent=`已取得 ${acquired.length}/${photos.length}`;
             }catch(error){failed++;console.error('Batch file download failed',photo.id,error);}
         }
@@ -1867,7 +1868,7 @@ async function downloadCurrentPhoto() {
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = photo.media === 'video' ? `${photo.id}.mp4` : `${photo.id}-${new URL(downloadUrl).pathname.split('/').at(-1) || 'photo.jpg'}`;
+        link.download = photo.media === 'video' ? `${photo.id}.${blob.type.split(';')[0].trim().toLowerCase() === 'video/quicktime' ? 'mov' : 'mp4'}` : `${photo.id}-${new URL(downloadUrl).pathname.split('/').at(-1) || 'photo.jpg'}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
