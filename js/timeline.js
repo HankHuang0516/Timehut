@@ -11,6 +11,7 @@ const TimelineState = {
     currentPage: 1,
     totalPages: 1,
     isLoading: false,
+    loadRequestId: 0,
     currentModalIndex: 0,
     allPhotosFlat: [],
     momentData: new Map(), // Store moment data for album navigation
@@ -20,7 +21,10 @@ const TimelineState = {
 // Selection state for batch operations
 const SelectionState = {
     isSelectMode: false,
-    selectedPhotos: new Set()
+    selectedPhotos: new Set(),
+    revision: 0,
+    signature: '',
+    downloadBusy: false
 };
 
 // Moment Selection state for batch moment operations
@@ -49,7 +53,10 @@ function navigateToAlbum(momentId) {
         // Store moment photos in sessionStorage for album page
         sessionStorage.setItem('albumPhotos', JSON.stringify(momentData.photos));
         sessionStorage.setItem('albumDate', momentData.dateStr);
-        window.location.href = `album.html?id=${encodeURIComponent(momentId)}`;
+        sessionStorage.setItem('albumMomentId', momentId);
+        const album = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
+        const date = momentData.photos[0].datetaken?.split(' ')[0] || new Date(momentData.timestamp).toISOString().slice(0, 10);
+        window.location.href = `album.html?${new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex })}`;
     } else {
         console.error('Moment data not found:', momentId);
     }
@@ -68,6 +75,10 @@ function showToast(message, type = 'success') {
         container.className = 'toast-container';
         document.body.appendChild(container);
     }
+    const viewer = document.querySelector('.photo-modal.active .modal-info');
+    container.classList.toggle('viewer-toast', Boolean(viewer));
+    if (viewer) viewer.insertBefore(container, viewer.querySelector('.modal-actions'));
+    else document.body.appendChild(container);
 
     // Get icon based on type
     const icons = {
@@ -80,8 +91,9 @@ function showToast(message, type = 'success') {
     // Create toast
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `${icon} ${message}`;
-    container.appendChild(toast);
+    toast.textContent = `${icon} ${message}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    container.replaceChildren(toast);
 
     // Auto remove after 2.5s
     setTimeout(() => {
@@ -101,6 +113,7 @@ function toggleTimeTravelMenu() {
     } else {
         menu.style.display = 'none';
     }
+    document.getElementById('timeTravelBtn').setAttribute('aria-expanded', String(menu.style.display !== 'none'));
 }
 
 /**
@@ -115,11 +128,14 @@ function populateTimeTravelMenu() {
     // groupedPhotos is an array of { label, sortKey, photos: [] }
     if (TimelineState.groupedPhotos && TimelineState.groupedPhotos.length > 0) {
         TimelineState.groupedPhotos.forEach(group => {
-            const item = document.createElement('div');
+            const photoCount = group.photos.filter(photo => photo.media !== 'video').length;
+            const videoCount = group.photos.length - photoCount;
+            const item = document.createElement('button');
+            item.type = 'button';
             item.className = 'time-travel-item';
             item.innerHTML = `
                 <span class="age-label">${group.label}</span>
-                <span class="photo-count">${group.photos ? group.photos.length : 0} 張照片</span>
+                <span class="photo-count">${photoCount} 張照片${videoCount ? ` · ${videoCount} 部影片` : ''}</span>
             `;
             item.onclick = () => {
                 // Scroll to age section header
@@ -206,6 +222,11 @@ function updateChildDisplay() {
     // Update sidebar buttons
     document.querySelectorAll('.profile-btn').forEach((btn, index) => {
         btn.classList.toggle('active', index === TimelineState.currentChildIndex);
+        btn.setAttribute('aria-pressed', String(index === TimelineState.currentChildIndex));
+    });
+    document.querySelectorAll('.sidebar-album-card').forEach((btn, index) => {
+        btn.classList.toggle('active', index === TimelineState.currentChildIndex);
+        btn.setAttribute('aria-pressed', String(index === TimelineState.currentChildIndex));
     });
 
     // Build age navigation with saved birthdate
@@ -237,7 +258,7 @@ function setupEventListeners() {
     }
 
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
-    if (deleteSelectedBtn) {
+    if (deleteSelectedBtn && !deleteSelectedBtn.hasAttribute('onclick')) {
         deleteSelectedBtn.addEventListener('click', deleteSelectedPhotos);
     }
 
@@ -301,8 +322,16 @@ function setupEventListeners() {
  * @param {number} index - 小孩索引
  */
 async function switchChild(index) {
+    if (!Number.isInteger(index) || !CONFIG.CHILDREN[index]) return;
+    localStorage.setItem('timehut_current_child', String(index));
+    sessionStorage.setItem('selectedChild', String(index));
     if (index === TimelineState.currentChildIndex) return;
+    if (SelectionState.isSelectMode) toggleSelectMode();
+    if (MomentSelectionState.isSelectMode) window.toggleMomentSelectMode();
 
+    // A previous child's pending GET must not block or populate the next view.
+    TimelineState.loadRequestId++;
+    TimelineState.isLoading = false;
     TimelineState.currentChildIndex = index;
     TimelineState.currentPage = 1;
     TimelineState.photos = [];
@@ -324,6 +353,9 @@ async function loadPhotos() {
 
     if (TimelineState.isLoading) return;
     TimelineState.isLoading = true;
+    const requestId = ++TimelineState.loadRequestId;
+    const childIndex = TimelineState.currentChildIndex;
+    const isCurrentRequest = () => TimelineState.loadRequestId === requestId && TimelineState.currentChildIndex === childIndex;
 
     // Show loading, hide empty state
     loadingEl.style.display = 'block';
@@ -353,6 +385,7 @@ async function loadPhotos() {
             result = await FlickrAPI.getPublicPhotos(TimelineState.currentPage);
         }
 
+        if (!isCurrentRequest()) return;
         TimelineState.photos = [...TimelineState.photos, ...result.photos];
         TimelineState.totalPages = result.pages;
 
@@ -377,9 +410,11 @@ async function loadPhotos() {
 
             // Sync photos to sessionStorage for search.html to use
             sessionStorage.setItem('allPhotos', JSON.stringify(TimelineState.photos));
+            sessionStorage.setItem('allPhotosChild', String(TimelineState.currentChildIndex));
         }
 
     } catch (error) {
+        if (!isCurrentRequest()) return;
         console.error('Error loading photos:', error);
         loadingEl.style.display = 'none';
 
@@ -468,8 +503,12 @@ function renderTimeline() {
         // Add age group header for time travel targeting
         const groupHeader = document.createElement('div');
         groupHeader.className = 'age-group-header';
+        groupHeader.id = `age-${group.sortKey}`;
         groupHeader.setAttribute('data-age-label', group.label);
-        groupHeader.innerHTML = `<h2 class="age-group-title">${group.label}</h2>`;
+        const groupTitle = document.createElement('h2'); groupTitle.className = 'age-group-title'; groupTitle.textContent = group.label;
+        const groupCount = document.createElement('span'); groupCount.className = 'age-group-summary';
+        groupCount.textContent = `${groupPhotosToMoments(group.photos).length} 個相集 · ${group.photos.filter(photo => photo.media !== 'video').length} 張照片 · ${group.photos.filter(photo => photo.media === 'video').length} 部影片`;
+        groupHeader.append(groupTitle, groupCount);
         containerEl.insertBefore(groupHeader, loadingEl);
 
         // Group photos into Moments
@@ -480,10 +519,12 @@ function renderTimeline() {
             moment.flatStartIndex = TimelineState.allPhotosFlat.length;
             moment.photos.forEach(p => TimelineState.allPhotosFlat.push(p));
 
-            const cardEl = createMomentCard(moment, child.birthDate);
+            const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate;
+            const cardEl = createMomentCard(moment, birthDate);
             containerEl.insertBefore(cardEl, loadingEl);
         });
     });
+    updateMomentClickHandlers();
 }
 
 /**
@@ -499,7 +540,7 @@ function groupPhotosToMoments(photos) {
     photos.forEach(photo => {
         // Get uploader
         const tags = photo.tags ? photo.tags.split(' ') : [];
-        const uploaderTag = tags.find(t => t.startsWith('uploader:'));
+        const uploaderTag = findUploaderTag(tags);
         const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : '未知';
 
         // Use datetaken for grouping, fallback to dateupload
@@ -597,9 +638,9 @@ function createMomentCard(moment, birthDate) {
 
         gridHtml += `
             <div class="moment-photo-container">
-                <img src="${imgUrl}" class="moment-photo" loading="lazy" ${clickAttr}>
+                <img class="moment-photo" loading="lazy" alt="照片預覽" ${clickAttr}>
+                ${photo.media === 'video' ? '<span class="video-badge" aria-hidden="true">▶</span>' : ''}
                 ${overlayHtml}
-                ${SelectionState.isSelectMode ? createSelectionOverlay(photo.id) : ''}
             </div>
         `;
     });
@@ -647,6 +688,39 @@ function createMomentCard(moment, birthDate) {
             </div>
         </div>
     `;
+
+    const tags = [...new Set(moment.photos.flatMap(photo => (photo.tags || '').split(' ')))].filter(tag => tag && !findUploaderTag([tag])).slice(0, 3);
+    if (tags.length) {
+        const row = document.createElement('div'); row.className = 'moment-tags';
+        tags.forEach(tag => {
+            const button = document.createElement('button'); button.type = 'button'; button.className = 'moment-tag'; button.textContent = tag;
+            button.addEventListener('click', event => { event.stopPropagation(); filterByTag(tag); }); row.append(button);
+        });
+        card.querySelector('.moment-content-box').insertBefore(row, card.querySelector('.moment-footer'));
+    }
+    card.querySelectorAll('.moment-album-link').forEach(link => {
+        link.setAttribute('role', 'button'); link.tabIndex = 0;
+        link.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigateToAlbum(momentDataId); } });
+    });
+    const dateLabel = document.createElement('span'); dateLabel.className = 'moment-full-date';
+    dateLabel.textContent = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+    card.querySelector('.moment-date-box').append(dateLabel);
+    const title = document.createElement('h3'); title.className = 'moment-title'; title.textContent = moment.photos[0].title || '我們的小日常';
+    card.querySelector('.moment-grid').after(title);
+    card.querySelectorAll('.moment-photo-container img').forEach((img, index) => {
+        img.src = FlickrAPI.getPhotoUrl(displayPhotos[index], 'm');
+        img.tabIndex = 0; img.setAttribute('role', 'button');
+        img.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); img.click(); } });
+        const photoId = String(displayPhotos[index].id), cell = img.parentElement;
+        cell.dataset.photoId = photoId;
+        const select = document.createElement('button'); select.type = 'button'; select.className = 'timeline-photo-select';
+        select.setAttribute('aria-label', `選取${displayPhotos[index].media === 'video' ? '影片' : '照片'}`);
+        const selected = SelectionState.selectedPhotos.has(photoId);
+        select.setAttribute('aria-pressed', String(selected)); select.textContent = selected ? '✓' : '○';
+        cell.classList.toggle('selected', selected);
+        select.addEventListener('click', event => { event.stopPropagation(); togglePhotoSelection(photoId); });
+        cell.append(select);
+    });
 
     return card;
 }
@@ -716,6 +790,7 @@ function buildAgeNavigation(birthDate) {
  * 更新年齡導航的照片數量
  */
 function updateAgeNavCounts() {
+    document.querySelectorAll('.age-count').forEach(item => { item.textContent = '0'; });
     TimelineState.groupedPhotos.forEach(group => {
         // Extract years from sortKey
         const years = Math.floor(group.sortKey / 100);
@@ -767,6 +842,7 @@ function openModal(index) {
     const photo = TimelineState.allPhotosFlat[index];
 
     if (!photo) return;
+    if (SelectionState.isSelectMode) { togglePhotoSelection(String(photo.id)); return; }
 
     const modal = document.getElementById('photoModal');
     const modalImg = document.getElementById('modalImage');
@@ -784,7 +860,7 @@ function openModal(index) {
 
     // P1: Extract and display uploader
     const allTags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
-    const uploaderTag = allTags.find(t => t.startsWith('uploader:'));
+    const uploaderTag = findUploaderTag(allTags);
     const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : null;
 
     const modalUploader = document.getElementById('modalUploader');
@@ -798,7 +874,7 @@ function openModal(index) {
     }
 
     // P0: Populate tag editing input (excluding uploader tag)
-    const displayTags = allTags.filter(t => !t.startsWith('uploader:')).join(' ');
+    const displayTags = allTags.filter(t => !findUploaderTag([t])).join(' ');
     const editTagsInput = document.getElementById('editTagsInput');
     if (editTagsInput) {
         editTagsInput.value = displayTags;
@@ -810,14 +886,24 @@ function openModal(index) {
         pageIndicator.textContent = `${index + 1} / ${TimelineState.allPhotosFlat.length}`;
     }
 
+    let videoLink = document.getElementById('modalVideoLink');
+    if (!videoLink) {
+        videoLink = document.createElement('a'); videoLink.id = 'modalVideoLink'; videoLink.className = 'modal-download-btn';
+        videoLink.target = '_blank'; videoLink.rel = 'noopener'; videoLink.textContent = '▶ 在 Flickr 開啟影片';
+        document.querySelector('#photoModal .modal-info').append(videoLink);
+    }
+    videoLink.hidden = photo.media !== 'video';
+    videoLink.href = `https://www.flickr.com/photos/${encodeURIComponent(CONFIG.FLICKR_USER_ID)}/${encodeURIComponent(photo.id)}`;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
+    window.TimehutViewerMedia?.show(photo);
 }
 
 /**
  * 關閉 Modal
  */
 function closeModal() {
+    window.TimehutViewerMedia?.stop();
     const modal = document.getElementById('photoModal');
     modal.classList.remove('active');
     document.body.style.overflow = '';
@@ -859,6 +945,8 @@ function navigatePhoto(direction) {
  * @param {KeyboardEvent} event - 鍵盤事件
  */
 function handleKeyboard(event) {
+    if (document.querySelector('.timehut-dialog')) return;
+    if (event.key !== 'Escape' && event.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
     const modal = document.getElementById('photoModal');
 
     if (!modal.classList.contains('active')) return;
@@ -895,8 +983,9 @@ async function handleSearch(event) {
     const containerEl = document.getElementById('timelineContainer');
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
-    // Show loading
+    // Show loading and clear the previous query's empty state.
     loadingEl.style.display = 'block';
+    document.getElementById('emptyState').style.display = 'none';
 
     // Clear existing photos
     Array.from(containerEl.children).forEach(child => {
@@ -915,7 +1004,7 @@ async function handleSearch(event) {
 
         // If local filter found results, show them
         if (filteredPhotos.length > 0) {
-            TimelineState.groupedPhotos = groupPhotosByAge(filteredPhotos, child.birthDate);
+            TimelineState.groupedPhotos = groupPhotosByAge(filteredPhotos, localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate);
             loadingEl.style.display = 'none';
             renderTimeline();
             return;
@@ -931,7 +1020,7 @@ async function handleSearch(event) {
             document.querySelector('#emptyState p').textContent = `沒有符合「${query}」的照片`;
         } else {
             TimelineState.photos = result.photos;
-            TimelineState.groupedPhotos = groupPhotosByAge(result.photos, child.birthDate);
+            TimelineState.groupedPhotos = groupPhotosByAge(result.photos, localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate);
             loadingEl.style.display = 'none';
             renderTimeline();
         }
@@ -962,7 +1051,8 @@ function showConfirmModal(title, message, confirmText = '確認') {
         const cancelBtn = document.getElementById('confirmCancelBtn');
 
         titleEl.textContent = title;
-        msgEl.innerHTML = message.replace(/\n/g, '<br>');
+        msgEl.textContent = message;
+        msgEl.style.whiteSpace = 'pre-line';
         okBtn.textContent = confirmText;
 
         modal.classList.remove('hidden');
@@ -989,14 +1079,17 @@ function showConfirmModal(title, message, confirmText = '確認') {
  * 切換選擇模式
  */
 function toggleSelectMode() {
+    if (!SelectionState.isSelectMode && MomentSelectionState.isSelectMode) window.toggleMomentSelectMode();
     SelectionState.isSelectMode = !SelectionState.isSelectMode;
     document.body.classList.toggle('select-mode', SelectionState.isSelectMode);
     document.getElementById('selectionBar').classList.toggle('hidden', !SelectionState.isSelectMode);
+    document.getElementById('selectModeBtn')?.classList.toggle('active', SelectionState.isSelectMode);
+    document.getElementById('selectModeBtn')?.setAttribute('aria-pressed', String(SelectionState.isSelectMode));
 
     if (!SelectionState.isSelectMode) {
         // Clear selections when exiting select mode
         SelectionState.selectedPhotos.clear();
-        document.querySelectorAll('.photo-card.selected').forEach(card => {
+        document.querySelectorAll('.photo-card.selected,.moment-photo-container.selected').forEach(card => {
             card.classList.remove('selected');
         });
     }
@@ -1030,17 +1123,71 @@ function togglePhotoSelection(photoId) {
  * 更新選擇 UI
  */
 function updateSelectionUI() {
+    const signature=JSON.stringify([TimelineState.currentChildIndex,SelectionState.isSelectMode,[...SelectionState.selectedPhotos].sort()]);
+    if(signature!==SelectionState.signature){SelectionState.signature=signature;SelectionState.revision++;}
     document.getElementById('selectedCount').textContent = SelectionState.selectedPhotos.size;
 
     // Enable/disable buttons based on selection
     const count = SelectionState.selectedPhotos.size;
-    const buttons = document.querySelectorAll('.selection-actions button:not(#cancelSelectBtn)');
+    const buttons = document.querySelectorAll('#selectionBar .selection-actions button:not(#cancelSelectBtn)');
     buttons.forEach(btn => btn.disabled = count === 0);
+    document.getElementById('batchDownloadBtn').disabled = count === 0 || SelectionState.downloadBusy;
+    document.querySelectorAll('.moment-photo-container[data-photo-id]').forEach(cell => {
+        const selected = SelectionState.selectedPhotos.has(cell.dataset.photoId);
+        cell.classList.toggle('selected', selected);
+        const button = cell.querySelector('.timeline-photo-select');
+        if (button) { button.setAttribute('aria-pressed', String(selected)); button.textContent = selected ? '✓' : '○'; }
+    });
 }
 
 /**
  * 刪除選取的照片
  */
+function removeConfirmedTimelineSelections(succeeded) {
+    const done = new Set(succeeded.map(String));
+    succeeded.forEach(id => SelectionState.selectedPhotos.delete(String(id)));
+    for (const [id, moment] of MomentSelectionState.selectedMoments) {
+        const remaining = moment.photos.filter(photo => !done.has(String(photo.id)));
+        if (remaining.length) MomentSelectionState.selectedMoments.set(id, {...moment, photos: remaining});
+        else MomentSelectionState.selectedMoments.delete(id);
+    }
+}
+
+function refreshTimelineAfterBatch() {
+    const viewedId = TimelineState.allPhotosFlat[TimelineState.currentModalIndex]?.id;
+    const pendingMomentPhotos = new Set(getSelectedMomentPhotoIds().map(String));
+    TimelineState.photoBatches = calculatePhotoBatches(TimelineState.photos);
+    const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
+    const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate;
+    TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, birthDate);
+    TimelineState.momentData.clear();
+    MomentSelectionState.selectedMoments.clear();
+    renderTimeline();
+    // A moment's key is derived from its first photo, which may have been
+    // deleted. Rebind remaining selected photos to the newly rendered key.
+    for (const [id, moment] of TimelineState.momentData) {
+        const remaining = moment.photos.filter(photo => pendingMomentPhotos.has(String(photo.id)));
+        if (remaining.length) MomentSelectionState.selectedMoments.set(id, {...moment, photos: remaining});
+    }
+    updateMomentClickHandlers();
+    updateMomentSelectionUI();
+    updateSelectionUI();
+    updateAgeNavCounts();
+    document.getElementById('emptyState').style.display = TimelineState.photos.length ? 'none' : 'block';
+    TimehutResults.invalidateAlbumCache();
+    const viewedIndex = TimelineState.allPhotosFlat.findIndex(photo => String(photo.id) === String(viewedId));
+    if (viewedIndex < 0) window.closeModal();
+    TimelineState.currentModalIndex = Math.max(0, viewedIndex);
+}
+
+function applyTimelineDeletedPhotos(succeeded) {
+    if (!succeeded.length) return;
+    const deleted = new Set(succeeded.map(String));
+    removeConfirmedTimelineSelections(succeeded);
+    TimelineState.photos = TimelineState.photos.filter(photo => !deleted.has(String(photo.id)));
+    refreshTimelineAfterBatch();
+}
+
 async function deleteSelectedPhotos() {
     console.log('[DELETE] deleteSelectedPhotos called');
     const count = SelectionState.selectedPhotos.size;
@@ -1064,12 +1211,13 @@ async function deleteSelectedPhotos() {
 
     // Hand off to background worker
     if (typeof BackgroundWorker !== 'undefined') {
-        BackgroundWorker.startDelete(photoIds);
+        const deletion = await BackgroundWorker.startDelete(photoIds);
+        if (!deletion.accepted) { alert('目前已有作業進行中，選取已保留'); return; }
+        applyTimelineDeletedPhotos(deletion.succeeded);
+        if (deletion.failed.length) { alert(`已確認刪除 ${deletion.succeeded.length} 張；${deletion.failed.length} 張未完成，僅保留未完成項目供重試`); return; }
 
-        // Clear UI immediately
-        SelectionState.selectedPhotos.clear();
-        toggleSelectMode();
-        showToast('已開始在背景刪除', 'info');
+        if (SelectionState.isSelectMode && SelectionState.selectedPhotos.size === 0) toggleSelectMode();
+        showToast(`已確認刪除 ${deletion.succeeded.length} 張照片`, 'success');
     } else {
         // Fallback to old blocking method if BackgroundWorker not available
         console.warn('BackgroundWorker not available, using blocking delete');
@@ -1089,7 +1237,11 @@ async function deleteSelectedPhotos() {
             const result = await response.json();
 
             if (response.ok) {
-                const successCount = result.results?.filter(r => r.success).length || 0;
+                const confirmed = TimehutResults.confirmed(result, photoIds);
+                applyTimelineDeletedPhotos(confirmed.succeeded);
+                if (confirmed.failed.length) { alert(`已確認刪除 ${confirmed.succeeded.length} 張；${confirmed.failed.length} 張未完成，僅保留未完成項目供重試`); return; }
+                const successCount = confirmed.succeeded.length;
+                TimehutResults.invalidateAlbumCache();
                 showToast(`刪除完成！成功：${successCount} 張`, 'success');
 
                 // Exit select mode and reload entire page for fresh data
@@ -1125,54 +1277,41 @@ window.deleteSelectedPhotos = deleteSelectedPhotos;
  * 批量下載照片 (P1)
  */
 async function batchDownload() {
-    const count = SelectionState.selectedPhotos.size;
-    if (count === 0) return alert('請先選擇照片');
-
-    const btn = document.getElementById('batchDownloadBtn');
-    if (!confirm(`確定要下載 ${count} 張照片嗎？`)) return;
-
-    btn.disabled = true;
-    btn.textContent = '📦 打包中...';
-
+    if (SelectionState.downloadBusy) return;
+    const selected=[...SelectionState.selectedPhotos];
+    if (!selected.length) return alert('請先選擇照片');
+    const photos=selected.map(id=>TimelineState.allPhotosFlat.find(photo=>photo.id===id)).filter(Boolean).map(photo=>({...photo}));
+    const btn=document.getElementById('batchDownloadBtn');
+    updateSelectionUI();const revision=SelectionState.revision;
+    SelectionState.downloadBusy=true;updateSelectionUI();
     try {
-        const zip = new JSZip();
-        const photos = Array.from(SelectionState.selectedPhotos).map(id =>
-            TimelineState.allPhotosFlat.find(p => p.id === id)
-        ).filter(p => p);
-
-        let processed = 0;
-
-        // Parallel fetching with limit could be better, but sequential for simplicity
-        for (const photo of photos) {
-            const url = FlickrAPI.getPhotoUrl(photo, 'b'); // Large size
-            const filename = `${photo.title || photo.id}.jpg`;
-
-            // Use backend proxy to avoid CORS
-            const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-image?url=${encodeURIComponent(url)}`;
-
-            try {
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Fetch failed');
-                const blob = await response.blob();
-                zip.file(filename, blob);
-                processed++;
-                btn.textContent = `📦 ${processed}/${count}`;
-            } catch (e) {
-                console.error(`Failed to download ${filename}`, e);
-            }
+        if(photos.length!==selected.length)throw new Error('選取檔案已變更，請重新選取');
+        if(!await TimehutTransfers.confirmDownloads(photos))return;
+        if(revision!==SelectionState.revision)throw new Error('選取內容已變更，請重新確認下載');
+        btn.textContent='準備下載…';
+        const native=await TimehutTransfers.downloadMany(photos);
+        if(native){
+            if(revision===SelectionState.revision){native.accepted.forEach(id=>SelectionState.selectedPhotos.delete(id));updateSelectionUI();}
+            alert(`手機系統已接受 ${native.accepted.length} 個下載，${native.failed.length} 個尚未送出；請到傳輸中心確認。`);return;
         }
-
-        btn.textContent = '💾 產生 ZIP...';
-        const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `timehut_photos_${new Date().toISOString().slice(0, 10)}.zip`);
-
-    } catch (error) {
-        console.error('Batch download error:', error);
-        alert('下載失敗，請稍後再試');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '⬇️ 下載';
-    }
+        const zip=new JSZip(),acquired=[];let failed=0;
+        for(const photo of photos){
+            try{
+                const url=await TimehutTransfers.mediaUrl(photo);
+                const filename=photo.media==='video'?`${photo.id}.mp4`:`${photo.id}-${new URL(url).pathname.split('/').at(-1)||'media'}`;
+                const response=await fetch(url);if(!response.ok)throw new Error('下載失敗');
+                zip.file(filename,await response.blob());acquired.push(photo.id);
+                if(revision===SelectionState.revision)btn.textContent=`已取得 ${acquired.length}/${photos.length}`;
+            }catch(error){failed++;console.error('Batch file download failed',photo.id,error);}
+        }
+        if(!acquired.length)throw new Error('本次檔案下載全部失敗，請確認選取內容後再試');
+        if(revision===SelectionState.revision)btn.textContent='產生 ZIP…';
+        const content=await zip.generateAsync({type:'blob'});saveAs(content,`timehut_photos_${new Date().toISOString().slice(0,10)}.zip`);
+        const selectionUnchanged=revision===SelectionState.revision;
+        if(selectionUnchanged){acquired.forEach(id=>SelectionState.selectedPhotos.delete(id));updateSelectionUI();}
+        alert(`已交給瀏覽器 ${acquired.length} 個檔案的 ZIP；${failed?`${failed} 個檔案未能下載。${selectionUnchanged?'失敗項目仍保留供重試。':'選取內容已變更，請重新選取失敗項目後重試。'}`:'請確認實際下載結果。'}`);
+    }catch(error){console.error('Batch download error:',error);alert(error.message||'下載失敗，請稍後再試');}
+    finally{SelectionState.downloadBusy=false;btn.textContent='⬇️ 下載';updateSelectionUI();}
 }
 window.batchDownload = batchDownload;
 
@@ -1183,7 +1322,7 @@ async function batchAddTags() {
     const count = SelectionState.selectedPhotos.size;
     if (count === 0) return alert('請先選擇照片');
 
-    const tags = prompt(`為 ${count} 張照片增加標籤 (以空格分隔):`);
+    const tags = await TimehutDialogs.tags(`為 ${count} 張照片增加標籤 (以空格分隔):`);
     if (!tags) return;
 
     const photoIds = Array.from(SelectionState.selectedPhotos);
@@ -1198,16 +1337,29 @@ async function batchAddTags() {
             body: JSON.stringify({ photoIds, tags })
         });
         const result = await response.json();
-        alert(result.message);
+        if (!response.ok) throw new Error(result.error || result.message || '操作失敗');
+        const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+        const succeededIds = new Set(succeeded);
+        TimelineState.photos.forEach(photo => { if (succeededIds.has(String(photo.id))) photo.tags = [photo.tags, tags].filter(Boolean).join(' '); });
+        TimehutResults.invalidateAlbumCache();
+        succeeded.forEach(id => SelectionState.selectedPhotos.delete(id));
+        updateSelectionUI();
+        if (failed.length) {
+            alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取供重試`);
+            return;
+        }
+        alert(result.message || '操作完成');
 
         // Reload to update UI
         SelectionState.selectedPhotos.clear();
         toggleSelectMode();
+        TimelineState.photos = [];
+        TimelineState.currentPage = 1;
         loadPhotos();
     } catch (error) {
         alert('加標籤失敗: ' + error.message);
     } finally {
-        btn.disabled = false;
+        btn.disabled = SelectionState.selectedPhotos.size === 0;
         btn.textContent = '🏷️ 加標籤';
     }
 }
@@ -1221,12 +1373,12 @@ async function batchAddToAlbum() {
     if (count === 0) return alert('請先選擇照片');
 
     // Simple prompts for selection
-    let albumList = "請輸入目標相簿 ID 或選擇:\n";
+    let albumList = "選擇目標相簿：\n";
     CONFIG.CHILDREN.forEach((child, index) => {
         albumList += `${index + 1}. ${child.name} (${child.emoji})\n`;
     });
 
-    const input = prompt(albumList);
+    const input = await TimehutDialogs.album(albumList);
     if (!input) return;
 
     let albumId = input.trim();
@@ -1250,14 +1402,23 @@ async function batchAddToAlbum() {
             body: JSON.stringify({ photoIds })
         });
         const result = await response.json();
-        alert(result.message);
+        if (!response.ok) throw new Error(result.error || result.message || '操作失敗');
+        const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+        TimehutResults.invalidateAlbumCache();
+        succeeded.forEach(id => SelectionState.selectedPhotos.delete(id));
+        updateSelectionUI();
+        if (failed.length) {
+            alert(`已加入相簿 ${succeeded.length}/${photoIds.length} 張；${failed.length} 張尚未完成，已保留選取供重試`);
+            return;
+        }
+        alert(result.message || '操作完成');
 
         SelectionState.selectedPhotos.clear();
         toggleSelectMode();
     } catch (error) {
         alert('加入相簿失敗: ' + error.message);
     } finally {
-        btn.disabled = false;
+        btn.disabled = SelectionState.selectedPhotos.size === 0;
         btn.textContent = '📁 加入相簿';
     }
 }
@@ -1291,7 +1452,7 @@ async function savePhotoTags() {
 
     // Get existing uploader tag to preserve it
     const existingTags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
-    const uploaderTag = existingTags.find(t => t.startsWith('uploader:'));
+    const uploaderTag = findUploaderTag(existingTags);
 
     // Combine uploader tag with new user tags
     const finalTags = uploaderTag ? `${uploaderTag} ${newTags}` : newTags;
@@ -1312,7 +1473,10 @@ async function savePhotoTags() {
 
         if (response.ok && result.success) {
             // Update local photo object
-            photo.tags = finalTags;
+            const savedTags = typeof result.tags === 'string' ? result.tags : finalTags;
+            photo.tags = savedTags;
+            TimehutResults.invalidateAlbumCache();
+            TimelineState.photos.filter(item => item.id === photo.id).forEach(item => { item.tags = savedTags; });
             if (saveBtn) saveBtn.textContent = '✅';
             showToast('標籤已儲存！', 'success');
             setTimeout(() => { if (saveBtn) saveBtn.textContent = originalEmoji; }, 1500);
@@ -1394,8 +1558,18 @@ function calculatePhotoBatches(photos) {
  */
 function extractUploader(photo) {
     const tags = photo.tags ? photo.tags.split(' ').filter(t => t) : [];
-    const uploaderTag = tags.find(t => t.startsWith('uploader:'));
+    const uploaderTag = findUploaderTag(tags);
     return uploaderTag ? uploaderTag.replace('uploader:', '') : 'unknown';
+}
+
+function findUploaderTag(tags) {
+    const raw = tags.find(tag => tag.startsWith('uploader:'));
+    if (raw) return raw;
+    // Recognize only configured family names in Flickr's normalized album-list tags.
+    const normalized = value => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const member = (CONFIG.FAMILY_MEMBERS || []).find(person =>
+        tags.some(tag => tag === normalized('uploader:' + person.name)));
+    return member ? 'uploader:' + member.name : null;
 }
 
 /**
@@ -1452,36 +1626,39 @@ const UploadState = {
  * 打開上傳 Modal
  */
 async function openUploadModal() {
+    const capabilities=await window.TimehutTransfers?.ready;
+    if(capabilities?.nativeError){showToast(capabilities.nativeError,'error');return;}
+    if (capabilities?.nativeBackgroundUpload) { location.href = 'transfer.html'; return; }
     const modal = document.getElementById('uploadModal');
+    modal.style.removeProperty('display');
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
-    // Initialize uploader and load albums
+    // Choose before network work; a late response must not replace a user's selection.
     if (window.UploadUI) {
-        await window.UploadUI.checkAndPrepare();
-
         // Auto-select current child's album
         const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
         const albumSelect = document.getElementById('albumSelect');
         if (albumSelect && child.albumId) {
-            // Wait a tick to ensure options are rendered
-            setTimeout(() => {
-                albumSelect.value = child.albumId;
-            }, 0);
+            const destination = UploadUI.fileList.length > 0 && UploadUI.retryAlbumId
+                ? UploadUI.retryAlbumId : child.albumId;
+            albumSelect.value = destination;
         }
+        void window.UploadUI.checkAndPrepare();
     }
 
     // Update album upload link based on current child
     updateAlbumUploadLink();
 
     // Setup dropzone events
-    setupDropzone();
+    if (!window.UploadUI) setupDropzone();
 }
 
 /**
  * 關閉上傳 Modal
  */
 function closeUploadModal() {
+    window.UploadUI?.cancelPreparation();
     const modal = document.getElementById('uploadModal');
     modal.classList.remove('active');
     document.body.style.overflow = '';
@@ -1496,6 +1673,7 @@ function closeUploadModal() {
 function updateAlbumUploadLink() {
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
     const albumLink = document.getElementById('albumUploadLink');
+
     if (!albumLink) return;
 
     if (child.albumId) {
@@ -1606,6 +1784,7 @@ function removeFromQueue(index) {
  * 清空上傳佇列
  */
 function clearUploadQueue() {
+    if (window.UploadUI) UploadUI.clearQueue();
     UploadState.files = [];
     renderUploadQueue();
 
@@ -1664,9 +1843,13 @@ async function downloadCurrentPhoto() {
         showToast('無法下載照片', 'error');
         return;
     }
+    try { if (await window.TimehutTransfers?.download(photo)) return; }
+    catch (error) { showToast(error.message || '原生下載未開始', 'error'); return; }
 
     // Get the largest available URL
-    const downloadUrl = photo.url_o || photo.url_l || photo.url_c || photo.url_z || photo.url_m;
+    let downloadUrl;
+    try { downloadUrl = await TimehutTransfers.mediaUrl(photo); }
+    catch (error) { showToast(error.message, 'error'); return; }
     if (!downloadUrl) {
         showToast('無法取得照片網址', 'error');
         return;
@@ -1677,21 +1860,26 @@ async function downloadCurrentPhoto() {
     try {
         // Fetch the image as blob for direct download
         const response = await fetch(downloadUrl);
+        if (!response.ok) throw new Error('下載失敗');
         const blob = await response.blob();
 
         // Create blob URL and trigger download
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = photo.title || `photo_${photo.id}.jpg`;
+        link.download = photo.media === 'video' ? `${photo.id}.mp4` : `${photo.id}-${new URL(downloadUrl).pathname.split('/').at(-1) || 'photo.jpg'}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(blobUrl);
 
-        showToast('下載完成！', 'success');
+        showToast('已交給瀏覽器下載', 'success');
     } catch (error) {
         console.error('Download error:', error);
+        if (photo.media === 'video') {
+            showToast('影片原檔下載失敗，請稍後按下載重試', 'error');
+            return;
+        }
         // Fallback: open in new tab for cross-origin images
         window.open(downloadUrl, '_blank');
         showToast('已在新分頁開啟，請長按圖片儲存', 'info');
@@ -1716,18 +1904,18 @@ function initAlbumSidebar() {
     // Render album cards
     sidebarAlbums.innerHTML = CONFIG.CHILDREN.map((child, index) => {
         // Use correct calculateAge from utils.js (returns object)
-        const age = calculateAge(child.birthDate, new Date());
+        const age = calculateAge(localStorage.getItem(`timehut_child_${index}_birthdate`) || child.birthDate, new Date());
         const ageString = formatAgeString(age.years, age.months, age.days);
 
         return `
-            <div class="sidebar-album-card ${index === currentChildIndex ? 'active' : ''}" 
-                 onclick="switchAlbum(${index})">
+            <button type="button" class="sidebar-album-card ${index === currentChildIndex ? 'active' : ''}"
+                 aria-pressed="${index === currentChildIndex}" onclick="switchAlbum(${index})">
                 <span class="album-card-emoji">${child.emoji}</span>
-                <div class="album-card-info">
-                    <div class="album-card-name">${child.name}</div>
-                    <div class="album-card-subtitle">${ageString}</div>
-                </div>
-            </div>
+                <span class="album-card-info">
+                    <span class="album-card-name">${child.name}</span>
+                    <span class="album-card-subtitle">${ageString}</span>
+                </span>
+            </button>
         `;
     }).join('');
 
@@ -1767,11 +1955,19 @@ function initSwipeGesture() {
 /**
  * 開啟相簿側邊欄
  */
+let albumSidebarPreviousFocus = null;
+
 function openAlbumSidebar() {
     const sidebar = document.getElementById('albumSidebar');
     const overlay = document.getElementById('sidebarOverlay');
     const tabHandle = document.getElementById('sidebarTabHandle');
-    if (sidebar) sidebar.classList.add('open');
+    if (sidebar) {
+        if (!sidebar.classList.contains('open')) albumSidebarPreviousFocus = document.activeElement;
+        sidebar.inert = false;
+        sidebar.classList.add('open');
+        sidebar.querySelector('.sidebar-close').focus();
+    }
+    document.querySelectorAll('[aria-controls="albumSidebar"]').forEach(btn => btn.setAttribute('aria-expanded', 'true'));
     if (overlay) overlay.classList.add('visible');
     if (tabHandle) tabHandle.classList.add('hidden');
 }
@@ -1783,23 +1979,51 @@ function closeAlbumSidebar() {
     const sidebar = document.getElementById('albumSidebar');
     const overlay = document.getElementById('sidebarOverlay');
     const tabHandle = document.getElementById('sidebarTabHandle');
-    if (sidebar) sidebar.classList.remove('open');
+    if (sidebar) {
+        sidebar.classList.remove('open');
+        sidebar.inert = true;
+    }
+    document.querySelectorAll('[aria-controls="albumSidebar"]').forEach(btn => btn.setAttribute('aria-expanded', 'false'));
     if (overlay) overlay.classList.remove('visible');
     if (tabHandle) tabHandle.classList.remove('hidden');
+    if (albumSidebarPreviousFocus?.isConnected) albumSidebarPreviousFocus.focus();
 }
+
+document.addEventListener('keydown', event => {
+    const sidebar = document.getElementById('albumSidebar');
+    if (!sidebar?.classList.contains('open')) return;
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAlbumSidebar();
+    } else if (event.key === 'Tab') {
+        const buttons = [...sidebar.querySelectorAll('button')];
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const header = document.querySelector('.timeline-page .header');
+    if (header) new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--timeline-header-height', `${header.getBoundingClientRect().height}px`);
+    }).observe(header);
+});
 
 /**
  * 切換相簿
  */
-function switchAlbum(childIndex) {
-    localStorage.setItem('timehut_current_child', childIndex);
+async function switchAlbum(childIndex) {
+    if (!Number.isInteger(childIndex) || !CONFIG.CHILDREN[childIndex]) return;
     closeAlbumSidebar();
-    showToast(`切換到 ${CONFIG.CHILDREN[childIndex].name} 的相簿`, 'success');
-
-    // Reload page to load new album
-    setTimeout(() => {
-        window.location.reload();
-    }, 500);
+    await switchChild(childIndex);
+    if (TimelineState.currentChildIndex === childIndex) showToast(`切換到 ${CONFIG.CHILDREN[childIndex].name} 的相簿`, 'success');
 }
 
 // Export sidebar functions
@@ -1823,10 +2047,12 @@ window.addEventListener('beforeunload', () => {
  * 切換相集選擇模式
  */
 window.toggleMomentSelectMode = function toggleMomentSelectMode() {
+    if (!MomentSelectionState.isSelectMode && SelectionState.isSelectMode) toggleSelectMode();
     MomentSelectionState.isSelectMode = !MomentSelectionState.isSelectMode;
     document.body.classList.toggle('moment-select-mode', MomentSelectionState.isSelectMode);
     document.getElementById('momentSelectionBar').classList.toggle('hidden', !MomentSelectionState.isSelectMode);
     document.getElementById('batchMomentBtn').classList.toggle('active', MomentSelectionState.isSelectMode);
+    document.getElementById('batchMomentBtn').setAttribute('aria-pressed', String(MomentSelectionState.isSelectMode));
 
     if (!MomentSelectionState.isSelectMode) {
         // Clear selections when exiting select mode
@@ -1846,6 +2072,21 @@ window.toggleMomentSelectMode = function toggleMomentSelectMode() {
  */
 function updateMomentClickHandlers() {
     document.querySelectorAll('.moment-item').forEach(item => {
+        const header = item.querySelector('.moment-header');
+        const id = item.dataset.momentId;
+        item.classList.toggle('selected', MomentSelectionState.selectedMoments.has(id));
+        if (MomentSelectionState.selectedMoments.has(id) && TimelineState.momentData.has(id)) {
+            const selectedIds = new Set(MomentSelectionState.selectedMoments.get(id).photos.map(photo => String(photo.id)));
+            const current = TimelineState.momentData.get(id);
+            MomentSelectionState.selectedMoments.set(id, {...current, photos: current.photos.filter(photo => selectedIds.has(String(photo.id)))});
+        }
+        header.tabIndex = MomentSelectionState.isSelectMode ? 0 : -1;
+        header.setAttribute('role', 'button');
+        header.setAttribute('aria-label', '選取此相集');
+        header.setAttribute('aria-pressed', String(MomentSelectionState.selectedMoments.has(id)));
+        header.onkeydown = event => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleMomentSelection(item); }
+        };
         if (MomentSelectionState.isSelectMode) {
             item.onclick = (e) => {
                 // Prevent click on photos from triggering selection
@@ -1879,6 +2120,7 @@ function toggleMomentSelection(momentItem) {
         }
     }
 
+    momentItem.querySelector('.moment-header').setAttribute('aria-pressed', String(MomentSelectionState.selectedMoments.has(momentDataId)));
     updateMomentSelectionUI();
 }
 
@@ -1922,16 +2164,17 @@ window.batchMomentDelete = async function batchMomentDelete() {
     const photoIds = getSelectedMomentPhotoIds();
     const photoCount = photoIds.length;
 
-    if (!confirm(`確定要背景刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！`)) return;
+    if (!await TimehutDialogs.confirm(`確定要永久刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！`, {title:'永久刪除照片',confirmText:'永久刪除',danger:true})) return;
 
     // Hand off to background worker
     if (typeof BackgroundWorker !== 'undefined') {
-        BackgroundWorker.startDelete(photoIds);
+        const deletion = await BackgroundWorker.startDelete(photoIds);
+        if (!deletion.accepted) { alert('目前已有作業進行中，選取已保留'); return; }
+        applyTimelineDeletedPhotos(deletion.succeeded);
+        if (deletion.failed.length) { alert(`已確認刪除 ${deletion.succeeded.length} 張；${deletion.failed.length} 張未完成，僅保留未完成項目供重試`); return; }
 
-        // Clear UI immediately
-        MomentSelectionState.selectedMoments.clear();
-        toggleMomentSelectMode();
-        showToast('已開始在背景刪除', 'info');
+        if (MomentSelectionState.isSelectMode && MomentSelectionState.selectedMoments.size === 0) toggleMomentSelectMode();
+        showToast(`已確認刪除 ${deletion.succeeded.length} 張照片`, 'success');
     } else {
         // Fallback to old blocking method
         console.warn('BackgroundWorker not available, using blocking delete');
@@ -1949,7 +2192,11 @@ window.batchMomentDelete = async function batchMomentDelete() {
             const result = await response.json();
 
             if (response.ok) {
-                const successCount = result.results?.filter(r => r.success).length || 0;
+                const receipt = TimehutResults.confirmed(result, photoIds);
+                applyTimelineDeletedPhotos(receipt.succeeded);
+                if (receipt.failed.length) { alert(`已確認刪除 ${receipt.succeeded.length} 張；${receipt.failed.length} 張未完成，僅保留未完成項目供重試`); return; }
+                const successCount = receipt.succeeded.length;
+                TimehutResults.invalidateAlbumCache();
                 showToast(`刪除完成！成功：${successCount} 張照片`, 'success');
 
                 // Exit select mode and reload
@@ -1980,7 +2227,7 @@ window.batchMomentAddTags = async function batchMomentAddTags() {
     if (count === 0) return alert('請先選擇相集');
 
     const photoIds = getSelectedMomentPhotoIds();
-    const tags = prompt(`為 ${count} 個相集（${photoIds.length} 張照片）增加標籤（以空格分隔）:`);
+    const tags = await TimehutDialogs.tags(`為 ${count} 個相集（${photoIds.length} 張照片）增加標籤（以空格分隔）:`);
     if (!tags) return;
 
     const btn = document.getElementById('momentBatchTagBtn');
@@ -1995,11 +2242,28 @@ window.batchMomentAddTags = async function batchMomentAddTags() {
         });
 
         const result = await response.json();
+        if (!response.ok) throw new Error(result.error || result.message || '加標籤失敗');
+        const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+        const succeededIds = new Set(succeeded);
+        TimelineState.photos.forEach(photo => { if (succeededIds.has(String(photo.id))) photo.tags = [photo.tags, tags].filter(Boolean).join(' '); });
+        TimehutResults.invalidateAlbumCache();
+        if (failed.length) {
+            for (const [id, moment] of MomentSelectionState.selectedMoments) {
+                const remaining = moment.photos.filter(photo => !succeededIds.has(String(photo.id)));
+                if (remaining.length) MomentSelectionState.selectedMoments.set(id, {...moment, photos: remaining});
+                else MomentSelectionState.selectedMoments.delete(id);
+            }
+            updateMomentClickHandlers(); updateMomentSelectionUI();
+            alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取供重試`);
+            return;
+        }
         showToast(result.message || '標籤添加成功', 'success');
 
         // Reload to update UI
         MomentSelectionState.selectedMoments.clear();
         toggleMomentSelectMode();
+        TimelineState.photos = [];
+        TimelineState.currentPage = 1;
         loadPhotos();
     } catch (error) {
         alert('加標籤失敗: ' + error.message);
@@ -2032,15 +2296,17 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
     if (count === 0) return alert('請先選擇相集');
 
     const photoIds = getSelectedMomentPhotoIds();
+    const sourceChildIndex = TimelineState.currentChildIndex;
+    const sourceAlbumId = CONFIG.CHILDREN[sourceChildIndex].albumId;
 
     // Build album selection options
-    let albumList = '選擇目標相簿（輸入編號）:\n\n';
+    let albumList = '選擇目標相簿：\n\n';
     CONFIG.CHILDREN.forEach((child, index) => {
-        const current = index === TimelineState.currentChildIndex ? ' (目前)' : '';
+        const current = index === sourceChildIndex ? ' (目前)' : '';
         albumList += `${index + 1}. ${child.emoji} ${child.name}${current}\n`;
     });
 
-    const input = prompt(albumList);
+    const input = await TimehutDialogs.album(albumList, false);
     if (!input) return;
 
     const targetIdx = parseInt(input) - 1;
@@ -2048,14 +2314,14 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
         return alert('無效的選擇');
     }
 
-    if (targetIdx === TimelineState.currentChildIndex) {
+    if (targetIdx === sourceChildIndex) {
         return alert('照片已在此相簿中');
     }
 
     const targetChild = CONFIG.CHILDREN[targetIdx];
     const targetAlbumId = targetChild.albumId;
 
-    if (!confirm(`確定要將 ${count} 個相集（${photoIds.length} 張照片）移動到「${targetChild.name}」的相簿嗎？`)) return;
+    if (!await TimehutDialogs.confirm(`確定要將 ${count} 個相集（${photoIds.length} 張照片）移動到「${targetChild.name}」的相簿嗎？`, {title:'移動相簿',confirmText:'確認移動'})) return;
 
     const btn = document.getElementById('momentMoveAlbumBtn');
     btn.disabled = true;
@@ -2075,9 +2341,14 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
             throw new Error(addResult.error || '加入新相簿失敗');
         }
 
-        // Then remove from current album
-        const currentAlbumId = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
-        const removeResponse = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${currentAlbumId}/remove_photos`, {
+        const added = TimehutResults.confirmed(addResult, photoIds);
+        if (added.failed.length) {
+            throw new Error(`已確認 ${added.succeeded.length}/${photoIds.length} 張加入目標相簿；尚未從原相簿移出任何照片，請重試未完成的移動`);
+        }
+
+        // Only confirmed destination membership permits removing originals.
+        // The user may switch children while the destination request is pending.
+        const removeResponse = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${sourceAlbumId}/remove_photos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
@@ -2086,10 +2357,22 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
         const removeResult = await removeResponse.json();
 
         if (removeResponse.ok) {
+            const { succeeded, failed } = TimehutResults.confirmed(removeResult, photoIds);
+            const viewingSource = TimelineState.currentChildIndex === sourceChildIndex;
+            if (succeeded.length && viewingSource) {
+                const moved = new Set(succeeded);
+                removeConfirmedTimelineSelections(succeeded);
+                TimelineState.photos = TimelineState.photos.filter(photo => !moved.has(String(photo.id)));
+                refreshTimelineAfterBatch();
+                if (MomentSelectionState.isSelectMode && MomentSelectionState.selectedMoments.size === 0) toggleMomentSelectMode();
+            }
+            TimehutResults.invalidateAlbumCache();
+            if (failed.length) {
+                const nextStep = viewingSource ? '未完成項目已保留選取供重試' : '請返回原相簿確認未完成項目並重試';
+                alert(`已完成移動 ${succeeded.length}/${photoIds.length} 張；${failed.length} 張尚未從原相簿移出。${nextStep}`);
+                return;
+            }
             showToast(`成功將 ${photoIds.length} 張照片移動到「${targetChild.name}」的相簿`, 'success');
-            MomentSelectionState.selectedMoments.clear();
-            toggleMomentSelectMode();
-            setTimeout(() => location.reload(), 1000);
         } else {
             showToast(`照片已加入新相簿，但從原相簿移除失敗：${removeResult.error}`, 'warning');
         }
@@ -2097,7 +2380,7 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
         console.error('Move album error:', error);
         alert('移動相簿時發生錯誤：' + error.message);
     } finally {
-        btn.disabled = false;
+        btn.disabled = MomentSelectionState.selectedMoments.size === 0;
         btn.textContent = '📚 移動相簿';
     }
 }
@@ -2115,6 +2398,25 @@ let moveCollectionState = {
     isFromMomentSelection: false
 };
 
+function refreshMoveCollectionDateCounts(succeeded, targetDate) {
+    const done = new Set(succeeded.map(String));
+    const selectedDate = moveCollectionState.targetDate;
+    const previous = new Map(moveCollectionState.collections.map(collection => [collection.date, collection]));
+    const photos = new Map(moveCollectionState.collections.flatMap(collection => collection.photos).map(photo => [String(photo.id), photo]));
+    const groups = new Map();
+    for (const [id, photo] of photos) {
+        if (done.has(id)) photo.datetaken = targetDate;
+        const uploadedAt = new Date(Number(photo.dateupload) * 1000);
+        const date = photo.datetaken?.split(' ')[0] || (Number.isNaN(uploadedAt.valueOf()) ? 'unknown' : uploadedAt.toISOString().slice(0, 10));
+        if (!groups.has(date)) groups.set(date, {...previous.get(date), date, photos: []});
+        groups.get(date).photos.push(photo);
+    }
+    moveCollectionState.collections = [...groups.values()].sort((a, b) => b.date.localeCompare(a.date));
+    renderCollectionList(moveCollectionState.collections);
+    const selected = [...document.querySelectorAll('#collectionList .collection-item')].find(item => item.dataset.date === selectedDate);
+    if (selected) selectCollection(selected);
+}
+
 /**
  * 批量移動單獨選取的照片到其他相集（改變拍攝日期）- 視覺化 Modal 版
  */
@@ -2131,6 +2433,7 @@ async function batchMoveToCollection() {
  */
 async function showMoveCollectionModal(count, photoIds) {
     document.getElementById('moveCollectionCount').textContent = count;
+    document.getElementById('collectionSelectionPrompt').textContent = '請先選擇目的相集。';
     document.getElementById('moveCollectionModal').classList.remove('hidden');
     document.getElementById('collectionListLoading').style.display = 'block';
     document.getElementById('collectionList').style.display = 'none';
@@ -2170,17 +2473,18 @@ function renderCollectionList(collections) {
         listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted);">無可用的相集</div>';
     } else {
         listEl.innerHTML = collections.map((col, idx) => `
-            <div class="collection-item" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
+            <button type="button" class="collection-item" aria-pressed="false" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <img src="${FlickrAPI.getPhotoUrl(col.photos[0], 'sq')}" 
                          style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">
-                    <div>
-                        <div style="font-weight: 600;">${col.label}</div>
-                        <div style="font-size: 0.85rem; color: var(--color-text-muted);">${col.date} · ${col.photos.length} 張</div>
+                    <div class="collection-text">
+                        <strong class="collection-title">${col.label.split(' - ')[0]}</strong>
+                        <span class="collection-age">${col.label.split(' - ').slice(1).join(' - ')}</span>
+                        <span class="collection-detail">${col.date} · ${col.photos.length} 張</span>
                     </div>
                 </div>
                 <div class="collection-check" style="display: none;">✓</div>
-            </div>
+            </button>
         `).join('');
     }
 
@@ -2195,15 +2499,18 @@ function selectCollection(element) {
     // 移除其他選取
     document.querySelectorAll('.collection-item').forEach(el => {
         el.classList.remove('selected');
+        el.setAttribute('aria-pressed','false');
         el.querySelector('.collection-check').style.display = 'none';
     });
 
     // 選取當前
     element.classList.add('selected');
+    element.setAttribute('aria-pressed','true');
     element.querySelector('.collection-check').style.display = 'block';
 
     moveCollectionState.targetDate = element.dataset.date;
     moveCollectionState.targetLabel = element.dataset.label;
+    document.getElementById('collectionSelectionPrompt').textContent = `已選擇：${element.dataset.label}。`;
     document.getElementById('moveCollectionConfirmBtn').disabled = false;
 }
 
@@ -2226,7 +2533,7 @@ async function confirmMoveCollection() {
     const targetLabel = moveCollectionState.targetLabel;
     const targetDate = moveCollectionState.targetDate + ' 12:00:00';
 
-    if (!confirm(`確定要將 ${count} 張照片移動到「${targetLabel}」嗎？`)) return;
+    if (!await TimehutDialogs.confirm(`將 ${count} 張照片合併至「${targetLabel}」。\n拍攝日時會改為 ${targetDate}，照片原檔不變。`, {title:'確認修改拍攝日時',confirmText:'修改日期並合併'})) return;
 
     const btn = document.getElementById('moveCollectionConfirmBtn');
     btn.disabled = true;
@@ -2242,6 +2549,19 @@ async function confirmMoveCollection() {
         const result = await response.json();
 
         if (response.ok) {
+            const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+            const done = new Set(succeeded);
+            TimelineState.photos.forEach(photo => { if (done.has(String(photo.id))) photo.datetaken = targetDate; });
+            removeConfirmedTimelineSelections(succeeded);
+            if (succeeded.length) refreshTimelineAfterBatch();
+            moveCollectionState.photoIds = failed;
+            document.getElementById('moveCollectionCount').textContent = failed.length;
+            if (failed.length) {
+                if (succeeded.length) refreshMoveCollectionDateCounts(succeeded, targetDate);
+                alert(`已更新 ${succeeded.length}/${photoIds.length} 張的日期；${failed.length} 張未完成，僅保留未完成項目供重試`);
+                return;
+            }
+            TimehutResults.invalidateAlbumCache();
             showToast(result.message || '移動成功', 'success');
             closeMoveCollectionModal();
 

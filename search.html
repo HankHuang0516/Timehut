@@ -6,19 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 搜尋照片">
     <title>黃家小屋 - 搜尋結果</title>
-    
-    
+    <link rel="icon" type="image/jpeg" href="16120.jpg">
+    <link rel="apple-touch-icon" href="16120.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#fff3be"><link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="assets/app-icon-512.png"><script defer src="js/pwa.js"></script>
+    <link rel="stylesheet" href="css/style.css?v=20261014.1">
+    <link rel="stylesheet" href="css/storybook.css?v=20261014.1">
+    <script defer src="js/dialogs.js?v=20261014.1"></script>
+    <script defer src="js/storybook.js?v=20261014.1"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#fff3be">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script defer src="js/transfers.js?v=20261014.1"></script>
+<script defer src="js/pwa.js?v=20261014.1"></script>
 </head>
 
-<body class="timeline-page">
+<body class="storybook-page timeline-page">
     <!-- Header -->
     <header class="header">
         <div class="header-left">
@@ -90,9 +96,10 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/flickr.js"></script>
+    <script src="js/config.js?v=20261014.1"></script>
+    <script src="js/results.js?v=20261014.1"></script>
+    <script src="js/utils.js?v=20261014.1"></script>
+    <script src="js/flickr.js?v=20261014.1"></script>
     <script>
         // Search state
         const SearchState = {
@@ -144,7 +151,7 @@
                 // First try to get photos from sessionStorage (synced from timeline.html)
                 if (!SearchState.allPhotos) {
                     const storedPhotos = sessionStorage.getItem('allPhotos');
-                    if (storedPhotos) {
+                    if (storedPhotos && sessionStorage.getItem('allPhotosChild') === (localStorage.getItem('timehut_current_child') || '0')) {
                         SearchState.allPhotos = JSON.parse(storedPhotos);
                         console.log('Loaded photos from sessionStorage:', SearchState.allPhotos.length);
                     }
@@ -152,8 +159,10 @@
 
                 // Fallback: load from API if sessionStorage is empty
                 if (!SearchState.allPhotos || SearchState.allPhotos.length === 0) {
-                    const selectedChild = sessionStorage.getItem('selectedChild');
-                    const childIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
+                    const selectedChild = localStorage.getItem('timehut_current_child')
+                        ?? sessionStorage.getItem('selectedChild');
+                    const selectedIndex = Number.parseInt(selectedChild ?? '0', 10);
+                    const childIndex = CONFIG.CHILDREN[selectedIndex] ? selectedIndex : 0;
                     const child = CONFIG.CHILDREN[childIndex];
 
                     if (child && child.albumId) {
@@ -211,18 +220,17 @@
                 const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm');
                 const tags = photo.tags ? photo.tags.split(' ').filter(t => !t.startsWith('uploader:')).join(', ') : '';
 
-                card.innerHTML = `
-                    <div class="photo-wrapper">
-                        <img src="${imgUrl}" alt="${photo.title || ''}" loading="lazy">
-                    </div>
-                    <div class="photo-info">
-                        <div class="photo-title">${photo.title || '未命名'}</div>
-                        <div class="photo-meta">
-                            <span>${formatDate(photo.datetaken || photo.dateupload)}</span>
-                            ${tags ? `<span class="photo-tags">${tags}</span>` : ''}
-                        </div>
-                    </div>
-                `;
+                card.tabIndex = 0; card.setAttribute('role', 'button');
+                card.setAttribute('aria-label', photo.title || '照片預覽');
+                card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openModal(index); } });
+                const wrapper = document.createElement('div'); wrapper.className = 'photo-wrapper';
+                const image = document.createElement('img'); image.src = imgUrl; image.alt = photo.title || '照片預覽'; image.loading = 'lazy'; wrapper.append(image);
+                const info = document.createElement('div'); info.className = 'photo-info';
+                const title = document.createElement('div'); title.className = 'photo-title'; title.textContent = photo.title || '未命名';
+                const meta = document.createElement('div'); meta.className = 'photo-meta';
+                const date = document.createElement('span'); date.textContent = formatDate(photo.datetaken || photo.dateupload); meta.append(date);
+                if (tags) { const label = document.createElement('span'); label.className = 'photo-tags'; label.textContent = tags; meta.append(label); }
+                info.append(title, meta); card.append(wrapper, info);
 
                 gridEl.insertBefore(card, loadingEl);
             });

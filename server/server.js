@@ -11,61 +11,24 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const uploadHash = require('node:crypto');
 const { OAuth } = require('oauth');
 const https = require('https');
 const FormData = require('form-data');
+const { flickrRequest } = require('./flickr-api');
+const { setUserPhotoTags } = require('./photo-tags');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BACKEND_VERSION = '1.0.63';
+const BACKEND_BUILD = '2026.10.14.1';
 
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 console.log("!!!!!!!! SERVER UNIFIED FIX STARTING - TIMESTAMP: " + Date.now() + " !!!!!!!");
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
-app.get('/api/version', (req, res) => {
-    res.json({ version: 'v5.0-UNIFIED', timestamp: Date.now() });
-});
-
-// Debug endpoint to test video resolution logic
-app.get('/api/test_video_fix/:id', async (req, res) => {
-    const { id } = req.params;
-    const url = 'https://api.flickr.com/services/rest/';
-    const results = { step0_setPublic: null, step1_anonSizes: null, foundMp4: null };
-
-    try {
-        // 1. Force public
-        results.step0_setPublic = await setPhotoPublic(id);
-
-        // 2. Wait
-        await new Promise(r => setTimeout(r, 3000));
-
-        // 3. Anonymous call
-        const anonParams = {
-            method: 'flickr.photos.getSizes',
-            api_key: process.env.FLICKR_API_KEY,
-            photo_id: id,
-            format: 'json',
-            nojsoncallback: '1'
-        };
-        const anonQs = Object.keys(anonParams).map(k => `${k}=${anonParams[k]}`).join('&');
-        const anonRes = await fetch(`${url}?${anonQs}`);
-        results.step1_anonSizes = await anonRes.json();
-
-        // 4. Check for MP4
-        if (results.step1_anonSizes.stat === 'ok' && results.step1_anonSizes.sizes && results.step1_anonSizes.sizes.size) {
-            results.foundMp4 = results.step1_anonSizes.sizes.size.find(s =>
-                s.label.includes('Site MP4') ||
-                s.label.includes('Mobile MP4') ||
-                s.label.includes('HD') ||
-                (s.source && s.source.includes('.mp4'))
-            );
-        }
-
-        res.json(results);
-    } catch (e) {
-        res.status(500).json({ error: e.message, stack: e.stack });
-    }
-});
+// Retired: reading/debugging media must never change photo permissions.
+app.get('/api/test_video_fix/:id', (req, res) => res.status(410).json({ error: '此舊診斷功能已停用；不會修改公開性' }));
 
 // ==================== 上傳佇列管理 ====================
 const QUEUE_FILE = path.join(__dirname, 'uploads', 'queue.json');
@@ -83,10 +46,13 @@ function readQueue() {
     try {
         if (fs.existsSync(QUEUE_FILE)) {
             const data = fs.readFileSync(QUEUE_FILE, 'utf8');
-            return JSON.parse(data);
+            const queue = JSON.parse(data);
+            if (!Array.isArray(queue)) throw new Error('Invalid receipt store shape');
+            return queue;
         }
     } catch (error) {
         console.error('[QUEUE] Error reading queue:', error);
+        throw new Error('Upload receipt store is unreadable; existing receipts are preserved');
     }
     return [];
 }
@@ -95,11 +61,9 @@ function readQueue() {
  * 寫入上傳佇列
  */
 function writeQueue(queue) {
-    try {
-        fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
-    } catch (error) {
-        console.error('[QUEUE] Error writing queue:', error);
-    }
+    const temporary = QUEUE_FILE + '.tmp';
+    fs.writeFileSync(temporary, JSON.stringify(queue, null, 2), { mode: 0o600 });
+    fs.renameSync(temporary, QUEUE_FILE);
 }
 
 /**
@@ -127,19 +91,29 @@ function updateQueueItem(localId, updates) {
 }
 
 /**
- * 從佇列移除項目
- */
-function removeFromQueue(localId) {
-    const queue = readQueue();
-    const filtered = queue.filter(item => item.localId !== localId);
-    writeQueue(filtered);
-}
-
-/**
  * 取得待處理的佇列項目
  */
 function getPendingItems() {
-    return readQueue().filter(item => item.status === 'pending');
+    return readQueue().filter(item => item.status === 'pending' && !item.retryBlocked);
+}
+
+// A known Flickr ID can safely resume metadata. An unknown remote outcome must
+// never be automatically uploaded again after a worker process dies.
+function recoverInterruptedUploads() {
+    const queue = readQueue();
+    let changed = false;
+    for (const item of queue) {
+        if (!['uploading', 'processing'].includes(item.status)) continue;
+        changed = true;
+        if (item.flickrPhotoId) {
+            item.status = 'pending'; item.error = '伺服器重新啟動，繼續核對 Flickr 相簿與資料';
+            item.retryBlocked = false;
+        } else {
+            item.status = 'error'; item.retryBlocked = true;
+            item.error = '上次 Flickr 上傳結果尚未確認；已保留原檔與收據，請先核對 Flickr，避免重複上傳';
+        }
+    }
+    if (changed) writeQueue(queue);
 }
 
 /**
@@ -217,72 +191,49 @@ async function checkNetworkConnectivity() {
 /**
  * 帶重試的上傳到 Flickr
  */
-async function uploadToFlickrWithRetry(file, title, description, tags, maxRetries = UPLOAD_CONFIG.maxRetries) {
-    let lastError;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            console.log(`[UPLOAD] Attempt ${attempt}/${maxRetries} for ${file.originalname}`);
-
-            // 如果不是第一次嘗試，先檢查網路
-            if (attempt > 1) {
-                const isOnline = await checkNetworkConnectivity();
-                if (!isOnline) {
-                    console.log(`[UPLOAD] Network offline, waiting before retry...`);
-                    await delay(UPLOAD_CONFIG.retryDelayMs * attempt);
-                    continue;
-                }
-            }
-
-            const photoId = await uploadToFlickr(file, title, description, tags);
-            return photoId;
-
-        } catch (error) {
-            lastError = error;
-            console.error(`[UPLOAD] Attempt ${attempt} failed:`, error.message);
-
-            // 判斷是否可重試
-            if (!isRetryableError(error)) {
-                console.log(`[UPLOAD] Non-retryable error, giving up`);
-                throw error;
-            }
-
-            // 如果還有重試機會，等待後重試
-            if (attempt < maxRetries) {
-                const waitTime = UPLOAD_CONFIG.retryDelayMs * attempt;
-                console.log(`[UPLOAD] Retryable error, waiting ${waitTime}ms before retry...`);
-                await delay(waitTime);
-            }
-        }
+async function uploadToFlickrWithRetry(file, title, description, tags) {
+    // Flickr creation has no idempotency key. A lost response cannot safely be
+    // retried: preserve the local file and receipt until the outcome is known.
+    try {
+        return await uploadToFlickr(file, title, description, tags);
+    } catch (error) {
+        error.uploadOutcomeUnknown = true;
+        throw error;
     }
-
-    throw lastError || new Error('Upload failed after all retries');
 }
 
 /**
  * 處理單一上傳項目的核心邏輯
  */
 async function processSingleItem(item) {
+    item = readQueue().find(row => row.localId === item.localId);
+    if (!item || item.status === 'cancelled') return { success: false, type: 'cancelled' };
+    if (item.retryBlocked && !item.flickrPhotoId) return { success: false, type: 'unknown' };
     console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
 
     // 更新狀態為上傳中，記錄嘗試次數
     const retryCount = (item.retryCount || 0) + 1;
     updateQueueItem(item.localId, {
         status: 'uploading',
+        // Persist the replay block before Flickr creation. If saving its returned
+        // ID fails, neither the scheduler nor a restart may create it again.
+        retryBlocked: !item.flickrPhotoId,
         retryCount,
         lastAttempt: new Date().toISOString()
     });
 
     // 檢查檔案是否存在
-    if (!fs.existsSync(item.localPath)) {
+    if (!item.flickrPhotoId && !fs.existsSync(item.localPath)) {
         console.error(`[WORKER] File not found: ${item.localPath}`);
         updateQueueItem(item.localId, {
             status: 'error',
+            retryBlocked: false,
             error: 'File not found (永久錯誤)'
         });
         return { success: false, type: 'permanent' };
     }
 
+    let photoId = item.flickrPhotoId || null;
     try {
         // 上傳到 Flickr（帶重試）
         const file = {
@@ -291,32 +242,19 @@ async function processSingleItem(item) {
             mimetype: item.mimetype
         };
 
-        const photoId = await uploadToFlickrWithRetry(file, item.title, item.description, item.tags);
+        photoId ||= await uploadToFlickrWithRetry(file, item.title, item.description, item.tags);
+        if (photoId) updateQueueItem(item.localId, { flickrPhotoId: photoId, retryBlocked: false });
         console.log(`[WORKER] Uploaded to Flickr, photoId: ${photoId}`);
 
         if (photoId) {
-            // 加入相簿（帶重試）
-            if (item.albumId) {
-                try {
-                    await addPhotoToAlbumWithRetry(photoId, item.albumId);
-                    console.log(`[WORKER] Added to album ${item.albumId}`);
-                } catch (albumError) {
-                    console.error(`[WORKER] Failed to add to album (will continue):`, albumError.message);
-                }
-            }
-
-            // 設定日期（如果有）
-            if (item.date) {
-                try {
-                    await setPhotoDate(photoId, item.date);
-                } catch (dateError) {
-                    console.error(`[WORKER] Failed to set date (will continue):`, dateError.message);
-                }
-            }
+            // Completion includes the requested membership and date metadata.
+            if (item.albumId) await addPhotoToAlbumWithRetry(photoId, item.albumId);
+            if (item.date) await setPhotoDate(photoId, item.date);
 
             // 更新佇列：標記完成並記錄 Flickr photoId
             updateQueueItem(item.localId, {
                 status: 'completed',
+                error: null,
                 flickrPhotoId: photoId,
                 completedAt: new Date().toISOString()
             });
@@ -329,8 +267,7 @@ async function processSingleItem(item) {
                 console.error(`[WORKER] Failed to delete local file:`, e.message);
             }
 
-            // 從佇列移除已完成的項目
-            removeFromQueue(item.localId);
+            // Keep the terminal receipt across client/OS restarts; remove file bytes only.
             console.log(`[WORKER] ✅ Completed: ${item.originalFilename}`);
             return { success: true, type: 'completed' };
 
@@ -347,7 +284,19 @@ async function processSingleItem(item) {
     } catch (error) {
         console.error(`[WORKER] Error processing ${item.localId}:`, error.message);
 
-        const currentRetryCount = (item.retryCount || 0);
+        const saved = readQueue().find(row => row.localId === item.localId);
+        if (!saved?.flickrPhotoId && (error.uploadOutcomeUnknown || photoId)) {
+            updateQueueItem(item.localId, {
+                status: 'error',
+                retryBlocked: !photoId,
+                ...(photoId ? { flickrPhotoId: photoId } : {}),
+                error: photoId ? 'Flickr 已建立，收據保存曾失敗；已保留同一照片編號，重試只核對相簿與資料'
+                    : 'Flickr 上傳結果尚未確認；已保留原檔與收據，請先核對，避免重複上傳'
+            });
+            return { success: false, type: 'unknown' };
+        }
+
+        const currentRetryCount = retryCount;
         const isRetryable = isRetryableError(error);
 
         if (isRetryable && currentRetryCount < 5) {
@@ -392,14 +341,8 @@ async function processUploadQueue() {
         return;
     }
 
-    // 先檢查網路連線
-    const isOnline = await checkNetworkConnectivity();
-    if (!isOnline) {
-        console.log('[WORKER] Network appears offline, scheduling retry in 30 seconds...');
-        setTimeout(() => processUploadQueue().catch(console.error), 30000);
-        return;
-    }
-
+    // Claim the queue before the first await: simultaneous staged uploads must
+    // not start competing workers for the same pending file.
     isProcessingQueue = true;
     console.log(`[WORKER] Starting to process ${initialPendingItems.length} pending uploads with concurrency...`);
 
@@ -410,6 +353,12 @@ async function processUploadQueue() {
     let retryLaterCount = 0;
 
     try {
+        const isOnline = await checkNetworkConnectivity();
+        if (!isOnline) {
+            console.log('[WORKER] Network appears offline, scheduling retry in 30 seconds...');
+            setTimeout(() => processUploadQueue().catch(console.error), 30000);
+            return;
+        }
         while (true) {
             // 動態讀取待處理項目（可能有新加入的）
             const pendingItems = getPendingItems();
@@ -632,10 +581,17 @@ app.get('/version', (req, res) => {
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
-        version: GIT_VERSION,
+        version: BACKEND_VERSION,
+        build: BACKEND_BUILD,
+        sourceRevision: GIT_VERSION,
         authenticated: !!oauthTokens.accessToken,
         timestamp: new Date().toISOString()
     });
+});
+
+// Register after CORS middleware so the website can verify this manual-upload build.
+app.get('/api/version', (req, res) => {
+    res.json({ version: BACKEND_VERSION, build: BACKEND_BUILD, sourceRevision: GIT_VERSION, timestamp: Date.now() });
 });
 
 // 檢查授權狀態
@@ -746,7 +702,36 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
         return res.status(400).json({ error: '請選擇要上傳的檔案' });
     }
 
-    const { albumId, title, description, tags, date } = req.body;
+    const { albumId, title, description, tags, date, clientUploadId } = req.body;
+    try {
+        if (clientUploadId) for (const file of req.files) {
+            const digest = uploadHash.createHash('sha256');
+            for await (const bytes of fs.createReadStream(file.path)) digest.update(bytes);
+            file.contentSha256 = digest.digest('hex');
+        }
+        readQueue();
+    } catch (_) {
+        for (const file of req.files) try { fs.unlinkSync(file.path); } catch (_) {}
+        return res.status(503).json({ error: '上傳收據暫時無法保存，既有收據已保留；請稍後重試' });
+    }
+    if (clientUploadId) {
+        if (!/^[a-zA-Z0-9_-]{16,80}$/.test(clientUploadId) || req.files.length !== 1) {
+            for (const file of req.files) try { fs.unlinkSync(file.path); } catch (_) {}
+            return res.status(400).json({ error: 'Invalid per-file upload identity' });
+        }
+        const existing = readQueue().find(item => item.clientUploadId === clientUploadId);
+        if (existing) {
+            const file = req.files[0];
+            try { fs.unlinkSync(file.path); } catch (_) {}
+            if (existing.status === 'cancelled') {
+                return res.status(409).json({ error: '此上傳已取消；原收件編號保留，不能重新建立', localId: existing.localId, retryBlocked: true });
+            }
+            if (existing.size !== file.size || existing.contentSha256 !== file.contentSha256 || existing.originalFilename !== file.originalname || existing.albumId !== (albumId || null) || existing.tags !== (tags || '') || existing.title !== (title || file.originalname) || existing.description !== (description || '') || existing.date !== (date || null)) {
+                return res.status(409).json({ error: 'Upload identity belongs to different file metadata' });
+            }
+            return res.json({ _staged: existing.status !== 'completed', results: [{ success: true, localId: existing.localId, photoId: existing.flickrPhotoId, _staged: existing.status !== 'completed' }] });
+        }
+    }
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     console.log('[UPLOAD] Request Body:', { albumId, title, description, tags, date });
 
@@ -762,6 +747,8 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
             // 建立佇列項目
             const queueItem = {
                 localId,
+                clientUploadId: clientUploadId || null,
+                contentSha256: file.contentSha256 || null,
                 localFilename,
                 localPath: file.path,
                 originalFilename: file.originalname,
@@ -846,19 +833,11 @@ app.post('/api/upload/sync', upload.array('files', 20), async (req, res) => {
             const photoId = await uploadToFlickr(file, title, description, tags);
 
             if (albumId && photoId) {
-                try {
-                    await addPhotoToAlbumWithRetry(photoId, albumId);
-                } catch (albumError) {
-                    console.error(`[UPLOAD-SYNC] Album error:`, albumError);
-                }
+                await addPhotoToAlbumWithRetry(photoId, albumId);
             }
 
             if (req.body.date && photoId) {
-                try {
-                    await setPhotoDate(photoId, req.body.date);
-                } catch (dateError) {
-                    console.error(`[UPLOAD-SYNC] Date error:`, dateError);
-                }
+                await setPhotoDate(photoId, req.body.date);
             }
 
             results.push({
@@ -991,12 +970,7 @@ app.post('/api/album/:albumId/add_photos', async (req, res) => {
             await addPhotoToAlbum(photoId, albumId);
             results.push({ photoId, success: true });
         } catch (error) {
-            // Error 1: Photo already in set (code 1) - treat as success or ignore
-            if (error.message.includes('code 1')) {
-                results.push({ photoId, success: true, message: 'Already in album' });
-            } else {
-                results.push({ photoId, success: false, error: error.message });
-            }
+            results.push({ photoId, success: false, error: error.message });
         }
     }
 
@@ -1005,6 +979,26 @@ app.post('/api/album/:albumId/add_photos', async (req, res) => {
         message: `加入相簿完成：${successCount}/${photoIds.length} 張成功`,
         results
     });
+});
+
+// Remove membership only. Permanent photo deletion uses a separate endpoint.
+app.post('/api/album/:albumId/remove_photos', async (req, res) => {
+    if (!oauthTokens.accessToken) return res.status(401).json({ error: '尚未授權 Flickr' });
+    const { photoIds } = req.body;
+    if (!Array.isArray(photoIds) || !photoIds.length || photoIds.length > 500 || photoIds.some(id => !/^\d+$/.test(String(id)))) {
+        return res.status(400).json({ error: '請提供有效照片 ID' });
+    }
+    const results = [];
+    for (const photoId of photoIds) {
+        try {
+            await flickrRequest('flickr.photosets.removePhoto', { photoset_id: req.params.albumId, photo_id: photoId }, flickrCredentials());
+            results.push({ photoId, success: true });
+        } catch (error) {
+            if (error.code === 3) results.push({ photoId, success: true, message: 'Already outside album' });
+            else results.push({ photoId, success: false, error: error.message });
+        }
+    }
+    res.json({ results, message: `已移出 ${results.filter(row => row.success).length}/${photoIds.length} 張` });
 });
 
 // 批量更新照片日期 API（用於移動相集功能）
@@ -1132,9 +1126,9 @@ app.put('/api/photo/:photoId/tags', async (req, res) => {
     console.log(`[TAGS] Setting tags for photo ${photoId}: ${tags}`);
 
     try {
-        await setPhotoTags(photoId, tags);
+        const savedTags = await setUserPhotoTags(photoId, tags, flickrCredentials());
         console.log(`[TAGS] Tags updated successfully for photo ${photoId}`);
-        res.json({ success: true, photoId, tags });
+        res.json({ success: true, photoId, tags: savedTags });
     } catch (error) {
         console.error(`[TAGS] Failed to set tags for photo ${photoId}:`, error);
         res.status(500).json({ error: error.message });
@@ -1143,7 +1137,10 @@ app.put('/api/photo/:photoId/tags', async (req, res) => {
 
 // 取得相簿列表
 app.get('/api/albums', async (req, res) => {
-    // ... (保持原樣)
+    // Account-wide metadata needs a caller-access contract before it can be exposed.
+    // Give existing clients a bounded, explicit failure instead of an unanswered request.
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(503).json({ error: '相簿清單暫時無法使用', code: 'ALBUM_LIST_UNAVAILABLE' });
 });
 
 // ==================== 上傳狀態 API (v2.0) ====================
@@ -1169,6 +1166,7 @@ app.get('/api/uploads/status', (req, res) => {
             status: item.status,
             flickrPhotoId: item.flickrPhotoId,
             error: item.error,
+            retryBlocked: item.retryBlocked === true,
             createdAt: item.createdAt
         }))
     });
@@ -1183,13 +1181,13 @@ app.get('/api/uploads/status/:localId', (req, res) => {
     if (!item) {
         return res.status(404).json({ error: 'Upload not found' });
     }
-
     res.json({
         localId: item.localId,
         filename: item.originalFilename,
         status: item.status,
         flickrPhotoId: item.flickrPhotoId,
         error: item.error,
+        retryBlocked: item.retryBlocked === true,
         createdAt: item.createdAt,
         completedAt: item.completedAt
     });
@@ -1198,7 +1196,10 @@ app.get('/api/uploads/status/:localId', (req, res) => {
 // 重試失敗的上傳
 app.post('/api/uploads/retry', async (req, res) => {
     const { localIds } = req.body;
+    if (!Array.isArray(localIds) || !localIds.length || localIds.length > 500 || localIds.some(id => typeof id !== 'string')) return res.status(400).json({ error: '請提供要重試的收據' });
     const queue = readQueue();
+    const blocked = queue.filter(item => localIds.includes(item.localId) && item.retryBlocked);
+    if (blocked.length) return res.status(409).json({ error: 'Flickr 結果尚未確認，請先核對，避免重複上傳', localIds: blocked.map(item => item.localId) });
 
     let retryCount = 0;
     for (const localId of (localIds || [])) {
@@ -1229,6 +1230,16 @@ app.delete('/api/uploads/:localId', (req, res) => {
     if (!item) {
         return res.status(404).json({ error: 'Upload not found' });
     }
+    if (item.status === 'completed') {
+        return res.json({ success: true, localId, status: 'completed' });
+    }
+    if (['uploading', 'processing'].includes(item.status) || (item.retryBlocked && !item.flickrPhotoId && item.status !== 'cancelled')) {
+        return res.status(409).json({ error: '傳送中或 Flickr 結果尚未確認，已保留原檔與收據，不能移除', localId, retryBlocked: true });
+    }
+
+    // Keep the identity even when cancelling a never-started transfer. A client
+    // replay must find this tombstone instead of creating another Flickr upload.
+    updateQueueItem(localId, { status: 'cancelled', retryBlocked: true, cancelledAt: new Date().toISOString() });
 
     // 刪除本地檔案（如果存在）
     if (item.localPath && fs.existsSync(item.localPath)) {
@@ -1238,9 +1249,6 @@ app.delete('/api/uploads/:localId', (req, res) => {
             console.error('[DELETE-UPLOAD] Failed to delete file:', e);
         }
     }
-
-    // 從佇列移除
-    removeFromQueue(localId);
 
     res.json({ success: true, localId });
 });
@@ -1410,123 +1418,15 @@ async function resolveFlickrVideoUrl(playUrl) {
 // 對於影片，會先設為公開以取得可播放的 MP4 URL
 // 取得照片尺寸/影片來源 (Proxy)
 // 對於影片，會先設為公開以取得可播放的 MP4 URL，並嘗試匿名存取以獲得真實連結
+app.get('/api/photo/:id/video', require('./video-media').createVideoHandler(flickrCredentials));
+
 app.get('/api/photo/:id/sizes', async (req, res) => {
-    if (!oauthTokens.accessToken) {
-        return res.status(401).json({ error: '尚未授權 Flickr' });
-    }
-
-    const { id } = req.params;
-    const isVideo = req.query.media === 'video';
-    const url = 'https://api.flickr.com/services/rest/';
-
-    console.log(`[getSizes] Request for ${id}, isVideo=${isVideo}`);
-
+    if (!oauthTokens.accessToken) return res.status(401).json({ error: '尚未授權 Flickr' });
     try {
-        // 1. Force Public for Videos
-        if (isVideo) {
-            console.log(`[getSizes] Setting video ${id} to public...`);
-            await setPhotoPublic(id);
-            // Wait for Flickr propagation
-            await new Promise(r => setTimeout(r, 2000));
-        }
-
-        // 2. Authenticated Call
-        const params = {
-            method: 'flickr.photos.getSizes',
-            api_key: process.env.FLICKR_API_KEY,
-            photo_id: id,
-            format: 'json',
-            nojsoncallback: '1',
-            oauth_consumer_key: process.env.FLICKR_API_KEY,
-            oauth_token: oauthTokens.accessToken,
-            oauth_signature_method: 'HMAC-SHA1',
-            oauth_timestamp: Math.floor(Date.now() / 1000),
-            oauth_nonce: Math.random().toString(36).substring(2),
-            oauth_version: '1.0'
-        };
-
-        const crypto = require('crypto');
-        const baseString = buildBaseString('GET', url, params);
-        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
-        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
-        params.oauth_signature = signature;
-
-        const qs = Object.keys(params).sort().map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
-        const authRes = await fetch(`${url}?${qs}`);
-        const authData = await authRes.json();
-
-        if (authData.stat !== 'ok') {
-            console.error('[getSizes] Auth call failed:', authData);
-            return res.status(500).json({ error: authData.message });
-        }
-
-        // 3. Scan for Direct MP4 in Auth Response
-        let foundMp4 = null;
-        if (authData.sizes && authData.sizes.size) {
-            const mp4Size = authData.sizes.size.find(s =>
-                s.label.includes('Site MP4') ||
-                s.label.includes('Mobile MP4') ||
-                (s.source && s.source.includes('.mp4'))
-            );
-            if (mp4Size) {
-                console.log(`[getSizes] Found MP4 in Auth response: ${mp4Size.label}`);
-                foundMp4 = mp4Size;
-            }
-        }
-
-        // 4. Anonymous Fallback (if no MP4 found yet)
-        if (isVideo && !foundMp4) {
-            console.log('[getSizes] No MP4 in auth response. Constructing CDN URL...');
-
-            // Extract secret from existing photo URLs to construct video CDN URL
-            // Pattern: https://live.staticflickr.com/31337/{id}_{secret}_{size}.jpg
-            // Video pattern: https://live.staticflickr.com/video/{id}_{secret}_mobile.mp4
-            const photoSize = authData.sizes.size.find(s => s.source && s.source.includes('live.staticflickr.com'));
-            if (photoSize) {
-                const match = photoSize.source.match(/\/(\d+)_(\w+)_/);
-                if (match) {
-                    const photoId = match[1];
-                    const secret = match[2];
-
-                    // Try multiple CDN URL patterns
-                    const cdnPatterns = [
-                        `https://live.staticflickr.com/video/${photoId}_${secret}_mobile.mp4`,
-                        `https://live.staticflickr.com/video/${photoId}_${secret}.mp4`,
-                        `https://live.staticflickr.com/video/${photoId}/${secret}/720p.mp4`
-                    ];
-
-                    console.log(`[getSizes] Trying CDN patterns with secret: ${secret}`);
-
-                    for (const cdnUrl of cdnPatterns) {
-                        try {
-                            const headResp = await fetch(cdnUrl, { method: 'HEAD' });
-                            console.log(`[getSizes] HEAD ${cdnUrl}: ${headResp.status}`);
-
-                            if (headResp.ok) {
-                                console.log(`[getSizes] Found working CDN URL: ${cdnUrl}`);
-                                authData.sizes.size.unshift({
-                                    label: 'Site MP4 (CDN)',
-                                    width: '720',
-                                    height: '1280',
-                                    source: cdnUrl,
-                                    url: cdnUrl,
-                                    media: 'video'
-                                });
-                                break;
-                            }
-                        } catch (e) {
-                            console.error(`[getSizes] CDN probe failed for ${cdnUrl}: ${e.message}`);
-                        }
-                    }
-                }
-            }
-        }
-
-        res.json(authData);
-
+        const data = await flickrRequest('flickr.photos.getSizes', { photo_id: req.params.id }, flickrCredentials(), 'GET');
+        res.json(data);
     } catch (error) {
-        console.error('取得 Sizes 失敗:', error);
-        res.status(500).json({ error: '伺服器內部錯誤' });
+        res.status(502).json({ error: error.message });
     }
 });
 
@@ -1594,10 +1494,6 @@ app.post('/api/photo/:id/set_public', async (req, res) => {
 
 // Debug Endpoint REMOVED for Ghostbusting
 
-app.get('/api/version', (req, res) => {
-    res.json({ version: 'v4.0-GHOSTBUSTING', timestamp: Date.now() });
-});
-
 
 async function uploadToFlickr(file, title, description, tags) {
     return new Promise((resolve, reject) => {
@@ -1616,9 +1512,12 @@ async function uploadToFlickr(file, title, description, tags) {
 
         // 非二進制的表單參數（這些需要參與簽名）
         const uploadParams = {
-            is_public: '1',
-            is_friend: '1',
-            is_family: '1'
+            is_public: '0',
+            is_friend: '0',
+            is_family: '0',
+            ...(title ? { title } : {}),
+            ...(description ? { description } : {}),
+            ...(tags ? { tags } : {})
         };
 
         const oauthParams = {
@@ -1741,56 +1640,20 @@ async function uploadToFlickr(file, title, description, tags) {
     });
 }
 
+function flickrCredentials() {
+    return { key: process.env.FLICKR_API_KEY, secret: process.env.FLICKR_API_SECRET,
+        token: oauthTokens.accessToken, tokenSecret: oauthTokens.accessTokenSecret };
+}
+
 async function addPhotoToAlbum(photoId, albumId) {
-    return new Promise((resolve, reject) => {
-        const url = new URL('https://api.flickr.com/services/rest/');
-        const timestamp = Math.floor(Date.now() / 1000);
-        const nonce = Math.random().toString(36).substring(2);
-
-        const params = {
-            method: 'flickr.photosets.addPhoto',
-            api_key: process.env.FLICKR_API_KEY,
-            photoset_id: albumId,
-            photo_id: photoId,
-            format: 'json',
-            nojsoncallback: '1',
-            oauth_consumer_key: process.env.FLICKR_API_KEY,
-            oauth_token: oauthTokens.accessToken,
-            oauth_signature_method: 'HMAC-SHA1',
-            oauth_timestamp: timestamp,
-            oauth_nonce: nonce,
-            oauth_version: '1.0'
-        };
-
-        // 建立簽名
-        const crypto = require('crypto');
-        const baseString = buildBaseString('POST', 'https://api.flickr.com/services/rest/', params);
-        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
-        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
-
-        params.oauth_signature = signature;
-
-        // 建立 form data
-        const formData = new URLSearchParams();
-        Object.entries(params).forEach(([key, value]) => {
-            formData.append(key, value);
-        });
-
-        fetch('https://api.flickr.com/services/rest/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.stat === 'ok') {
-                    resolve(true);
-                } else {
-                    reject(new Error(data.message || '加入相簿失敗'));
-                }
-            })
-            .catch(reject);
-    });
+    try {
+        await flickrRequest('flickr.photosets.addPhoto', { photoset_id: albumId, photo_id: photoId }, flickrCredentials());
+        return true;
+    } catch (error) {
+        // Flickr documents code 3 as already a member; code 1 means missing album.
+        if (error.code === 3) return true;
+        throw error;
+    }
 }
 
 /**
@@ -1950,60 +1813,6 @@ async function deletePhotoFromFlickr(photoId) {
     });
 }
 
-// 設定照片標籤 (P0: Tag Editing)
-async function setPhotoTags(photoId, tags) {
-    console.log(`[TAGS] Starting setTags for photo: ${photoId}`);
-    return new Promise((resolve, reject) => {
-        const timestamp = Math.floor(Date.now() / 1000);
-        const nonce = Math.random().toString(36).substring(2);
-
-        const params = {
-            method: 'flickr.photos.setTags',
-            api_key: process.env.FLICKR_API_KEY,
-            photo_id: photoId,
-            tags: tags,
-            format: 'json',
-            nojsoncallback: '1',
-            oauth_consumer_key: process.env.FLICKR_API_KEY,
-            oauth_token: oauthTokens.accessToken,
-            oauth_signature_method: 'HMAC-SHA1',
-            oauth_timestamp: timestamp,
-            oauth_nonce: nonce,
-            oauth_version: '1.0'
-        };
-
-        // 建立簽名
-        const crypto = require('crypto');
-        const baseString = buildBaseString('POST', 'https://api.flickr.com/services/rest/', params);
-        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
-        const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
-
-        params.oauth_signature = signature;
-
-        // 建立 form data
-        const formData = new URLSearchParams();
-        Object.entries(params).forEach(([key, value]) => {
-            formData.append(key, value);
-        });
-
-        fetch('https://api.flickr.com/services/rest/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData
-        })
-            .then(res => res.json())
-            .then(data => {
-                console.log(`[TAGS] Flickr API response:`, JSON.stringify(data));
-                if (data.stat === 'ok') {
-                    resolve(true);
-                } else {
-                    reject(new Error(data.message || '設定標籤失敗'));
-                }
-            })
-            .catch(reject);
-    });
-}
-
 // 增加照片標籤 (P1: Batch Add Tags)
 async function addPhotoTags(photoId, tags) {
     console.log(`[TAGS-ADD] Adding tags to photo: ${photoId}`);
@@ -2057,7 +1866,7 @@ async function addPhotoTags(photoId, tags) {
 
 // ==================== 啟動伺服器 ====================
 // 啟動伺服器
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, process.env.TIMEHUT_BIND_HOST || '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
     console.log(`Deploy Version: Deploy to GitHub Pages #63`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
@@ -2071,6 +1880,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  • OAuth Token: ${oauthTokens.accessToken ? '✅ 已授權' : '⚠️ 需要授權'}`);
 
     // 檢查待處理佇列
+    recoverInterruptedUploads();
     const pendingQueue = getPendingItems();
     if (pendingQueue.length > 0) {
         console.log(`\n📦 發現 ${pendingQueue.length} 個待處理上傳項目`);

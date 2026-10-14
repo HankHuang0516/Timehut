@@ -6,12 +6,12 @@
 const Uploader = {
     // 後端 API URL（部署後要換成 Railway URL）
     apiUrl: CONFIG.UPLOAD_API_URL || 'http://localhost:3000',
+    fileUploadIds: new WeakMap(),
 
     // 檢查授權狀態
-    async checkAuth() {
+    async checkAuth({ signal } = {}) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/auth/status`);
-            const data = await response.json();
+            const data = await this.readJSON('/api/auth/status', { signal });
             return data.authenticated;
         } catch (error) {
             console.error('檢查授權狀態失敗:', error);
@@ -47,27 +47,53 @@ const Uploader = {
     },
 
     // 取得相簿列表
-    async getAlbums() {
+    async readJSON(path, { signal } = {}) {
+        const controller = new AbortController();
+        const cancel = () => controller.abort();
+        if (signal?.aborted) controller.abort();
+        signal?.addEventListener('abort', cancel, { once: true });
+        const timeout = setTimeout(cancel, 8000);
         try {
-            const response = await fetch(`${this.apiUrl}/api/albums`);
-            const data = await response.json();
-            return data.albums || [];
-        } catch (error) {
-            console.error('取得相簿列表失敗:', error);
-            return [];
+            const response = await fetch(`${this.apiUrl}${path}`, { signal: controller.signal });
+            if (!response.ok) throw new Error('目前無法取得相簿服務回應');
+            return await response.json();
+        } finally {
+            clearTimeout(timeout);
+            signal?.removeEventListener('abort', cancel);
         }
+    },
+
+    async getAlbums(options = {}) {
+        const data = await this.readJSON('/api/albums', options);
+        if (!Array.isArray(data.albums) || data.albums.some(album =>
+            !album || typeof album.id !== 'string' || !album.id || typeof album.title !== 'string')) {
+            throw new Error('相簿清單格式不完整');
+        }
+        return data.albums;
     },
 
     // 上傳檔案 (Modified to use XHR for progress)
     uploadFiles(files, options = {}) {
-        const { albumId, title, description, tags, onProgress } = options;
+        const { albumId, title, description, tags, onProgress, signal } = options;
 
         return new Promise((resolve, reject) => {
+            const stopped = () => new DOMException('本機傳送已停止；伺服器是否收到與 Flickr 結果尚未確認', 'AbortError');
+            if (signal?.aborted) { reject(stopped()); return; }
             const formData = new FormData();
 
             // 加入所有檔案
             for (const file of files) {
                 formData.append('files', file);
+            }
+            // Reuse the identity when the same retained File is retried after a lost reply.
+            if (files.length === 1) {
+                const file = files[0];
+                if (!this.fileUploadIds.has(file)) {
+                    const random = crypto.randomUUID ? crypto.randomUUID()
+                        : Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+                    this.fileUploadIds.set(file, `web_${random}`);
+                }
+                formData.append('clientUploadId', this.fileUploadIds.get(file));
             }
 
             if (albumId) formData.append('albumId', albumId);
@@ -103,6 +129,10 @@ const Uploader = {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         const data = JSON.parse(xhr.responseText);
+                        if (!Array.isArray(data.results) || data.results.length === 0 || data.results.some(item => !item.success)) {
+                            reject(new Error(data.results?.find(item => !item.success)?.error || data.error || '缺少有效的上傳收據'));
+                            return;
+                        }
                         resolve(data);
                     } catch (e) {
                         console.error('Failed to parse response:', e);
@@ -126,12 +156,15 @@ const Uploader = {
             };
 
             xhr.onabort = () => {
-                console.error('XHR aborted');
-                reject(new Error('上傳被取消'));
+                reject(stopped());
             };
 
+            const abort = () => xhr.abort();
+            signal?.addEventListener('abort', abort, { once: true });
+            xhr.onloadend = () => signal?.removeEventListener('abort', abort);
             console.log('Sending upload request to:', `${this.apiUrl}/api/upload`);
-            xhr.send(formData);
+            try { xhr.send(formData); }
+            catch (error) { signal?.removeEventListener('abort', abort); reject(error); }
         });
     }
 };
@@ -150,12 +183,28 @@ const BackgroundUploader = {
     progressBar: null,
     statusText: null,
     percentText: null,
+    stopButton: null,
+    controller: null,
+    stopRequested: false,
+    finishTimer: null,
 
     init() {
         this.globalBar = document.getElementById('globalUploadBar');
         this.progressBar = document.getElementById('globalProgressBar');
         this.statusText = document.getElementById('globalStatusText');
         this.percentText = document.getElementById('globalPercentText');
+        const actions = this.globalBar?.querySelector('.global-upload-actions');
+        if (actions && !this.stopButton) {
+            this.stopButton = document.createElement('button');
+            this.stopButton.id = 'stopUploadBtn';
+            this.stopButton.type = 'button';
+            this.stopButton.className = 'btn btn-secondary';
+            this.stopButton.textContent = '停止傳送';
+            this.stopButton.title = '停止本頁傳送與剩餘佇列，不會撤回伺服器已收到的檔案';
+            this.stopButton.hidden = true;
+            this.stopButton.addEventListener('click', () => this.stop());
+            actions.append(this.stopButton);
+        }
 
         // Prevent navigation warning for both upload and delete operations
         window.onbeforeunload = (e) => {
@@ -173,96 +222,73 @@ const BackgroundUploader = {
             return;
         }
 
-        this.isUploading = true;
-        this.totalFiles = files.length;
-        this.completedFiles = 0;
-        this.showGlobalBar();
-
-        // Process sequentially
-        this.processQueue(files, options);
+        return this.processQueue(files, options);
     },
 
-    async processQueue(files, options) {
+    processQueue(files, options) {
+        return this.startTasks(files.map(file => ({ ...options, file })));
+    },
+
+    stop() {
+        if (!this.isUploading || this.stopRequested) return;
+        this.stopRequested = true;
+        if (this.stopButton) this.stopButton.disabled = true;
+        this.updateStatus('正在停止本機傳送…');
+        this.controller?.abort();
+    },
+
+    async startTasks(tasks) {
+        if (this.isUploading || !tasks.length) return;
+        clearTimeout(this.finishTimer);
+        document.getElementById('uploadStopNotice')?.remove();
+        this.isUploading = true;
+        this.stopRequested = false;
+        this.controller = new AbortController();
+        this.uploadQueue = tasks.slice();
+        this.totalFiles = tasks.length;
+        this.completedFiles = 0;
+        this.failedFiles = [];
+        this.receiptWarnings = [];
+        if (this.stopButton) { this.stopButton.hidden = false; this.stopButton.disabled = false; }
+        this.showGlobalBar();
+
         let successCount = 0;
         let failCount = 0;
-        const { albumId, tags, onCompletion } = options;
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-
-            // Update status text
-            this.updateStatus(`正在上傳 ${i + 1}/${files.length}: ${file.name}`);
+        let stagedCount = 0;
+        for (const [i, task] of this.uploadQueue.entries()) {
+            if (this.stopRequested) {
+                this.failedFiles.push({ name: task.file.name, reason: '尚未送出', state: 'not_sent', task });
+                continue;
+            }
+            this.updateStatus(`上傳中 (${i + 1}/${this.totalFiles}): ${task.file.name}`);
             this.updateProgress(0);
-
             try {
-                // Per-file tags for individual mode handled by caller preparing 'tags'
-                // Here we assume batch tags or pre-processed logic passed down could be complex
-                // But to simplify refactor, we stick to current "one batch call" flow if possible, 
-                // OR we loop here. Current Uploader.js loops in UI. We move that loop here.
-
-                // Wait for single file upload
-                await Uploader.uploadFiles([file], {
-                    albumId,
-                    tags, // Helper: If individual mode, caller should pass specific tag for this file? 
-                    // Actually, UI logic complexity: 'individual' mode has different tags per file.
-                    // To support that, 'options' needs to be smarter or 'files' needs to be objects.
-                    onProgress: (percent) => {
-                        this.updateProgress(percent);
-                    }
+                const receipt = await Uploader.uploadFiles([task.file], {
+                    ...task,
+                    signal: this.controller.signal,
+                    onProgress: percent => this.updateProgress(percent)
                 });
+                // An acknowledged file must never become a resend candidate, even
+                // if persisting its receipt fails. Preserve the receipt in memory.
+                task.receipt = receipt;
+                if (receipt._staged || receipt.results?.some(item => item._staged)) stagedCount++;
                 successCount++;
+                try { window.TimehutTransfers?.trackReceipt(receipt, task.file.name, {albumId: task.albumId, byteSize: task.file.size}); }
+                catch (error) { this.receiptWarnings.push(`${task.file.name}：收據未能儲存（${error.message}）；已收件，不會重傳`); }
             } catch (error) {
-                console.error(`Failed: ${file.name}`, error);
-                failCount++;
+                const unknown = error.name === 'AbortError';
+                if (!unknown) failCount++;
+                this.failedFiles.push({
+                    name: task.file.name,
+                    reason: unknown ? '傳送已停止；伺服器是否收到與 Flickr 結果未知' : this.translateError(error.message),
+                    state: unknown ? 'unknown' : 'failed',
+                    task
+                });
             }
             this.completedFiles++;
         }
-
-        this.finish(successCount, failCount);
-    },
-
-    // Refactored to support the exact logic from UploadUI:
-    // UI passes the entire logic. Actually, better to let UI do the preparation 
-    // and pass a list of "tasks" to BackgroundUploader.
-    async startTasks(tasks) {
-        // tasks: Array of { file, albumId, tags }
-        if (this.isUploading) return;
-
-        this.isUploading = true;
-        this.totalFiles = tasks.length;
-        this.completedFiles = 0;
-        this.failedFiles = []; // 記錄失敗的檔案和原因
-        this.showGlobalBar();
-
-        let successCount = 0;
-        let failCount = 0;
-
-        for (let i = 0; i < tasks.length; i++) {
-            const task = tasks[i];
-            this.updateStatus(`上傳中 (${i + 1}/${this.totalFiles}): ${task.file.name}`);
-            this.updateProgress(0);
-
-            try {
-                await Uploader.uploadFiles([task.file], {
-                    albumId: task.albumId,
-                    tags: task.tags,
-                    onProgress: (percent) => {
-                        this.updateProgress(percent);
-                    }
-                });
-                successCount++;
-            } catch (error) {
-                console.error(`Failed: ${task.file.name}`, error);
-                failCount++;
-                // 記錄失敗原因
-                this.failedFiles.push({
-                    name: task.file.name,
-                    reason: this.translateError(error.message)
-                });
-            }
-        }
-
-        this.finish(successCount, failCount);
+        this.controller = null;
+        this.finish(successCount, failCount, stagedCount);
     },
 
     /**
@@ -301,33 +327,67 @@ const BackgroundUploader = {
         if (this.globalBar) this.globalBar.classList.remove('visible');
     },
 
-    finish(success, fail) {
+    finish(success, fail, staged = 0) {
+        const stopped = this.stopRequested;
+        const unknown = this.failedFiles.filter(item => item.state === 'unknown').length;
+        const unsent = this.failedFiles.filter(item => item.state === 'not_sent').length;
+        let message = `${stopped ? '已停止本機傳送' : '上傳作業結束'}\n已送到伺服器、待 Flickr 確認：${staged} 個\n伺服器回報已完成：${success - staged} 個\n送出失敗：${fail} 個`;
+        if (stopped) message += `\n結果未知：${unknown} 個；尚未送出：${unsent} 個\n停止僅中止本頁傳送，不代表 Flickr 已取消、刪除或未收到；已收到的檔案仍可能繼續處理。`;
+        if (staged > 0) message += '\n檔案送出不代表已存入 Flickr；請到傳輸中心確認處理狀態。';
+        if (this.receiptWarnings.length) message += '\n' + this.receiptWarnings.join('\n');
+
+        if (this.failedFiles.length) {
+            message += '\n\n未完成的檔案：';
+            this.failedFiles.forEach(item => { message += `\n• ${item.name}\n  ${item.reason}`; });
+            // Restore before making the uploader idle: a fast reopen/retry must
+            // not race a delayed finish callback or lose the original File/ID.
+            const drafts = UploadUI.fileList.map((file, index) => ({ file, tags: UploadUI.individualTags[index] || '', warning: UploadUI.videoWarnings[index] }));
+            this.failedFiles.forEach(item => UploadUI.retainedTasks.set(item.task.file, item.task));
+            UploadUI.fileList = [...this.failedFiles.map(item => item.task.file), ...drafts.map(item => item.file)];
+            UploadUI.individualTags = Object.fromEntries([
+                ...this.failedFiles.map(item => item.task.tags?.replace(/^uploader:\S+\s*/, '') || ''), ...drafts.map(item => item.tags)
+            ].map((tags, index) => [index, tags]));
+            UploadUI.videoWarnings = Object.fromEntries([
+                ...this.failedFiles.map(item => item.task.videoWarning), ...drafts.map(item => item.warning)
+            ].map((warning, index) => [index, warning]));
+            UploadUI.retryAlbumId = this.failedFiles[0].task.albumId;
+            document.querySelectorAll('.queue-item-tags').forEach(input => input.remove());
+            setTaggingMode('individual');
+            UploadUI.showUploadQueue();
+            message += '\n\n未完成檔案與原設定已保留在本頁，請重新開啟上傳視窗重試；關閉或重新整理頁面會失去未完成檔案。';
+        } else if (success > 0 && !this.receiptWarnings.length && !stopped) {
+            message += '\n\n頁面即將刷新以查看照片與待處理檔案。';
+        }
+        if (stopped) {
+            const notice = document.createElement('div');
+            notice.id = 'uploadStopNotice';
+            notice.setAttribute('role', 'status');
+            const summary = document.createElement('p');
+            summary.textContent = `已停止本頁傳送，未完成 ${this.failedFiles.length} 個。檔案僅保留在本頁，請勿重新整理；停止不代表 Flickr 撤回。`;
+            const details = document.createElement('details');
+            const heading = document.createElement('summary');
+            heading.textContent = '查看收件狀態與重試說明';
+            const explanation = document.createElement('p');
+            explanation.textContent = `伺服器已收件 ${success} 個（${staged} 個待 Flickr 確認）；結果未知 ${unknown} 個、尚未送出 ${unsent} 個。停止不代表 Flickr 已取消、刪除或未收到。未完成檔案與原設定僅保留在本頁，請重試，勿重新整理。`;
+            details.append(heading, explanation);
+            notice.append(summary, details);
+            document.getElementById('uploadQueue')?.prepend(notice);
+        }
         this.isUploading = false;
-        this.updateStatus('上傳完成！');
-        this.updateProgress(100);
-
-        setTimeout(() => {
-            let message = `上傳完成！\n成功：${success} 個\n失敗：${fail} 個`;
-
-            // 顯示失敗原因
-            if (this.failedFiles && this.failedFiles.length > 0) {
-                message += '\n\n失敗的檔案：';
-                this.failedFiles.forEach(f => {
-                    message += `\n• ${f.name}\n  原因：${f.reason}`;
-                });
-            }
-
-            if (success > 0) {
-                message += '\n\n頁面即將刷新以顯示新照片。';
-            }
-
+        if (this.stopButton) this.stopButton.hidden = true;
+        this.updateStatus(stopped ? `已停止傳送；結果未知 ${unknown}、未送出 ${unsent}` : (staged > 0 ? '檔案已送出，Flickr 處理中' : '上傳作業結束'));
+        this.updateProgress(stopped ? success / this.totalFiles * 100 : 100);
+        if (stopped && this.percentText) this.percentText.textContent = '已停止';
+        this.finishTimer = setTimeout(() => {
             alert(message);
             this.hideGlobalBar();
-            if (success > 0) {
+            if (success > 0 && fail === 0 && !stopped && !this.receiptWarnings.length && !UploadUI.fileList.length) {
+                TimehutResults.invalidateAlbumCache();
                 location.reload();
             }
         }, 500);
     }
+
 };
 
 /**
@@ -335,6 +395,7 @@ const BackgroundUploader = {
  */
 const BackgroundWorker = {
     isBusy: false,
+    operationSequence: 0,
 
     // Reuse UI elements from BackgroundUploader
     get globalBar() {
@@ -353,16 +414,18 @@ const BackgroundWorker = {
     async startDelete(photoIds) {
         if (this.isBusy || BackgroundUploader.isUploading) {
             console.warn('Another background task is running');
-            return;
+            return { accepted: false, succeeded: [], failed: photoIds };
         }
 
         this.isBusy = true;
+        const operation = ++this.operationSequence;
         this.showBar();
 
         const total = photoIds.length;
         let processed = 0;
         const chunkSize = 5;
         let failedCount = 0;
+        const succeeded = [];
 
         try {
             // Split into chunks for better progress tracking
@@ -380,11 +443,11 @@ const BackgroundWorker = {
                         body: JSON.stringify({ photoIds: chunk })
                     });
 
-                    if (!response.ok) {
-                        console.error('Delete chunk failed:', await response.text());
-                        failedCount += chunk.length;
-                    }
-
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || '刪除失敗');
+                    const receipt = TimehutResults.confirmed(result, chunk);
+                    succeeded.push(...receipt.succeeded);
+                    failedCount += receipt.failed.length;
                     processed += chunk.length;
                 } catch (e) {
                     console.error('Delete chunk failed', e);
@@ -393,18 +456,22 @@ const BackgroundWorker = {
                 }
             }
 
-            this.updateStatus('刪除完成');
+            this.updateStatus(failedCount ? `刪除未全部完成：成功 ${succeeded.length}、未完成 ${failedCount}` : `已確認刪除 ${succeeded.length} 個`);
             this.updateProgress(100);
 
             setTimeout(() => {
+                // A previous result must not hide the progress bar or reload
+                // the page after the user has already started another task.
+                if (this.operationSequence !== operation || this.isBusy || BackgroundUploader.isUploading) return;
                 const successCount = total - failedCount;
-                let message = `刪除完成！\n成功：${successCount} 個\n失敗：${failedCount} 個`;
-                if (successCount > 0) {
+                let message = `刪除作業結束\n成功：${successCount} 個\n未完成：${failedCount} 個`;
+                if (successCount > 0 && failedCount === 0) {
                     message += '\n\n頁面即將刷新以顯示變更。';
                 }
                 alert(message);
                 this.hideBar();
-                if (successCount > 0) {
+                if (successCount > 0 && failedCount === 0) {
+                    TimehutResults.invalidateAlbumCache();
                     location.reload();
                 }
             }, 1000);
@@ -418,6 +485,7 @@ const BackgroundWorker = {
         } finally {
             this.isBusy = false;
         }
+        return { accepted: true, succeeded, failed: photoIds.filter(id => !succeeded.includes(String(id))) };
     },
 
     updateStatus(text) {
@@ -453,6 +521,9 @@ const UploadUI = {
     taggingMode: 'batch', // 'batch' or 'individual'
     individualTags: {}, // Store individual tags by file index
     videoWarnings: {}, // Store video compatibility warnings by file index
+    retryAlbumId: null,
+    retainedTasks: new WeakMap(),
+    preparationController: null,
 
     init() {
         this.modal = document.getElementById('uploadModal');
@@ -491,6 +562,7 @@ const UploadUI = {
 
         // Populate album select from CONFIG.CHILDREN
         this.populateAlbumSelect();
+        document.getElementById('retryAlbumLoadBtn')?.addEventListener('click', () => this.checkAndPrepare());
 
         // Bind start upload button
         const startUploadBtn = document.getElementById('startUploadBtn');
@@ -517,16 +589,13 @@ const UploadUI = {
         // Get current child index from localStorage
         const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
 
-        // Generate options from CONFIG.CHILDREN
-        albumSelect.innerHTML = CONFIG.CHILDREN.map((child, index) => `
-            <option value="${child.albumId}" ${index === currentChildIndex ? 'selected' : ''}>
-                ${child.emoji} ${child.name}
-            </option>
-        `).join('');
+        albumSelect.replaceChildren(...CONFIG.CHILDREN.map((child, index) =>
+            new Option(`${child.emoji || ''} ${child.name}`, child.albumId, false, index === currentChildIndex)));
     },
 
     async addFiles(files) {
         for (const file of files) {
+            if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) continue;
             // 檢查是否已存在
             if (!this.fileList.some(f => f.name === file.name && f.size === file.size)) {
                 const index = this.fileList.length;
@@ -578,7 +647,13 @@ const UploadUI = {
     },
 
     removeFile(index) {
+        // Preserve per-file labels before indices shift after a removal.
+        document.querySelectorAll('.queue-item-tags').forEach(input => { this.individualTags[input.dataset.fileIndex] = input.value; });
         this.fileList.splice(index, 1);
+        const reindex = values => Object.fromEntries(Object.entries(values).filter(([key]) => Number(key) !== index).map(([key, value]) => [Number(key) > index ? Number(key) - 1 : key, value]));
+        this.individualTags = reindex(this.individualTags);
+        this.videoWarnings = reindex(this.videoWarnings);
+        document.querySelectorAll('.queue-item-tags').forEach(input => input.remove());
         this.renderFileList();
         if (this.fileList.length === 0) {
             this.hideUploadQueue();
@@ -588,6 +663,11 @@ const UploadUI = {
     renderFileList() {
         const queueList = document.getElementById('queueList');
         if (!queueList) return;
+        const retained = this.fileList.some(file => this.retainedTasks.has(file));
+        const album = document.getElementById('albumSelect');
+        if (album) album.disabled = retained;
+        const batch = document.getElementById('batchModeBtn');
+        if (batch) batch.disabled = retained;
 
         // Save existing individual tag values before re-rendering
         document.querySelectorAll('.queue-item-tags').forEach(input => {
@@ -597,6 +677,8 @@ const UploadUI = {
             }
         });
 
+        (this.previewUrls || []).forEach(url => URL.revokeObjectURL(url));
+        this.previewUrls = [];
         queueList.innerHTML = this.fileList.map((file, index) => {
             const isImage = file.type.startsWith('image/');
             const isVideo = file.type.startsWith('video/');
@@ -606,16 +688,19 @@ const UploadUI = {
             const warningText = hasWarning ? '<div class="video-warning" style="color:#e67e22;font-size:0.8rem;margin-top:4px;">此影片可能使用 H.265 編碼，Flickr 可能無法處理</div>' : '';
 
             // P1: In individual mode, show per-file tag input with preserved value
-            const savedTag = this.individualTags[index] || '';
+            const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
+            const savedTag = escape(this.individualTags[index] || '');
             const tagInput = this.taggingMode === 'individual'
-                ? `<input type="text" class="queue-item-tags" data-file-index="${index}" placeholder="此照片的標籤..." value="${savedTag}">`
+                ? `<input type="text" class="queue-item-tags" data-file-index="${index}" placeholder="此照片的標籤..." value="${savedTag}" ${this.retainedTasks.has(file) ? 'readonly title="重試沿用原始上傳設定"' : ''}>`
                 : '';
+            const url = URL.createObjectURL(file); this.previewUrls.push(url);
+            const preview = isImage ? `<img class="queue-preview" src="${url}" alt="">` : `<video class="queue-preview" src="${url}" muted preload="metadata" aria-hidden="true"></video>`;
 
             return `
                 <div class="queue-item" data-index="${index}" id="queue-item-${index}">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
-                        <span class="queue-icon">${icon}</span>
-                        <span class="queue-filename">${file.name}</span>
+                        ${preview}
+                        <span class="queue-filename">${escape(file.name)}</span>
                         <span class="queue-size">${size}</span>
                         <button class="queue-remove" onclick="UploadUI.removeFile(${index})">✕</button>
                     </div>
@@ -648,17 +733,45 @@ const UploadUI = {
         if (queue) queue.style.display = 'none';
     },
 
+    cancelPreparation() {
+        this.preparationController?.abort();
+        this.preparationController = null;
+    },
+
+    setAlbumStatus(message, retry = false) {
+        const status = document.getElementById('albumLoadStatus');
+        if (!status) return;
+        status.hidden = !message;
+        status.querySelector('span').textContent = message;
+        document.getElementById('retryAlbumLoadBtn').hidden = !retry;
+    },
+
     async checkAndPrepare() {
+        this.cancelPreparation();
+        const controller = new AbortController();
+        this.preparationController = controller;
+        const { signal } = controller;
+        this.setAlbumStatus('正在確認相簿清單…');
+        // A restored retry queue must start at its first filename, rather than
+        // retaining the scroll position of the previous per-file tag editor.
+        if (document.getElementById('uploadStopNotice')) {
+            const list = document.getElementById('queueList');
+            if (list) list.scrollTop = 0;
+        }
         // 檢查後端是否可用
         try {
-            const isAuth = await Uploader.checkAuth();
+            const isAuth = await Uploader.checkAuth({ signal });
+            if (signal.aborted) return;
 
             if (!isAuth) {
                 // 顯示需要授權的提示
                 this.showAuthRequired();
+                this.setAlbumStatus('尚未確認 Flickr 連線，請連接或重試。', true);
             } else {
+                const authBtn = document.getElementById('authFlickrBtn');
+                if (authBtn) authBtn.style.display = 'none';
                 // 載入相簿列表
-                await this.loadAlbums();
+                await this.loadAlbums({ signal });
             }
         } catch (error) {
             // 後端不可用，顯示 Flickr 直接上傳選項
@@ -682,14 +795,22 @@ const UploadUI = {
         }
     },
 
-    async loadAlbums() {
-        const albums = await Uploader.getAlbums();
-        const select = document.getElementById('albumSelect');
-
-        if (select && albums.length > 0) {
-            select.innerHTML = '<option value="">選擇相簿（可選）</option>' +
-                albums.map(album => `<option value="${album.id}">${album.title}</option>`).join('');
-            select.style.display = 'block';
+    async loadAlbums({ signal } = {}) {
+        try {
+            const albums = await Uploader.getAlbums({ signal });
+            if (signal?.aborted) return;
+            const select = document.getElementById('albumSelect');
+            if (select && albums.length) {
+                // Keep the current choice, including one made while the request was pending.
+                const selected = select.value;
+                const options = new Map(Array.from(select.options, option => [option.value, option.textContent]));
+                for (const album of albums) options.set(album.id, album.title);
+                select.replaceChildren(...Array.from(options, ([id, title]) => new Option(title, id)));
+                select.value = selected;
+            }
+            this.setAlbumStatus(albums.length ? '' : '未取得其他相簿，仍可使用已設定的目的相簿。', !albums.length);
+        } catch (error) {
+            if (!signal?.aborted) this.setAlbumStatus('暫時無法更新清單，已保留目前的目的相簿。', true);
         }
     },
 
@@ -726,9 +847,10 @@ const UploadUI = {
             // It has `onclick="closeUploadModal()"` on overlay. 
             // I should find where `closeUploadModal` is defined. 
             // If not found, I can manipulate DOM directly.
-            document.getElementById('uploadModal').classList.remove('active');
-            document.body.style.overflow = '';
-            document.getElementById('uploadModal').style.removeProperty('display');
+            if (BackgroundUploader.isUploading) {
+                alert('已有上傳正在進行中，請等待完成');
+                this.showUploadQueue(); return;
+            }
 
             // Prepare tasks
             const tasks = [];
@@ -768,11 +890,17 @@ const UploadUI = {
             }
 
             // Handover to BackgroundUploader
-            BackgroundUploader.startTasks(tasks);
+            this.cancelPreparation();
+            const modal = document.getElementById('uploadModal');
+            modal.classList.remove('active'); modal.style.removeProperty('display');
+            document.body.style.overflow = '';
+            const retained = tasks.map(task => this.retainedTasks.get(task.file) || { ...task, videoWarning: this.videoWarnings[task.index] });
 
             // Clear local list
             this.fileList = [];
+            this.individualTags = {}; this.videoWarnings = {};
             this.renderFileList();
+            BackgroundUploader.startTasks(retained);
 
         } catch (error) {
             console.error('Critical error in startUpload:', error);
@@ -783,7 +911,11 @@ const UploadUI = {
     },
 
     clearQueue() {
+        document.getElementById('uploadStopNotice')?.remove();
         this.fileList = [];
+        this.retryAlbumId = null;
+        this.individualTags = {}; this.videoWarnings = {};
+        if (this.fileInput) this.fileInput.value = '';
         this.renderFileList();
         this.hideUploadQueue();
     }
@@ -805,6 +937,7 @@ function startUpload() {
 
 // P1: Switch tagging mode (batch/individual)
 function setTaggingMode(mode) {
+    if (!['batch', 'individual'].includes(mode)) return;
     UploadUI.taggingMode = mode;
 
     // Update button states
@@ -816,6 +949,8 @@ function setTaggingMode(mode) {
     if (batchBtn && individualBtn) {
         batchBtn.classList.toggle('active', mode === 'batch');
         individualBtn.classList.toggle('active', mode === 'individual');
+        batchBtn.setAttribute('aria-pressed', String(mode === 'batch'));
+        individualBtn.setAttribute('aria-pressed', String(mode === 'individual'));
     }
 
     // Update hint text

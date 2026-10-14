@@ -6,15 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 相集詳情">
     <title>黃家小屋 - 相集</title>
-    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link rel="stylesheet" href="css/style.css?v=20261014.1">
+    <script src="js/vendor/jszip-3.10.1.min.js?v=20261014.1"></script>
+    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261014.1"></script>
     <style>
         .album-page-content {
             max-width: 1200px;
@@ -248,12 +248,17 @@
             font-weight: bold;
         }
     </style>
-
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#fff3be"><link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="assets/app-icon-512.png"><script defer src="js/pwa.js"></script>
-<link rel="stylesheet" href="css/upload-safety.css?v=20261014.1">
+    <link rel="stylesheet" href="css/storybook.css?v=20261014.1">
+    <script defer src="js/dialogs.js?v=20261014.1"></script>
+    <script defer src="js/storybook.js?v=20261014.1"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#fff3be">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script defer src="js/transfers.js?v=20261014.1"></script>
+<script defer src="js/pwa.js?v=20261014.1"></script>
 </head>
 
-<body class="timeline-page">
+<body class="storybook-page timeline-page">
     <!-- Global Upload Progress Bar (Background) -->
     <div class="global-upload-bar" id="globalUploadBar">
         <div class="global-progress-info">
@@ -314,8 +319,13 @@
     <!-- Main Content -->
     <main class="main-content album-page-content">
         <div class="album-header">
-            <h2 id="momentDate">相集詳情</h2>
-            <p id="momentInfo">載入中...</p>
+            <img id="albumCover" class="album-cover" src="assets/storybook-boy.png" alt="相集封面">
+            <div class="album-heading-copy">
+                <h2>相集詳情</h2>
+                <p id="momentDate"></p>
+                <p id="momentAge"></p>
+                <p id="momentInfo">載入中...</p>
+            </div>
         </div>
 
         <div class="selection-info" id="selectionInfo" style="display: none;">
@@ -403,9 +413,9 @@
     <div id="moveCollectionModal" class="modal-overlay hidden">
         <div class="confirm-card"
             style="max-width: 450px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;">
-            <div class="confirm-icon">📂</div>
+            <div class="confirm-icon"><img src="assets/storybook-upload-v1.png" alt="" class="collection-dialog-art"></div>
             <h3 class="confirm-title">移動到相集</h3>
-            <p class="confirm-message">將 <span id="moveCollectionCount">0</span> 張照片移動到選擇的相集</p>
+            <p class="confirm-message">將 <span id="moveCollectionCount">0</span> 張照片合併至此日期相集，並修改照片拍攝日時。<span id="collectionSelectionPrompt">請先選擇目的相集。</span></p>
             <div id="collectionListContainer" style="flex: 1; overflow-y: auto; margin: 16px 0; max-height: 300px;">
                 <div id="collectionListLoading"
                     style="text-align: center; padding: 20px; color: var(--color-text-muted);">
@@ -422,17 +432,18 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/flickr.js"></script>
-    <script src="js/uploader.js?v=20261014.2"></script>
-    <script src="js/legacy-upload-safety.js?v=20261014.1"></script>
-    <script src="js/timeline.js?v=20261014.2"></script>
+    <script src="js/config.js?v=20261014.1"></script>
+    <script src="js/results.js?v=20261014.1"></script>
+    <script src="js/utils.js?v=20261014.1"></script>
+    <script src="js/flickr.js?v=20261014.1"></script>
+    <script src="js/uploader.js?v=20261014.1"></script>
+    <script src="js/timeline.js?v=20261014.1"></script>
     <script>
         // AlbumState updated to be more robust
         const AlbumState = {
             photos: [],
             selectedPhotos: new Set(),
+            selectionRevision: 0, selectionSignature: '', downloadBusy: false,
             isSelectMode: false,
             currentModalIndex: 0,
             momentId: null
@@ -448,7 +459,7 @@
             const storedPhotos = sessionStorage.getItem('albumPhotos');
             const storedDate = sessionStorage.getItem('albumDate');
 
-            if (storedPhotos) {
+            if (storedPhotos && sessionStorage.getItem('albumMomentId') === AlbumState.momentId) {
                 AlbumState.photos = JSON.parse(storedPhotos);
                 document.getElementById('momentDate').textContent = storedDate || '相集';
                 document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
@@ -456,10 +467,25 @@
                 renderPhotos();
             } else if (AlbumState.momentId) {
                 if (AlbumState.momentId.startsWith('moment_')) {
-                    // Handle deep link to moment (which doesn't exist as a real album)
-                    document.getElementById('momentDate').textContent = '無法直接存取';
-                    document.getElementById('momentInfo').innerHTML = '此為時間軸動態，請從時間軸進入。<br><br><a href="timeline.html" class="btn">返回時間軸</a>';
-                    document.getElementById('loadingIndicator').style.display = 'none';
+                    const album = urlParams.get('album'), date = urlParams.get('date');
+                    if (!CONFIG.CHILDREN.some(child => String(child.albumId) === album) || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
+                        document.getElementById('momentInfo').textContent = '請從時間軸重新進入此相集';
+                        document.getElementById('loadingIndicator').style.display = 'none';
+                        return;
+                    }
+                    try {
+                        let page = 1, pages = 1, photos = [];
+                        do {
+                            const data = await FlickrAPI.getAlbumPhotos(album, page, 500);
+                            photos.push(...data.photos); pages = data.pages; page++;
+                        } while (page <= pages);
+                        AlbumState.photos = photos.filter(photo => (photo.datetaken?.split(' ')[0] || new Date(Number(photo.dateupload) * 1000).toISOString().slice(0, 10)) === date);
+                        document.getElementById('momentDate').textContent = date;
+                        document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
+                        renderPhotos();
+                    } catch (error) {
+                        document.getElementById('momentInfo').textContent = '相集載入失敗，請重新整理再試';
+                    } finally { const loading = document.getElementById('loadingIndicator'); if (loading) loading.style.display = 'none'; }
                     return;
                 }
 
@@ -483,11 +509,25 @@
         });
 
         function renderPhotos() {
+            const first = AlbumState.photos[0];
+            const photoCount = AlbumState.photos.filter(photo => photo.media !== 'video').length;
+            document.getElementById('momentInfo').textContent = `▧ ${photoCount} 張照片 · ${AlbumState.photos.length - photoCount} 部影片`;
+            if (first) {
+                const date = first.datetaken?.split(' ')[0] || new Date(Number(first.dateupload) * 1000).toISOString().slice(0, 10);
+                document.getElementById('momentDate').textContent = '▦ ' + new Date(date + 'T12:00:00').toLocaleDateString('zh-TW', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
+                const index = Math.max(0, CONFIG.CHILDREN.findIndex(child => String(child.albumId) === new URLSearchParams(location.search).get('album')));
+                const birthday = localStorage.getItem(`timehut_child_${index}_birthdate`) || CONFIG.CHILDREN[index].birthDate;
+                const age = calculateAge(birthday, date);
+                document.getElementById('momentAge').textContent = '☺ ' + formatAgeString(age.years, age.months, age.days);
+                document.getElementById('albumCover').src = FlickrAPI.getPhotoUrl(first, 'm');
+            }
             const gridEl = document.getElementById('albumGrid');
+            gridEl.replaceChildren();
 
             AlbumState.photos.forEach((photo, index) => {
                 const card = document.createElement('div');
                 card.className = 'album-photo-card';
+                card.classList.toggle('selected', AlbumState.selectedPhotos.has(photo.id));
                 card.dataset.id = photo.id;
                 card.dataset.index = index;
 
@@ -496,11 +536,19 @@
                 const isVideo = photo.media === 'video';
                 const playIconHtml = isVideo ? '<div class="play-icon-overlay"></div>' : '';
 
-                card.innerHTML = `
-                    <div class="select-checkbox" onclick="event.stopPropagation(); togglePhotoSelection('${photo.id}')"></div>
-                    <img src="${imgUrl}" alt="${photo.title || ''}" loading="lazy" onclick="handleCardClick(event, ${index}, '${photo.id}')">
-                    ${playIconHtml}
-                `;
+                const checkbox = document.createElement('button');
+                checkbox.type = 'button'; checkbox.className = 'select-checkbox';
+                checkbox.setAttribute('aria-label', '選取照片');
+                checkbox.setAttribute('aria-pressed', String(AlbumState.selectedPhotos.has(photo.id)));
+                checkbox.addEventListener('click', event => { event.stopPropagation(); togglePhotoSelection(photo.id); });
+                const image = document.createElement('img');
+                image.src = imgUrl; image.alt = photo.title || '照片預覽'; image.loading = 'lazy';
+                image.tabIndex = 0; image.setAttribute('role', 'button');
+                const activate = event => handleCardClick(event, index, photo.id);
+                image.addEventListener('click', activate);
+                image.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(event); } });
+                card.append(checkbox, image);
+                if (isVideo) { const badge = document.createElement('div'); badge.className = 'play-icon-overlay'; card.append(badge); }
 
                 gridEl.appendChild(card);
             });
@@ -527,8 +575,9 @@
                 const btn = document.getElementById('headerSelectBtn');
                 if (btn) {
                     btn.classList.add('active');
-                    btn.innerHTML = '<span class="btn-icon">✅</span>';
+                    btn.innerHTML = '<span class="btn-icon">✅</span><span class="btn-label">取消多選</span>';
                 }
+                updateSelectionUI();
             } else {
                 selectionBar.classList.add('hidden');
                 document.getElementById('selectionInfo').style.display = 'none';
@@ -537,7 +586,7 @@
                 const btn = document.getElementById('headerSelectBtn');
                 if (btn) {
                     btn.classList.remove('active');
-                    btn.innerHTML = '<span class="btn-icon">☑️</span>';
+                    btn.innerHTML = '<span class="btn-icon">☑️</span><span class="btn-label">多選</span>';
                 }
             }
         }
@@ -553,12 +602,15 @@
             const card = document.querySelector(`.album-photo-card[data-id="${photoId}"]`);
             if (card) {
                 card.classList.toggle('selected', AlbumState.selectedPhotos.has(photoId));
+                card.querySelector('.select-checkbox').setAttribute('aria-pressed', String(AlbumState.selectedPhotos.has(photoId)));
             }
 
             updateSelectionUI();
         }
 
         function updateSelectionUI() {
+            const signature=JSON.stringify([location.search,AlbumState.isSelectMode,[...AlbumState.selectedPhotos].sort()]);
+            if(signature!==AlbumState.selectionSignature){AlbumState.selectionSignature=signature;AlbumState.selectionRevision++;}
             const count = AlbumState.selectedPhotos.size;
             document.getElementById('selectedCount').textContent = count;
             if (document.getElementById('tagModalCount'))
@@ -567,12 +619,14 @@
             // Enable/disable buttons
             const btns = document.querySelectorAll('.selection-actions button:not(#cancelBtn)');
             btns.forEach(btn => btn.disabled = count === 0);
+            document.getElementById('downloadSelectedBtn').disabled=count===0||AlbumState.downloadBusy;
         }
 
         function clearSelection() {
             AlbumState.selectedPhotos.clear();
             document.querySelectorAll('.album-photo-card.selected').forEach(card => {
                 card.classList.remove('selected');
+                card.querySelector('.select-checkbox').setAttribute('aria-pressed', 'false');
             });
             updateSelectionUI();
         }
@@ -619,10 +673,18 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    const successCount = result.results ? result.results.filter(r => r.success).length : photoIds.length;
-                    alert(`成功為 ${successCount}/${photoIds.length} 張照片加上標籤`);
-                    closeTagModal();
-                    cancelSelection();
+                    const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+                    AlbumState.photos.forEach(photo => { if (succeeded.includes(String(photo.id))) photo.tags = [photo.tags, tags].filter(Boolean).join(' '); });
+                    succeeded.forEach(id => AlbumState.selectedPhotos.delete(id));
+                    TimehutResults.invalidateAlbumCache();
+                    sessionStorage.setItem('albumPhotos', JSON.stringify(AlbumState.photos));
+                    renderPhotos(); updateSelectionUI();
+                    if (failed.length) {
+                        alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取與標籤供重試`);
+                    } else {
+                        alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤`);
+                        closeTagModal(); cancelSelection();
+                    }
                 } else {
                     alert(`加標籤失敗: ${result.error || result.message || '未知錯誤'}`);
                 }
@@ -660,29 +722,36 @@
 
         // Batch download selected photos as ZIP
         async function downloadSelected() {
-            const count = AlbumState.selectedPhotos.size;
-            if (count === 0) return;
-
-            const downloadBtn = document.getElementById('downloadSelectedBtn');
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = '準備下載...';
-
+            if(AlbumState.downloadBusy)return;
+            const selected=[...AlbumState.selectedPhotos];if(!selected.length)return;
+            const selectedPhotos=AlbumState.photos.filter(photo=>AlbumState.selectedPhotos.has(photo.id)).map(photo=>({...photo}));
+            const downloadBtn=document.getElementById('downloadSelectedBtn');
+            updateSelectionUI();const revision=AlbumState.selectionRevision;
+            AlbumState.downloadBusy=true;downloadBtn.disabled=true;
             try {
-                const selectedPhotos = AlbumState.photos.filter(p =>
-                    AlbumState.selectedPhotos.has(p.id)
-                );
+                if(selectedPhotos.length!==selected.length)throw new Error('選取檔案已變更，請重新選取');
+                if(!await TimehutTransfers.confirmDownloads(selectedPhotos))return;
+                if(revision!==AlbumState.selectionRevision)throw new Error('選取內容已變更，請重新確認下載');
+                downloadBtn.textContent='準備下載…';
+                const native = await window.TimehutTransfers?.downloadMany(selectedPhotos);
+                if (native) {
+                    if(revision===AlbumState.selectionRevision){native.accepted.forEach(id => AlbumState.selectedPhotos.delete(id));updateSelectionUI(); renderPhotos();}
+                    alert(`手機系統已接受 ${native.accepted.length} 個下載，${native.failed.length} 個尚未送出；請到傳輸中心確認。`);
+                    return;
+                }
 
                 const zip = new JSZip();
                 let successCount = 0;
                 let failCount = 0;
+                const acquired = [];
 
                 for (let i = 0; i < selectedPhotos.length; i++) {
                     const photo = selectedPhotos[i];
-                    downloadBtn.textContent = `下載中... (${i + 1}/${selectedPhotos.length})`;
+                    if(revision===AlbumState.selectionRevision)downloadBtn.textContent = `下載中... (${i + 1}/${selectedPhotos.length})`;
 
                     try {
                         // Use proxy-image if needed or get large size
-                        const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+                        const url = await TimehutTransfers.mediaUrl(photo);
 
                         // Use backend proxy to avoid CORS if needed
                         // const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-image?url=${encodeURIComponent(url)}`;
@@ -692,10 +761,11 @@
 
                         const blob = await response.blob();
                         const urlParts = url.split('/');
-                        const filename = urlParts[urlParts.length - 1] || `photo_${photo.id}.jpg`;
+                        const filename = photo.media === 'video' ? `${photo.id}.mp4` : `${photo.id}-${urlParts[urlParts.length - 1].split('?')[0] || 'media'}`;
 
                         zip.file(filename, blob);
                         successCount++;
+                        acquired.push(photo.id);
                     } catch (e) {
                         console.error('Error downloading photo:', photo.id, e);
                         failCount++;
@@ -709,7 +779,7 @@
                     return;
                 }
 
-                downloadBtn.textContent = '打包中...';
+                if(revision===AlbumState.selectionRevision)downloadBtn.textContent = '打包中...';
                 const zipBlob = await zip.generateAsync({ type: 'blob' });
 
                 const downloadUrl = URL.createObjectURL(zipBlob);
@@ -719,20 +789,26 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(downloadUrl);
+                setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+                const selectionUnchanged=revision===AlbumState.selectionRevision;
+                if(selectionUnchanged){
+                    acquired.forEach(id => AlbumState.selectedPhotos.delete(id));
+                    if (!AlbumState.selectedPhotos.size) cancelSelection();
+                    else { renderPhotos(); updateSelectionUI(); }
+                }
 
                 const message = failCount > 0
-                    ? `成功下載 ${successCount} 張，失敗 ${failCount} 張`
-                    : `成功下載 ${successCount} 張照片`;
+                    ? `已交給瀏覽器 ${successCount} 個檔案的 ZIP，${failCount} 個檔案未能下載。${selectionUnchanged?'失敗項目仍保留供重試。':'選取內容已變更，請重新選取失敗項目後重試。'}`
+                    : `已交給瀏覽器 ${successCount} 個檔案的 ZIP；請確認實際下載結果。`;
                 alert(message);
             } catch (error) {
                 console.error('Batch download error:', error);
                 alert('下載失敗: ' + error.message);
+            } finally {
+                AlbumState.downloadBusy=false;
+                downloadBtn.innerHTML = '⬇️ 下載';updateSelectionUI();
             }
 
-            downloadBtn.disabled = false;
-            downloadBtn.innerHTML = '⬇️ 下載';
-            cancelSelection();
         }
 
         async function deleteSelected() {
@@ -751,12 +827,19 @@
 
             // Hand off to background worker
             if (typeof BackgroundWorker !== 'undefined') {
-                BackgroundWorker.startDelete(photoIds);
+                const deletion = await BackgroundWorker.startDelete(photoIds);
+                if (!deletion.accepted) { alert('目前已有作業進行中，選取已保留'); return; }
+                if (deletion.succeeded.length) {
+                    const deleted = new Set(deletion.succeeded.map(String));
+                    deletion.succeeded.forEach(id => AlbumState.selectedPhotos.delete(String(id)));
+                    AlbumState.photos = AlbumState.photos.filter(photo => !deleted.has(String(photo.id)));
+                    TimehutResults.invalidateAlbumCache();
+                    renderPhotos(); updateSelectionUI();
+                }
+                if (deletion.failed.length) { alert(`已確認刪除 ${deletion.succeeded.length} 張；${deletion.failed.length} 張未完成，僅保留未完成項目供重試`); return; }
 
-                // Clear UI immediately
-                AlbumState.selectedPhotos.clear();
-                cancelSelection();
-                showToast('已開始在背景刪除', 'info');
+                if (AlbumState.selectedPhotos.size === 0) cancelSelection();
+                showToast(`已確認刪除 ${deletion.succeeded.length} 張照片`, 'success');
             } else {
                 // Fallback to old blocking method
                 console.warn('BackgroundWorker not available, using blocking delete');
@@ -773,18 +856,19 @@
 
                     const result = await response.json();
 
-                    if (response.ok || result.success) {
-                        photoIds.forEach(id => {
+                    if (response.ok) {
+                        const receipt = TimehutResults.confirmed(result, photoIds);
+                        receipt.succeeded.forEach(id => {
                             const card = document.querySelector(`.album-photo-card[data-id="${id}"]`);
                             if (card) card.remove();
                             AlbumState.photos = AlbumState.photos.filter(p => p.id !== id);
                         });
 
-                        cancelSelection();
-                        document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
-
-                        const successCount = result.results ? result.results.filter(r => r.success).length : count;
-                        alert(`成功刪除 ${successCount} 張照片`);
+                        AlbumState.selectedPhotos = new Set(receipt.failed);
+                        TimehutResults.invalidateAlbumCache();
+                        renderPhotos(); updateSelectionUI();
+                        if (!receipt.failed.length) cancelSelection();
+                        alert(`確認刪除 ${receipt.succeeded.length} 張；未完成 ${receipt.failed.length} 張，選取已保留`);
                     } else {
                         alert(`刪除失敗: ${result.error || result.message}`);
                     }
@@ -804,12 +888,12 @@
             if (count === 0) return alert('請先選擇照片');
 
             // Simple prompts for selection
-            let albumList = "請輸入目標相簿 ID 或選擇:\n";
+            let albumList = "選擇目標相簿：\n";
             CONFIG.CHILDREN.forEach((child, index) => {
                 albumList += `${index + 1}. ${child.name} (${child.emoji})\n`;
             });
 
-            const input = prompt(albumList);
+            const input = await TimehutDialogs.album(albumList);
             if (!input) return;
 
             let albumId = input.trim();
@@ -834,6 +918,16 @@
                 const result = await response.json();
 
                 if (response.ok) {
+                    const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+                    succeeded.forEach(id => AlbumState.selectedPhotos.delete(String(id)));
+                    TimehutResults.invalidateAlbumCache();
+                    document.querySelectorAll('.album-photo-card').forEach(card => {
+                        const selected = AlbumState.selectedPhotos.has(card.dataset.id);
+                        card.classList.toggle('selected', selected);
+                        card.querySelector('.select-checkbox').setAttribute('aria-pressed', String(selected));
+                    });
+                    updateSelectionUI();
+                    if (failed.length) { alert(`已加入 ${succeeded.length}/${photoIds.length} 張；${failed.length} 張未完成，僅保留未完成項目供重試`); return; }
                     alert(result.message || '加入相簿成功');
                     cancelSelection();
                 } else {
@@ -842,7 +936,7 @@
             } catch (error) {
                 alert('加入相簿失敗: ' + error.message);
             } finally {
-                btn.disabled = false;
+                btn.disabled = AlbumState.selectedPhotos.size === 0;
                 btn.textContent = '📁 加入相簿';
             }
         }
@@ -856,6 +950,7 @@
 
             // 顯示 Modal
             document.getElementById('moveCollectionCount').textContent = count;
+            document.getElementById('collectionSelectionPrompt').textContent = '請先選擇目的相集。';
             document.getElementById('moveCollectionModal').classList.remove('hidden');
             document.getElementById('collectionListLoading').style.display = 'block';
             document.getElementById('collectionList').style.display = 'none';
@@ -940,17 +1035,17 @@
                 listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted);">無可用的相集</div>';
             } else {
                 listEl.innerHTML = filteredCollections.map((col, idx) => `
-                    <div class="collection-item" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
+                    <button type="button" class="collection-item" aria-pressed="false" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <img src="${FlickrAPI.getPhotoUrl(col.photos[0], 'sq')}" 
                                  style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">
-                            <div>
-                                <div style="font-weight: 600;">${col.label}</div>
-                                <div style="font-size: 0.85rem; color: var(--color-text-muted);">${col.date} · ${col.photos.length} 張</div>
+                            <div class="collection-text">
+                                <strong class="collection-title">${col.label}</strong>
+                                <span class="collection-detail">${col.date} · ${col.photos.length} 張</span>
                             </div>
                         </div>
                         <div class="collection-check" style="display: none;">✓</div>
-                    </div>
+                    </button>
                 `).join('');
             }
 
@@ -962,15 +1057,18 @@
             // 移除其他選取
             document.querySelectorAll('.collection-item').forEach(el => {
                 el.classList.remove('selected');
+                el.setAttribute('aria-pressed','false');
                 el.querySelector('.collection-check').style.display = 'none';
             });
 
             // 選取當前
             element.classList.add('selected');
+            element.setAttribute('aria-pressed','true');
             element.querySelector('.collection-check').style.display = 'block';
 
             moveCollectionState.targetDate = element.dataset.date;
             moveCollectionState.targetLabel = element.dataset.label;
+            document.getElementById('collectionSelectionPrompt').textContent = `已選擇：${element.dataset.label}。`;
             document.getElementById('moveCollectionConfirmBtn').disabled = false;
         }
 
@@ -986,7 +1084,7 @@
             const targetLabel = moveCollectionState.targetLabel;
             const targetDate = moveCollectionState.targetDate + ' 12:00:00';
 
-            if (!confirm(`確定要將 ${count} 張照片移動到「${targetLabel}」嗎？`)) return;
+            if (!await TimehutDialogs.confirm(`將 ${count} 張照片合併至「${targetLabel}」。\n拍攝日時會改為 ${targetDate}，照片原檔不變。`, {title:'確認修改拍攝日時',confirmText:'修改日期並合併'})) return;
 
             const photoIds = Array.from(AlbumState.selectedPhotos);
             const btn = document.getElementById('moveCollectionConfirmBtn');
@@ -1003,6 +1101,22 @@
                 const result = await response.json();
 
                 if (response.ok) {
+                    const { succeeded, failed } = TimehutResults.confirmed(result, photoIds);
+                    const done = new Set(succeeded);
+                    AlbumState.photos.forEach(photo => { if (done.has(String(photo.id))) photo.datetaken = targetDate; });
+                    succeeded.forEach(id => AlbumState.selectedPhotos.delete(String(id)));
+                    const originalDate = new URLSearchParams(location.search).get('date');
+                    if (AlbumState.momentId?.startsWith('moment_') && originalDate) {
+                        AlbumState.photos = AlbumState.photos.filter(photo => photo.datetaken?.split(' ')[0] === originalDate);
+                    }
+                    TimehutResults.invalidateAlbumCache();
+                    renderPhotos(); updateSelectionUI();
+                    document.getElementById('moveCollectionCount').textContent = failed.length;
+                    if (failed.length) {
+                        if (succeeded.length) refreshMoveCollectionDateCounts(succeeded, targetDate);
+                        alert(`已更新 ${succeeded.length}/${photoIds.length} 張的日期；${failed.length} 張未完成，僅保留未完成項目供重試`);
+                        return;
+                    }
                     alert(result.message || '移動成功');
                     closeMoveCollectionModal();
                     cancelSelection();
@@ -1023,7 +1137,8 @@
             return new Promise((resolve) => {
                 const modal = document.getElementById('confirmModal');
                 document.getElementById('confirmTitle').textContent = title;
-                document.getElementById('confirmMessage').innerHTML = message.replace(/\n/g, '<br>');
+                document.getElementById('confirmMessage').textContent = message;
+                document.getElementById('confirmMessage').style.whiteSpace = 'pre-line';
                 document.getElementById('confirmOkBtn').textContent = confirmText;
 
                 modal.classList.remove('hidden');
@@ -1050,13 +1165,6 @@
             const isVideo = photo.media === 'video';
 
             // For videos: open directly on Flickr in new window
-            if (isVideo) {
-                const flickrUserId = CONFIG.FLICKR_USER_ID || photo.owner || '158881690@N04';
-                const flickrUrl = `https://www.flickr.com/photos/${flickrUserId}/${photo.id}`;
-                window.open(flickrUrl, '_blank');
-                return; // Don't show modal for videos
-            }
-
             // For photos: show in modal as before
             const modal = document.getElementById('photoModal');
             const imgEl = document.getElementById('modalImage');
@@ -1079,6 +1187,7 @@
 
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
+            window.TimehutViewerMedia?.show(photo);
 
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
             document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
@@ -1098,6 +1207,8 @@
         }
 
         async function downloadCurrentPhoto() {
+            try { if (await window.TimehutTransfers?.download(AlbumState.photos[AlbumState.currentModalIndex])) return; }
+            catch (error) { showToast(error.message || '原生下載未開始', 'error'); return; }
             const photo = AlbumState.photos[AlbumState.currentModalIndex];
             if (!photo) return;
 
@@ -1107,25 +1218,32 @@
             btn.disabled = true;
 
             try {
-                const url = FlickrAPI.getPhotoUrl(photo, 'o') || FlickrAPI.getPhotoUrl(photo, 'l');
+                const url = await TimehutTransfers.mediaUrl(photo);
                 const response = await fetch(url);
+                if (!response.ok) throw new Error('下載失敗');
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.download = photo.title || `photo_${photo.id}.jpg`;
+                link.download = photo.media === 'video' ? `${photo.id}.mp4` : `${photo.id}-${new URL(url).pathname.split('/').at(-1) || 'photo.jpg'}`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 URL.revokeObjectURL(blobUrl);
 
-                btn.innerHTML = '✅ 下載完成';
+                btn.innerHTML = '✅ 已交給瀏覽器下載';
                 setTimeout(() => {
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }, 1500);
             } catch (error) {
                 console.error('Download error:', error);
+                if (photo.media === 'video') {
+                    showToast('影片原檔下載失敗，請稍後按下載重試', 'error');
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
+                }
                 // Fallback
                 window.open(FlickrAPI.getPhotoUrl(photo, 'b'), '_blank');
                 btn.innerHTML = '⚠️ 已開新分頁';
@@ -1137,6 +1255,7 @@
         }
 
         function closeModal() {
+            window.TimehutViewerMedia?.stop();
             const videoEl = document.getElementById('modalVideo');
             if (videoEl) videoEl.pause();
 
@@ -1152,6 +1271,8 @@
         }
 
         document.addEventListener('keydown', (e) => {
+            if (document.querySelector('.timehut-dialog')) return;
+            if (e.key !== 'Escape' && e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
             const modal = document.getElementById('photoModal');
             if (!modal.classList.contains('active')) return;
 

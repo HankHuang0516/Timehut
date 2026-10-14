@@ -6,23 +6,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 寶貝成長時間軸">
     <title>黃家小屋 - 時間軸</title>
-    
-    
-    
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/jpeg" href="16120.jpg">
+    <link rel="apple-touch-icon" href="16120.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#fff3be"><link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="assets/app-icon-512.png"><script defer src="js/pwa.js"></script>
-<link rel="stylesheet" href="css/upload-safety.css?v=20261014.1">
+    <link rel="stylesheet" href="css/style.css?v=20261014.1">
+    <link rel="stylesheet" href="css/timeline-ui.css?v=20261014.1">
+    <script src="js/vendor/jszip-3.10.1.min.js?v=20261014.1"></script>
+    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261014.1"></script>
+    <link rel="stylesheet" href="css/storybook.css?v=20261014.1">
+    <script defer src="js/dialogs.js?v=20261014.1"></script>
+    <script defer src="js/storybook.js?v=20261014.1"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#fff3be">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script defer src="js/transfers.js?v=20261014.1"></script>
+<script defer src="js/pwa.js?v=20261014.1"></script>
 </head>
 
-<body class="timeline-page">
+<body class="storybook-page timeline-page">
+    <a class="skip-link" href="#mainContent">跳到成長時間軸</a>
     <!-- Global Upload Progress Bar (Background) -->
     <div class="global-upload-bar" id="globalUploadBar">
         <div class="global-progress-info">
@@ -40,10 +47,10 @@
         </div>
     </div>
     <!-- Album Sidebar (swipe from left) -->
-    <div class="album-sidebar" id="albumSidebar">
+    <div class="album-sidebar" id="albumSidebar" role="dialog" aria-modal="true" aria-labelledby="albumSidebarTitle" inert>
         <div class="sidebar-header">
-            <span class="sidebar-title">📚 選擇相簿</span>
-            <button class="sidebar-close" onclick="closeAlbumSidebar()">✕</button>
+            <span class="sidebar-title" id="albumSidebarTitle">📚 選擇相簿</span>
+            <button class="sidebar-close" aria-label="關閉相簿選單" onclick="closeAlbumSidebar()">✕</button>
         </div>
         <div class="sidebar-albums" id="sidebarAlbums">
             <!-- 動態生成相簿列表 -->
@@ -52,15 +59,15 @@
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeAlbumSidebar()"></div>
 
     <!-- Sidebar Tab Handle (Semi-circular bookmark on left edge) -->
-    <div class="sidebar-tab-handle" id="sidebarTabHandle" onclick="openAlbumSidebar()" title="切換相簿">
+    <button class="sidebar-tab-handle" id="sidebarTabHandle" onclick="openAlbumSidebar()" title="切換相簿" aria-label="切換相簿" aria-controls="albumSidebar" aria-expanded="false">
         <span class="tab-icon">📚</span>
-    </div>
+    </button>
 
     <!-- Header -->
     <header class="header header-mobile-stack">
         <div class="header-row-top">
             <div class="header-left">
-                <button class="hamburger-btn" id="hamburgerBtn" onclick="openAlbumSidebar()" title="切換相簿">
+                <button class="hamburger-btn" id="hamburgerBtn" onclick="openAlbumSidebar()" title="切換相簿" aria-label="切換相簿" aria-controls="albumSidebar" aria-expanded="false">
                     <span class="hamburger-icon">☰</span>
                 </button>
                 <a href="index.html" class="header-logo header-logo-large">
@@ -69,17 +76,21 @@
                 </a>
             </div>
             <div class="header-right">
+                <button class="header-btn photo-select-btn" id="selectModeBtn" title="多選照片與影片" aria-label="多選照片與影片" aria-pressed="false">
+                    <span class="btn-icon">🖼️</span>
+                    <span class="btn-label">照片</span>
+                </button>
                 <button class="header-btn batch-moment-btn" id="batchMomentBtn" title="批量處理相集"
-                    onclick="toggleMomentSelectMode()">
+                    onclick="toggleMomentSelectMode()" aria-pressed="false">
                     <span class="btn-icon">☑️</span>
-                    <span class="btn-label">多選</span>
+                    <span class="btn-label">相集</span>
                 </button>
                 <button class="header-btn upload-header-btn" id="uploadBtn" title="上傳照片" onclick="openUploadModal()">
                     <span class="btn-icon">📤</span>
                     <span class="btn-label">上傳</span>
                 </button>
                 <button class="header-btn time-travel-btn" id="timeTravelBtn" title="時光旅行"
-                    onclick="toggleTimeTravelMenu()">
+                    onclick="toggleTimeTravelMenu()" aria-controls="timeTravelMenu" aria-expanded="false">
                     <span class="btn-icon">⏰</span>
                     <span class="btn-label">時光</span>
                 </button>
@@ -92,7 +103,7 @@
         <div class="header-row-search">
             <div class="search-box">
                 <span class="search-icon">🔍</span>
-                <input type="text" placeholder="搜尋照片..." id="searchInput"
+                <input type="search" placeholder="搜尋照片、標籤或回憶…" id="searchInput" aria-label="搜尋照片、標籤或回憶"
                     onkeypress="if(event.key==='Enter') navigateToSearch()">
                 <button class="search-btn" onclick="navigateToSearch()" title="搜尋">搜尋</button>
             </div>
@@ -103,7 +114,7 @@
     <div class="time-travel-menu" id="timeTravelMenu" style="display: none;">
         <div class="time-travel-header">
             <h3>⏰ 時光旅行</h3>
-            <button onclick="toggleTimeTravelMenu()">✕</button>
+            <button aria-label="關閉時光旅行" onclick="toggleTimeTravelMenu()">✕</button>
         </div>
         <div class="time-travel-list" id="timeTravelList">
             <!-- Age items will be dynamically inserted -->
@@ -142,14 +153,14 @@
     </div>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <main class="main-content" id="mainContent" tabindex="-1">
         <!-- Left Sidebar - Child Profiles -->
         <aside class="sidebar-left">
             <div class="child-profiles">
-                <button class="profile-btn" data-child="0" title="漢堡">
+                <button class="profile-btn" data-child="0" title="漢堡" aria-label="查看漢堡的相簿">
                     <span class="profile-emoji">👶</span>
                 </button>
-                <button class="profile-btn" data-child="1" title="涵涵">
+                <button class="profile-btn" data-child="1" title="涵涵" aria-label="查看涵涵的相簿">
                     <span class="profile-emoji">👼</span>
                 </button>
             </div>
@@ -157,14 +168,20 @@
 
         <!-- Center - Timeline -->
         <section class="timeline-section">
+            <div class="transfer-entry-panel">
+                <a href="transfer.html" id="transferQueueEntry" class="transfer-entry-link"><strong>⇅ 傳輸中心</strong><span id="transferQueueCount">確認任務中…</span></a>
+                <p id="transferQueueDetail" class="storybook-note">查看上傳、下載與保存結果。</p>
+            </div>
             <div class="timeline-header">
-                <h2 class="current-child-name" id="currentChildName">漢堡</h2>
+                <p class="timeline-eyebrow">成長時間軸</p>
+                <h1 class="current-child-name" id="currentChildName">漢堡</h1>
                 <p class="current-child-age" id="currentChildAge">6歲1個月</p>
+                <p class="timeline-hint">把每一個小日常，收藏成長大的回憶。</p>
             </div>
 
             <div class="timeline-container" id="timelineContainer">
                 <!-- Timeline items will be dynamically inserted here -->
-                <div class="loading-indicator" id="loadingIndicator">
+                <div class="loading-indicator" id="loadingIndicator" role="status" aria-live="polite">
                     <div class="spinner"></div>
                     <p id="loadingText">載入照片中...</p>
                     <button class="reload-btn" id="reloadBtn" style="display: none;" onclick="location.reload()">
@@ -206,7 +223,7 @@
 
             <div class="upload-options">
                 <!-- Drag and Drop Zone -->
-                <div class="upload-dropzone" id="uploadDropzone">
+                <div class="upload-dropzone" id="uploadDropzone" role="button" tabindex="0" aria-label="選擇照片或影片">
                     <div class="dropzone-content">
                         <span class="dropzone-icon">🖼️</span>
                         <p>拖放照片或影片到這裡</p>
@@ -217,10 +234,14 @@
 
                 <!-- Album Selection (Optional) -->
                 <div class="upload-field">
-                    <label>選擇相簿（可選）：</label>
-                    <select id="albumSelect" class="upload-select">
+                    <label for="albumSelect">選擇相簿（可選）：</label>
+                    <select id="albumSelect" class="upload-select" aria-describedby="albumLoadStatus">
                         <option value="">預設（自動加入當前小孩相簿）</option>
                     </select>
+                    <div id="albumLoadStatus" class="album-load-status" role="status" hidden>
+                        <span></span>
+                        <button type="button" id="retryAlbumLoadBtn" hidden>重試清單</button>
+                    </div>
                 </div>
 
                 <!-- Uploader (Fixed) -->
@@ -240,7 +261,7 @@
                 </div>
 
                 <!-- Tagging Mode Toggle -->
-                <div class="upload-field">
+                <div class="upload-field tagging-mode-field">
                     <label>標籤模式：</label>
                     <div class="tagging-mode-toggle">
                         <button type="button" class="mode-btn active" id="batchModeBtn"
@@ -269,6 +290,8 @@
             </div>
 
             <div class="upload-tips">
+                <button type="button" id="authFlickrBtn" class="btn-tag" style="display:none">授權 Flickr</button>
+                <p class="storybook-note">網頁版上傳期間請保持此頁開啟；手機原生背景傳輸尚未提供。</p>
                 <p>💡 小提示：上傳完成後點擊「刷新」按鈕即可看到新照片</p>
                 <button class="refresh-btn" onclick="location.reload()">
                     🔄 刷新頁面
@@ -294,7 +317,7 @@
                 <!-- P0: Tag Editing -->
                 <div class="modal-tags-edit" id="modalTagsEdit">
                     <div class="tags-edit-row">
-                        <input type="text" id="editTagsInput" placeholder="編輯標籤（用空格分隔）">
+                        <input type="text" id="editTagsInput" aria-label="照片標籤" placeholder="編輯標籤（用空格分隔）">
                         <button class="save-tags-btn" onclick="savePhotoTags()">儲存標籤</button>
                     </div>
                 </div>
@@ -323,9 +346,9 @@
     <div id="moveCollectionModal" class="modal-overlay hidden">
         <div class="confirm-card"
             style="max-width: 450px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;">
-            <div class="confirm-icon">📂</div>
+            <div class="confirm-icon"><img src="assets/storybook-upload-v1.png" alt="" class="collection-dialog-art"></div>
             <h3 class="confirm-title">移動到相集</h3>
-            <p class="confirm-message">將 <span id="moveCollectionCount">0</span> 張照片移動到選擇的相集</p>
+            <p class="confirm-message">將 <span id="moveCollectionCount">0</span> 張照片合併至此日期相集，並修改照片拍攝日時。<span id="collectionSelectionPrompt">請先選擇目的相集。</span></p>
             <div id="collectionListContainer" style="flex: 1; overflow-y: auto; margin: 16px 0; max-height: 300px;">
                 <div id="collectionListLoading"
                     style="text-align: center; padding: 20px; color: var(--color-text-muted);">
@@ -342,12 +365,12 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/flickr.js"></script>
-    <script src="js/uploader.js?v=20261014.2"></script>
-    <script src="js/legacy-upload-safety.js?v=20261014.1"></script>
-    <script src="js/timeline.js?v=20261014.2"></script>
+    <script src="js/config.js?v=20261014.1"></script>
+    <script src="js/results.js?v=20261014.1"></script>
+    <script src="js/utils.js?v=20261014.1"></script>
+    <script src="js/flickr.js?v=20261014.1"></script>
+    <script src="js/uploader.js?v=20261014.1"></script>
+    <script src="js/timeline.js?v=20261014.1"></script>
     <script>
         // Auth check - redirect if not authenticated
         (function () {
@@ -383,9 +406,7 @@
 
         // Initialize timeline on page load
         document.addEventListener('DOMContentLoaded', function () {
-            if (typeof initTimeline === 'function') {
-                initTimeline();
-            }
+            // timeline.js owns timeline initialization; avoid duplicate handlers.
 
             // 點擊外部區域關閉移動相集 Modal
             const moveCollectionModal = document.getElementById('moveCollectionModal');

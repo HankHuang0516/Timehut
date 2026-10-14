@@ -147,63 +147,8 @@ const FlickrAPI = {
      * @returns {Promise<string>} 影片 URL (MP4)
      */
     async getVideoUrl(photo) {
-        try {
-            // Use backend proxy to access private video sizes
-            // Pass media=video to hint backend to set video public first (required for playable MP4)
-            const url = `${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/sizes?media=video`;
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                // If proxy fails (e.g. not connected), maybe try direct call as backup?
-                // But mostly we need proxy for private. Let's throw to trigger fallback
-                throw new Error(`Proxy error: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data.stat !== 'ok') {
-                throw new Error(data.message || 'Flickr API error');
-            }
-
-            const sizes = data.sizes.size;
-            // 找尋 media="video" 的來源，或者最大的 video 格式
-            // 通常 label 為 "Site MP4", "Mobile MP4", "HD MP4", "Video Original"
-
-            // 優先順序: Site MP4 (最佳) > 1080p > 720p > HD MP4 > Mobile MP4 > Video Original
-            // 因為 "Video Original" 可能是網頁播放器連結，而非直接檔案
-            const videoLabels = ['Site MP4', 'Mobile MP4', 'HD 1080p', 'HD 720p', 'HD MP4', 'Video Original'];
-            let videoSource = null;
-
-            for (const label of videoLabels) {
-                const found = sizes.find(s => s.label === label && s.media === 'video');
-                if (found) {
-                    videoSource = found;
-                    break;
-                }
-            }
-
-            // 如果沒找到指定標籤，退回任何影片來源
-            if (!videoSource) {
-                videoSource = sizes.find(s => s.media === 'video');
-            }
-
-            // 最後隨便找一個是 video 的
-            if (!videoSource) {
-                videoSource = sizes.find(s => s.media === 'video');
-            }
-
-            return videoSource ? videoSource.source : this.getPhotoUrl(photo, 'o');
-        } catch (error) {
-            console.error('Failed to get video url:', error);
-            // Fallback to direct call (might fail for private) or original photo url
-            try {
-                const data = await this.call('flickr.photos.getSizes', { photo_id: photo.id });
-                // ... same logic if we want to dupe it, but for now just fallback to .o
-                // actually, if proxy failed, maybe we are local/offline or it's public? 
-                // Let's just return the best guess
-            } catch (e) { }
-            return this.getPhotoUrl(photo, 'o');
-        }
+        if (photo?.media !== 'video' || !photo.id) throw new Error('找不到可播放的影片');
+        return `${CONFIG.UPLOAD_API_URL}/api/photo/${encodeURIComponent(photo.id)}/video?purpose=playback`;
     },
 
     /**
