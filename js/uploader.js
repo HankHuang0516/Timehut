@@ -726,7 +726,9 @@ const UploadUI = {
             // It has `onclick="closeUploadModal()"` on overlay. 
             // I should find where `closeUploadModal` is defined. 
             // If not found, I can manipulate DOM directly.
-            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('uploadModal').classList.remove('active');
+            document.body.style.overflow = '';
+            document.getElementById('uploadModal').style.removeProperty('display');
 
             // Prepare tasks
             const tasks = [];

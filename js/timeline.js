@@ -1496,6 +1496,7 @@ function closeUploadModal() {
 function updateAlbumUploadLink() {
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
     const albumLink = document.getElementById('albumUploadLink');
+    if (!albumLink) return;
 
     if (child.albumId) {
         // Link to specific album
