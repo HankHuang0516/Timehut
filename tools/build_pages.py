@@ -22,7 +22,7 @@ def main():
  assert len(body)==release['bytes'] and hashlib.sha256(body).hexdigest()==release['sha256'], 'APK does not match reviewed package'
  apk=out/'downloads'/release['filename'];apk.parent.mkdir(exist_ok=True);apk.write_bytes(body)
  (out/'.nojekyll').write_text('')
- (out/'site-release.json').write_text(json.dumps({'site':'2026.10.14-upload-safety.1','android':release['version'],'apkSHA256':release['sha256'],'backendUpdated':False},indent=2)+'\n')
+ (out/'site-release.json').write_text(json.dumps({'site':'2026.10.14-upload-safety.2','android':release['version'],'apkSHA256':release['sha256'],'backendUpdated':False},indent=2)+'\n')
  print(json.dumps({'staticFiles':len(names),'apkBytes':len(body),'apkSHA256':release['sha256'],'output':str(out)}))
 
 if __name__=='__main__':main()
