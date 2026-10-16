@@ -163,7 +163,7 @@ function populateTimeTravelMenu() {
 async function initTimeline() {
     if(window.TimehutPage?.empty())return;
     const profiles=document.querySelector('.child-profiles')||document.querySelector('.profile-btn')?.parentElement;
-    if(profiles&&CONFIG.ACCOUNT_MODE){profiles.replaceChildren(...CONFIG.CHILDREN.map((child,index)=>{const button=document.createElement('button');button.className='profile-btn';button.dataset.child=String(index);button.title=child.name;button.setAttribute('aria-label',`查看 ${child.name} 的相簿`);const emoji=document.createElement('span');emoji.textContent=child.emoji;button.append(emoji);return button;}));}
+    if(profiles&&CONFIG.ACCOUNT_MODE){profiles.replaceChildren(...CONFIG.CHILDREN.map((child,index)=>{const button=document.createElement('button');button.className='profile-btn';button.dataset.child=String(index);button.title=child.name;button.setAttribute('aria-label',`查看 ${child.name} 的相簿`);const emoji=document.createElement('span');emoji.className='profile-emoji';emoji.textContent=child.emoji;button.append(emoji);return button;}));}
     // Check for URL params (e.g. tag filter)
     const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
     const tagName = urlParams.get('tag_name');
@@ -613,7 +613,8 @@ function createMomentCard(moment, birthDate) {
 
     // Grid Logic
     let gridHtml = '';
-    const displayPhotos = moment.photos.slice(0, 5); // Show max 5 in grid
+    // Management shows every loaded photo, while the ordinary timeline keeps its collage.
+    const displayPhotos = SelectionState.isSelectMode ? moment.photos : moment.photos.slice(0, 5);
     const remaining = count - 5;
 
     // Grid class based on count (capped at 5 for layout logic)
@@ -628,7 +629,7 @@ function createMomentCard(moment, birthDate) {
         const flatIndex = moment.flatStartIndex + idx;
 
         let overlayHtml = '';
-        if (isLast && remaining > 0) {
+        if (!SelectionState.isSelectMode && isLast && remaining > 0) {
             overlayHtml = `<div class="moment-overlay" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">+${remaining + 1}</div>`;
         }
 
@@ -638,7 +639,7 @@ function createMomentCard(moment, birthDate) {
         // User HTML implies "Enter Album" is a separate button at bottom.
         // Clicking images usually opens lightbox.
 
-        const clickAttr = `onclick="openModal(${flatIndex})"`;
+        const clickAttr = SelectionState.isSelectMode ? `onclick="togglePhotoSelection('${photo.id}')"` : `onclick="openModal(${flatIndex})"`;
 
         gridHtml += `
             <div class="moment-photo-container">
@@ -1098,6 +1099,7 @@ function toggleSelectMode() {
         });
     }
 
+    renderTimeline();
     updateSelectionUI();
 }
 
@@ -1350,10 +1352,10 @@ async function batchAddTags() {
         succeeded.forEach(id => SelectionState.selectedPhotos.delete(id));
         updateSelectionUI();
         if (failed.length) {
-            alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取供重試`);
+            showToast(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取供重試`, 'warning');
             return;
         }
-        alert(result.message || '操作完成');
+        showToast(result.message || '操作完成', 'success');
 
         // Reload to update UI
         SelectionState.selectedPhotos.clear();
@@ -1362,7 +1364,7 @@ async function batchAddTags() {
         TimelineState.currentPage = 1;
         loadPhotos();
     } catch (error) {
-        alert('加標籤失敗: ' + error.message);
+        showToast('加標籤失敗: ' + error.message, 'error');
     } finally {
         btn.disabled = SelectionState.selectedPhotos.size === 0;
         btn.textContent = '🏷️ 加標籤';

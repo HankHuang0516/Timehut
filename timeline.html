@@ -23,9 +23,9 @@
     <link rel="stylesheet" href="css/timeline-ui.css?v=20261014.2">
     <script src="js/vendor/jszip-3.10.1.min.js?v=20261016.1"></script>
     <script src="js/vendor/filesaver-2.0.5.min.js?v=20261016.1"></script>
-    <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261016.1"></script>
-    <script defer src="js/storybook.js?v=20261016.1"></script>
+    <link rel="stylesheet" href="css/storybook.css?v=20261016.3">
+    <script defer src="js/dialogs.js?v=20261016.3"></script>
+    <script defer src="js/storybook.js?v=20261016.3"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -169,10 +169,10 @@
 
         <!-- Center - Timeline -->
         <section class="timeline-section">
-            <div class="transfer-entry-panel">
-                <a href="transfer.html" id="transferQueueEntry" class="transfer-entry-link"><strong>⇅ 傳輸中心</strong><span id="transferQueueCount">確認任務中…</span></a>
+            <details class="transfer-entry-panel">
+                <summary><a href="transfer.html" id="transferQueueEntry" class="transfer-entry-link"><strong>⇅ 傳輸中心</strong><span id="transferQueueCount">確認任務中…</span></a></summary>
                 <p id="transferQueueDetail" class="storybook-note">查看上傳、下載與保存結果。</p>
-            </div>
+            </details>
             <div class="timeline-header">
                 <p class="timeline-eyebrow">成長時間軸</p>
                 <h1 class="current-child-name" id="currentChildName">漢堡</h1>
@@ -292,7 +292,8 @@
 
             <div class="upload-tips">
                 <button type="button" id="authFlickrBtn" class="btn-tag" style="display:none">授權 Flickr</button>
-                <p class="storybook-note">網頁版上傳期間請保持此頁開啟；手機原生背景傳輸尚未提供。</p>
+                <a id="nativeBackgroundUploadLink" class="btn-tag" href="transfer.html" hidden>選取原檔並使用手機背景上傳 →</a>
+                <p class="storybook-note">網頁上傳時請保持此頁開啟。Android 安裝版可加入背景傳輸，進度與結果請到傳輸中心查看。</p>
                 <p>💡 小提示：上傳完成後點擊「刷新」按鈕即可看到新照片</p>
                 <button class="refresh-btn" onclick="location.reload()">
                     🔄 刷新頁面
@@ -333,7 +334,7 @@
     <!-- Confirmation Modal (Card Style) -->
     <div id="confirmModal" class="modal-overlay hidden">
         <div class="confirm-card">
-            <div class="confirm-icon">⚠️</div>
+            <img class="confirm-story-art" src="assets/storybook-family.png" alt="">
             <h3 class="confirm-title" id="confirmTitle">確認操作</h3>
             <p class="confirm-message" id="confirmMessage">確定要執行此操作嗎？</p>
             <div class="confirm-actions">
@@ -370,8 +371,8 @@
     <script src="js/results.js?v=20261016.1"></script>
     <script src="js/utils.js?v=20261016.1"></script>
     <script src="js/flickr.js?v=20261016.1"></script>
-    <script src="js/uploader.js?v=20261016.1"></script>
-    <script src="js/timeline.js?v=20261016.1"></script>
+    <script src="js/uploader.js?v=20261016.3"></script>
+    <script src="js/timeline.js?v=20261016.3"></script>
     <script>
         // Auth check - redirect if not authenticated
         (function () {

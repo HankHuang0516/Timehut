@@ -538,6 +538,19 @@ const UploadUI = {
 
         if (!this.dropzone || !this.fileInput) return;
 
+        if (CONFIG.ACCOUNT_MODE) {
+            const name = window.TimehutAccounts.status().user?.displayName || '';
+            const input = document.getElementById('uploaderValue');
+            const label = document.querySelector('#uploaderDisplay .uploader-name');
+            if (input) input.value = name;
+            if (label) label.textContent = name || '請先登入';
+            if (window.TimehutAccounts.status().native) {
+                document.getElementById('nativeBackgroundUploadLink')?.removeAttribute('hidden');
+                const submit = document.getElementById('startUploadBtn');
+                if (submit) submit.textContent = '網頁傳送（保持開啟）';
+            }
+        }
+
         // 點擊 dropzone 觸發檔案選擇
         this.dropzone.addEventListener('click', () => {
             this.fileInput.click();
@@ -872,7 +885,8 @@ const UploadUI = {
 
             // Uploader tag
             const uploaderInput = document.getElementById('uploaderValue');
-            const uploader = uploaderInput ? uploaderInput.value : '爸爸';
+            const uploader = CONFIG.ACCOUNT_MODE ? window.TimehutAccounts.status().user?.displayName : (uploaderInput ? uploaderInput.value : '爸爸');
+            if (!uploader) throw new Error('請先登入帳戶再上傳');
             const uploaderTag = `uploader:${uploader}`;
 
             if (this.taggingMode === 'individual') {

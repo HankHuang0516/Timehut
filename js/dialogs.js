@@ -26,6 +26,18 @@ window.TimehutDialogs = (() => {
                 CONFIG.CHILDREN.forEach((child, index) => input.add(new Option(child.name, String(index + 1))));
                 if (allowOther) input.add(new Option('其他相簿 ID', 'other'));
                 label.append(input); form.append(label);
+                const options = document.createElement('div'); options.className = 'dialog-album-options';
+                input.hidden = true; input.required = false;
+                [...input.options].filter(option => option.value).forEach(option => {
+                    const row = document.createElement('label'); row.className = 'dialog-album-option';
+                    const choice = document.createElement('input'); choice.type = 'radio'; choice.name = 'albumChoice'; choice.value = option.value; choice.required = true;
+                    const portrait = document.createElement('img'); portrait.alt = ''; portrait.src = option.value === 'other' ? 'assets/storybook-garden-v1.png' : Number(option.value) % 2 ? 'assets/storybook-boy.png' : 'assets/storybook-girl.png';
+                    const name = document.createElement('span'); name.textContent = option.textContent;
+                    choice.addEventListener('change', () => { if (choice.checked) { input.value = choice.value; input.dispatchEvent(new Event('change')); } });
+                    row.append(choice, portrait, name); options.append(row);
+                });
+                input.addEventListener('change', () => options.querySelectorAll('input').forEach(choice => { choice.checked = choice.value === input.value; }));
+                label.after(options);
                 if (allowOther) {
                     const other = document.createElement('input'); other.name = 'otherAlbum'; other.placeholder = '輸入其他相簿 ID';
                     other.setAttribute('aria-label', '其他相簿 ID'); other.hidden = true; form.append(other);
@@ -39,7 +51,7 @@ window.TimehutDialogs = (() => {
             actions.append(cancel, ok); form.append(actions); overlay.append(form); document.body.append(overlay); current = overlay;
             const close = document.createElement('button'); close.type = 'button'; close.className = 'dialog-close'; close.textContent = '✕'; close.setAttribute('aria-label', '關閉視窗');
             close.addEventListener('click', () => finish(null)); form.prepend(close);
-            const art = document.createElement('img'); art.className = 'dialog-art'; art.src = 'assets/storybook-upload-v1.png'; art.alt = ''; heading.after(art);
+            const art = document.createElement('img'); art.className = 'dialog-art'; art.src = kind === 'tags' ? 'assets/storybook-upload-v1.png' : 'assets/storybook-family.png'; art.alt = ''; heading.after(art);
             function finish(value) {
                 document.removeEventListener('keydown', onKey); overlay.remove(); current = null;
                 if (previous?.isConnected) previous.focus(); resolve(value);
@@ -61,7 +73,7 @@ window.TimehutDialogs = (() => {
                 if (!value) return;
                 finish(value);
             });
-            (input || cancel).focus();
+            (form.querySelector('input[type="radio"]') || input || cancel).focus();
         });
     }
     return {

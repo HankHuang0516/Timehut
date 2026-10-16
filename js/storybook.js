@@ -10,6 +10,13 @@
                 image.src = portraits[index % portraits.length]; image.alt = ''; emoji.replaceChildren(image);
                 const label = document.createElement('span'); label.className = 'profile-label';
                 label.textContent = CONFIG.CHILDREN[index]?.name || ''; button.append(label);
+                const age = document.createElement('small'); age.className = 'profile-age';
+                const child = CONFIG.CHILDREN[index];
+                if (child && typeof calculateAge === 'function' && typeof formatAgeString === 'function') {
+                    const value = calculateAge(child.birthDate, new Date().toLocaleDateString('en-CA'));
+                    age.textContent = formatAgeString(value.years, value.months, value.days);
+                    label.append(age);
+                }
             }
         });
         document.querySelectorAll('.child-card .child-emoji').forEach((emoji, index) => {
@@ -23,6 +30,8 @@
         const bars=[...document.querySelectorAll('.selection-bar,.moment-selection-bar')];
         if(bars.length){const observer=new ResizeObserver(()=>document.documentElement.style.setProperty('--storybook-selection-height',`${Math.max(...bars.map(bar=>bar.getBoundingClientRect().height))}px`));bars.forEach(bar=>observer.observe(bar));}
         decorateProfiles();
+        const profileList = document.querySelector('.child-profiles');
+        if (profileList) new MutationObserver(decorateProfiles).observe(profileList, {childList:true});
         const picker = document.getElementById('uploadDropzone');
         picker?.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('fileInput').click(); } });
         const image=document.getElementById('modalImage'),modal=document.getElementById('photoModal');

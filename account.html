@@ -3,16 +3,16 @@
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="referrer" content="no-referrer"><title>我的相簿 · 黃家小屋</title>
-    <link rel="icon" href="favicon.png"><link rel="stylesheet" href="css/account.css">
+    <link rel="icon" href="favicon.png"><link rel="stylesheet" href="css/account.css?v=20261016.3">
     <link rel="stylesheet" href="css/service-info.css"><script src="js/service-info.js?v=20261016.1" defer></script>
     <script src="js/accounts.js?v=20261016.1" defer></script><script src="js/web-upload.js?v=20261016.1" defer></script><script src="js/account-page.js?v=20261016.1" defer></script>
 </head>
 <body>
     <main class="account-shell">
-        <header class="account-header"><a href="index.html" class="brand">黃家小屋</a><p>把日常收藏成回憶</p></header>
+        <header class="account-header"><a href="index.html" class="brand"><img src="assets/app-icon-192.png" alt="">黃家小屋 🌱</a><p>把日常收藏成回憶</p></header>
         <p id="account-message" role="status" aria-live="polite"></p>
         <section id="account-auth" class="card" aria-labelledby="auth-title">
-            <h1 id="auth-title">登入我的相簿</h1><p>每個帳戶擁有自己的相簿。新註冊帳戶從空白開始。</p>
+            <img class="account-welcome-art" src="assets/storybook-family.png" alt=""><h1 id="auth-title">登入我的相簿</h1><p>每個帳戶擁有自己的相簿。新註冊帳戶從空白開始。</p>
             <form id="account-form">
                 <label>帳號<input name="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{2,31}" autocomplete="username" autocapitalize="none" spellcheck="false"><small>3–32 個英文字母、數字、點、底線或短橫線</small></label>
                 <label id="display-name-label" hidden>顯示名稱<input name="displayName" maxlength="80" autocomplete="nickname"></label>
@@ -24,6 +24,7 @@
         </section>
         <section id="account-home" hidden>
             <div class="home-heading"><h1 id="account-greeting">我的相簿</h1><button id="account-logout" class="secondary" type="button">登出</button></div>
+            <div class="account-story-welcome"><img src="assets/storybook-family.png" alt=""><div><h2>收藏每一個小日常</h2><p>一張張照片，串起我們長大的回憶。</p><a class="account-story-link" href="index.html">選擇相簿，進入成長時間軸 →</a></div></div>
             <section class="card"><h2>建立相簿</h2><form id="album-form" class="album-form"><label>相簿名稱<input name="title" maxlength="80" required></label><label>紀念起始日<input name="birthDate" type="date" required></label><button type="submit">建立相簿</button></form></section>
             <nav id="account-albums" aria-label="我的相簿"></nav>
             <section class="card"><div class="home-heading"><h2 id="selected-album">選擇相簿</h2><button id="account-upload" type="button" hidden>加入照片／影片</button></div><p id="album-empty">建立第一本相簿，開始收藏回憶。</p><p id="account-upload-note" class="note" hidden>Android App 可選取原檔並加入背景上傳佇列。</p><div id="account-photos" class="photo-grid"></div><div class="pagination"><button id="photos-previous" type="button" class="secondary" hidden>上一頁</button><span id="photos-page"></span><button id="photos-next" type="button" class="secondary" hidden>下一頁</button></div></section>
