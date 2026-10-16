@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-TW">
+<head><script src="js/capacitor-core.js"></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>安裝黃家小屋</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="favicon.png" type="image/png"><link rel="apple-touch-icon" href="assets/app-icon-512.png"><meta name="theme-color" content="#fff3be"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="css/style.css?v=20261014.2"><link rel="stylesheet" href="css/storybook.css?v=20261016.5"><script defer src="js/install.js?v=20261016.1"></script><script defer src="js/pwa.js?v=20261016.1"></script>
+</head><body class="storybook-page install-page">
+<svg class="install-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<symbol id="guide-safari" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#e1f0fa" stroke="#417397" stroke-width="2"/><path d="m33 15-5 13-13 5 5-13Z" fill="#f7faff" stroke="#417397" stroke-width="2"/><path d="m33 15-5 13-8-8Z" fill="#d97d74"/><path d="M24 5v4m0 30v4M5 24h4m30 0h4" stroke="#417397" stroke-width="2"/></symbol>
+<symbol id="guide-share" viewBox="0 0 48 48"><path d="M16 19H9v24h30V19h-7M24 30V5m-9 9 9-9 9 9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/></symbol>
+<symbol id="guide-home" viewBox="0 0 48 48"><path d="M5 22 24 6l19 16M11 20v22h26V20M24 24v12m-6-6h12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/></symbol>
+<symbol id="guide-menu" viewBox="0 0 48 48"><rect x="8" y="4" width="32" height="40" rx="6" fill="#eef4e7" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="15" r="2.5" fill="currentColor"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="24" cy="33" r="2.5" fill="currentColor"/></symbol>
+<symbol id="guide-phone" viewBox="0 0 48 48"><rect x="12" y="3" width="24" height="42" rx="5" fill="#e1f0fa" stroke="currentColor" stroke-width="2"/><path d="M20 8h8m-7 32h6" stroke="currentColor" stroke-width="2"/><path d="m18 25 4 4 9-10" stroke="#617349" fill="none" stroke-width="3"/></symbol>
+</svg>
+<main class="settings-container">
+<header class="settings-header"><a class="btn-secondary" href="timeline.html">← 返回時間軸</a><h1>把小屋放進手機</h1><p>從主畫面打開，每天的回憶隨手可看。</p></header>
+<div class="install-layout"><nav class="install-navigation" aria-label="手機功能"><a href="install.html" aria-current="page">手機安裝</a><a href="transfer.html">傳輸中心</a><a href="settings.html">小孩資料設定</a></nav>
+<div class="install-content"><div class="install-app-options">
+<section class="settings-section install-web-card" aria-labelledby="webAppTitle">
+<div class="install-card-title"><svg aria-hidden="true"><use href="#guide-home"></use></svg><div><span class="install-option-label">主畫面・獨立視窗</span><h2 id="webAppTitle">網頁 App</h2></div><span id="webInstallBadge" class="install-badge">安裝指引</span></div>
+<p>將小屋加入手機主畫面，以獨立 App 視窗開啟。</p><p id="installStatus" class="install-status" role="status" aria-live="polite">正在確認安裝方式…</p><button id="installButton" class="btn-tag" hidden>安裝黃家小屋</button><p class="storybook-note">網頁 App 上傳期間須保持畫面開啟。</p></section>
+<section class="settings-section install-native-card" aria-labelledby="nativeAppTitle">
+<div class="install-card-title"><svg aria-hidden="true"><use href="#guide-phone"></use></svg><div><span class="install-option-label">Android・獨立安裝包</span><h2 id="nativeAppTitle">手機 App</h2></div><span id="nativeInstallBadge" class="install-badge">Android 測試版</span></div>
+<p id="nativeInstallStatus">新版 Android App 仍在驗證，尚未公開提供。iPhone 手機版尚未提供。</p>
+<p class="install-build">新版安裝資訊將於發布時更新 · Android 7.0 以上</p>
+<div class="install-actions"><a id="androidDownload" class="btn-tag" data-release-available="false" href="#nativeAppTitle" hidden>下載 Android 測試版</a></div>
+<ol class="install-apk-steps"><li>下載後開啟 APK，依手機提示允許此來源安裝。</li><li>開啟「黃家小屋測試版」，使用自己的帳號與密碼登入。</li></ol>
+<p class="storybook-note">這版的完整背景上下載仍在驗證；實體手機與不同廠牌的省電設定也待確認。請到傳輸中心核對每個檔案的實際結果。</p>
+<p class="storybook-note">請先更新 Android System WebView 與 Chrome。舊版網頁元件會顯示更新指引；較舊 Android 系統的背景傳輸尚未完成驗證。</p>
+<p class="storybook-note">背景傳輸需手機 App。手動強制結束可能中止或延後，請回來確認結果。</p></section>
+</div>
+<section id="installGuide" class="settings-section install-guide" aria-labelledby="guideTitle">
+<div class="install-guide-heading"><h2 id="guideTitle">依手機查看安裝步驟</h2><div class="install-platforms" role="group" aria-label="選擇安裝平台"><button type="button" data-install-platform="ios" aria-pressed="true">iPhone · Safari</button><button type="button" data-install-platform="android" aria-pressed="false">Android · Chrome</button></div></div>
+<ol id="iosInstallSteps" class="install-steps">
+<li><span class="install-step-icon" aria-hidden="true"><svg><use href="#guide-safari"></use></svg></span><div><h3>1. 用 Safari 開啟</h3><p>在手機的 Safari 中打開黃家小屋。</p></div></li>
+<li><span class="install-step-icon" aria-hidden="true"><svg><use href="#guide-share"></use></svg></span><div><h3>2. 分享並加入主畫面</h3><p>點「分享」；部分版面先點「更多」。接著選「加入主畫面」。</p></div></li>
+<li><span class="install-step-icon" aria-hidden="true"><svg><use href="#guide-home"></use></svg></span><div><h3>3. 確認以 App 開啟</h3><p>若出現「打開為網頁 App」，保持開啟，再點「加入」。</p><span class="install-switch-example" aria-hidden="true"><i></i> 開啟示意</span></div></li></ol>
+<ol id="androidInstallSteps" class="install-steps" hidden>
+<li><span class="install-step-icon" aria-hidden="true"><svg><use href="#guide-phone"></use></svg></span><div><h3>1. 用 Chrome 開啟</h3><p>在 Android 手機的 Chrome 中打開黃家小屋。</p></div></li>
+<li><span class="install-step-icon" aria-hidden="true"><svg><use href="#guide-menu"></use></svg></span><div><h3>2. 找到安裝選項</h3><p>點網址列旁的「更多」，選「安裝並建立捷徑」或「加入主畫面」。</p></div></li>
+<li><span class="install-step-icon" aria-hidden="true"><svg><use href="#guide-home"></use></svg></span><div><h3>3. 選擇安裝</h3><p>選「安裝」並依提示完成。若只有建立捷徑，尚不能確認為獨立網頁 App。</p></div></li></ol>
+<p class="install-open-check">完成後，從主畫面開啟小屋；在這頁確認「已以獨立 App 視窗開啟」。</p><p class="storybook-note">圖示與開關是操作示意，請在手機系統畫面完成。選單名稱可能依版本而不同。</p><details class="install-help"><summary>找不到選項？查看官方說明</summary><p><a href="https://support.apple.com/zh-tw/guide/iphone/iphea86e5236/26/ios/26" target="_blank" rel="noopener noreferrer">Apple：Safari 安裝步驟</a> · <a href="https://support.google.com/chrome/answer/9658361?co=GENIE.Platform%3DAndroid&amp;hl=zh-Hant" target="_blank" rel="noopener noreferrer">Google：Chrome 安裝步驟</a></p></details>
+</section><p class="install-closing"><img src="assets/storybook-boy.png" alt="">把一張張照片，變成隨手可看的回憶。</p></div></div>
+</main></body></html>

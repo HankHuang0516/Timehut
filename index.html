@@ -3,9 +3,9 @@
 
 <head>
     <style>html[data-timehut-loading] body{visibility:hidden}</style>
-    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/accounts.js?v=20261016.5"></script>
     <script src="js/web-upload.js?v=20261016.1"></script>
-    <script src="js/account-config.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.5"></script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,13 +19,13 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=20261014.2">
-    <link rel="stylesheet" href="css/storybook.css?v=20261016.3">
-    <script defer src="js/dialogs.js?v=20261016.3"></script>
+    <link rel="stylesheet" href="css/storybook.css?v=20261016.5">
+    <script defer src="js/dialogs.js?v=20261016.5"></script>
     <script defer src="js/storybook.js?v=20261016.3"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261016.1"></script>
+    <script defer src="js/transfers.js?v=20261016.5"></script>
 <script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
@@ -248,6 +248,9 @@
                     selectChild(parseInt(childIndex));
                 });
             });
+            if (CONFIG.ACCOUNT_MODE && CONFIG.ALBUM_TOTAL > CONFIG.CHILDREN.length) {
+                const more=document.createElement('a');more.href='account.html';more.className='btn-secondary';more.textContent=`更多相簿（共 ${CONFIG.ALBUM_TOTAL} 本）`;childCards.append(more);
+            }
         }
 
         // Handle password submit

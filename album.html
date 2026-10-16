@@ -3,9 +3,9 @@
 
 <head>
     <style>html[data-timehut-loading] body{visibility:hidden}</style>
-    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/accounts.js?v=20261016.5"></script>
     <script src="js/web-upload.js?v=20261016.1"></script>
-    <script src="js/account-config.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.5"></script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -253,13 +253,13 @@
             font-weight: bold;
         }
     </style>
-    <link rel="stylesheet" href="css/storybook.css?v=20261016.3">
-    <script defer src="js/dialogs.js?v=20261016.3"></script>
+    <link rel="stylesheet" href="css/storybook.css?v=20261016.5">
+    <script defer src="js/dialogs.js?v=20261016.5"></script>
     <script defer src="js/storybook.js?v=20261016.3"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261016.1"></script>
+    <script defer src="js/transfers.js?v=20261016.5"></script>
 <script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
@@ -440,9 +440,9 @@
     
     <script src="js/results.js?v=20261016.1"></script>
     <script src="js/utils.js?v=20261016.1"></script>
-    <script src="js/flickr.js?v=20261016.1"></script>
+    <script src="js/flickr.js?v=20261016.5"></script>
     <script src="js/uploader.js?v=20261016.3"></script>
-    <script src="js/timeline.js?v=20261016.3"></script>
+    <script src="js/timeline.js?v=20261016.5"></script>
     <script>
         // AlbumState updated to be more robust
         const AlbumState = {
@@ -451,6 +451,7 @@
             selectionRevision: 0, selectionSignature: '', downloadBusy: false,
             isSelectMode: false,
             currentModalIndex: 0,
+            currentModalPhotoId: null,
             momentId: null
         };
 
@@ -479,17 +480,33 @@
                         return;
                     }
                     try {
-                        let page = 1, pages = 1, photos = [];
-                        do {
-                            const data = await FlickrAPI.getAlbumPhotos(album, page, 500);
-                            photos.push(...data.photos); pages = data.pages; page++;
-                        } while (page <= pages);
-                        AlbumState.photos = photos.filter(photo => (photo.datetaken?.split(' ')[0] || new Date(Number(photo.dateupload) * 1000).toISOString().slice(0, 10)) === date);
+                        const requested = urlParams.get('photos');
+                        const photoIds = requested === null ? null : requested.split(',');
+                        if (photoIds && (photoIds.length > 200 || photoIds.some(id => !/^[0-9]{1,32}$/.test(id))
+                            || new Set(photoIds).size !== photoIds.length)) throw new Error('請從時間軸重新進入此相集');
+                        const loadedPhotos = await FlickrAPI.getAlbumDayPhotos(album, date, (photos, progress) => {
+                            replaceLoadedPhotos(photos);
+                            if (photos.length) {
+                                renderPhotos();
+                                const loading = document.getElementById('loadingIndicator');
+                                if (loading) loading.style.display = 'none';
+                            }
+                            document.getElementById('momentInfo').textContent =
+                                `已找到 ${photos.length} 張照片／影片 · 正在讀取 ${progress.completed}／${progress.pages} 頁`;
+                        }, photoIds);
+                        replaceLoadedPhotos(loadedPhotos);
                         document.getElementById('momentDate').textContent = date;
                         document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
                         renderPhotos();
                     } catch (error) {
-                        document.getElementById('momentInfo').textContent = '相集載入失敗，請重新整理再試';
+                        const info = document.getElementById('momentInfo');
+                        info.textContent = AlbumState.photos.length
+                            ? `目前顯示 ${AlbumState.photos.length} 張，其他照片尚未讀取完成。`
+                            : '相集載入失敗，請再試一次。';
+                        const retry = document.createElement('button');
+                        retry.type = 'button'; retry.className = 'btn-secondary'; retry.textContent = '重新載入';
+                        retry.addEventListener('click', () => location.reload(), { once: true });
+                        info.append(' ', retry);
                     } finally { const loading = document.getElementById('loadingIndicator'); if (loading) loading.style.display = 'none'; }
                     return;
                 }
@@ -1160,6 +1177,12 @@
             });
         }
 
+        function replaceLoadedPhotos(photos) {
+            const currentId=AlbumState.currentModalPhotoId;
+            AlbumState.photos=photos;
+            if(currentId!==null){const index=photos.findIndex(photo=>String(photo.id)===currentId);if(index<0){closeModal();return;}AlbumState.currentModalIndex=index;const indicator=document.getElementById('modalPageIndicator');if(indicator)indicator.textContent=`${index+1} / ${photos.length}`;}
+        }
+
         async function openModal(index) {
             if (AlbumState.isSelectMode) return;
 
@@ -1167,6 +1190,7 @@
             const photo = AlbumState.photos[index];
             if (!photo) return;
 
+            AlbumState.currentModalPhotoId=String(photo.id);
             const isVideo = photo.media === 'video';
 
             // For videos: open directly on Flickr in new window
@@ -1212,11 +1236,10 @@
         }
 
         async function downloadCurrentPhoto() {
-            try { if (await window.TimehutTransfers?.download(AlbumState.photos[AlbumState.currentModalIndex])) return; }
+            const photo=AlbumState.currentModalPhotoId===null?AlbumState.photos[AlbumState.currentModalIndex]:AlbumState.photos.find(photo=>String(photo.id)===AlbumState.currentModalPhotoId);
+            if(!photo)return;
+            try { if (await window.TimehutTransfers?.download(photo)) return; }
             catch (error) { showToast(error.message || '原生下載未開始', 'error'); return; }
-            const photo = AlbumState.photos[AlbumState.currentModalIndex];
-            if (!photo) return;
-
             const btn = document.getElementById('modalDownloadBtn');
             const originalText = btn.innerHTML;
             btn.innerHTML = '⏳ 下載中...';
@@ -1260,6 +1283,7 @@
         }
 
         function closeModal() {
+            AlbumState.currentModalPhotoId=null;
             window.TimehutViewerMedia?.stop();
             const videoEl = document.getElementById('modalVideo');
             if (videoEl) videoEl.pause();

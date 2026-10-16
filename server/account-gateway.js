@@ -21,7 +21,7 @@ function accountGateway(store,authenticate,{legacyOwnerId,readQueue,callbackAllo
    const verbs=canonical[1]==='album'||canonical[1]==='photo'?canonical.slice(3):['photos','auth'].includes(canonical[1])?canonical.slice(2):canonical[1]==='uploads'&&['status','retry','file','admission'].includes(canonical[2]?.toLowerCase())?[canonical[2]]:[];
    if(verbs.some(value=>value!==value.toLowerCase()))return deny(res);
   }
-  try{const decoded=path.posix.normalize(decodeURIComponent(pathname).replace(/\\/g,'/'));if(decoded.startsWith('/uploads/')&&path.posix.basename(decoded).startsWith('receiver-'))return deny(res);}catch(_){return deny(res);}
+   try{const decoded=path.posix.normalize(decodeURIComponent(pathname).replace(/\\/g,'/'));if(decoded==='/uploads/.feedback'||decoded.startsWith('/uploads/.feedback/')||decoded.startsWith('/uploads/')&&path.posix.basename(decoded).startsWith('receiver-'))return deny(res);}catch(_){return deny(res);}
   if(pathname==='/api/version'&&req.method==='GET')return next();
   if(pathname==='/api/auth/callback'&&req.method==='GET'&&callbackAllowed(req.query.oauth_token))return next();
   const admitted=()=>{try{

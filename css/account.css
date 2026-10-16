@@ -70,3 +70,5 @@ footer a { margin-left:12px; }
  .album-form label { min-width:100%; margin:8px 0; }
  .album-form button { width:100%; margin:12px 0 0; }
 }
+
+#remember-device-label input { width:22px; min-height:22px; height:22px; margin:0 8px 0 0; vertical-align:middle; accent-color:#a8780c; }

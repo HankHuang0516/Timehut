@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head><script src="js/capacitor-core.js"></script>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.5"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.5"></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="黃家小屋 - 搜尋照片">
+    <title>黃家小屋 - 搜尋結果</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=20261014.2">
+    <link rel="stylesheet" href="css/storybook.css?v=20261016.5">
+    <script defer src="js/dialogs.js?v=20261016.5"></script>
+    <script defer src="js/storybook.js?v=20261016.3"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#fff3be">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script defer src="js/transfers.js?v=20261016.5"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
+</head>
+
+<body class="storybook-page timeline-page">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="timeline.html" class="header-logo">
+                <img src="assets/app-icon-192.png" alt="黃家小屋" class="logo-img">
+                <span class="header-title">黃家小屋</span>
+            </a>
+        </div>
+        <div class="header-center">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" placeholder="搜尋照片..." id="searchInput"
+                    onkeypress="if(event.key==='Enter') doSearch()">
+                <button class="search-btn" onclick="doSearch()" title="搜尋">搜尋</button>
+            </div>
+        </div>
+        <div class="header-right">
+            <a href="timeline.html" class="header-btn" title="返回時間軸">🏠</a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content search-page-content">
+        <section class="search-results-section">
+            <div class="search-header">
+                <h2 id="searchTitle">搜尋結果</h2>
+                <p id="searchSubtitle">正在搜尋...</p>
+            </div>
+
+            <div class="photo-grid" id="resultsGrid">
+                <!-- Search results will be dynamically inserted here -->
+                <div class="loading-indicator" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <p>搜尋中...</p>
+                </div>
+
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">🔍</div>
+                    <h3>找不到照片</h3>
+                    <p id="emptyMessage">沒有符合搜尋條件的照片</p>
+                    <a href="timeline.html" class="upload-btn">返回時間軸</a>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination" id="pagination" style="display: none;">
+                <button class="page-btn" id="prevPage" onclick="changePage(-1)">上一頁</button>
+                <span id="pageInfo">第 1 頁，共 1 頁</span>
+                <button class="page-btn" id="nextPage" onclick="changePage(1)">下一頁</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Photo Modal -->
+    <div class="photo-modal" id="photoModal">
+        <div class="modal-overlay" onclick="closeModal()"></div>
+        <div class="modal-content">
+            <div class="modal-page-indicator" id="modalPageIndicator">1 / 1</div>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <button class="modal-nav modal-prev" onclick="navigatePhoto(-1)">‹</button>
+            <img src="" alt="" class="modal-image" id="modalImage">
+            <button class="modal-nav modal-next" onclick="navigatePhoto(1)">›</button>
+            <div class="modal-info">
+                <h3 id="modalTitle"></h3>
+                <p id="modalDate"></p>
+                <p id="modalTags"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261016.1"></script>
+    <script src="js/flickr.js?v=20261016.5"></script>
+    <script>
+        // Search state
+        const SearchState = {
+            query: '',
+            photos: [],
+            allPhotos: null, // Cached album photos for local filtering
+            currentPage: 1,
+            totalPages: 1,
+            currentModalIndex: 0
+        };
+
+        // Initialize on page load
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( async () => {
+            // Get query from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            SearchState.query = urlParams.get('q') || '';
+
+            if (SearchState.query) {
+                const searchInput = document.getElementById('searchInput');
+                searchInput.value = SearchState.query;
+                searchInput.setAttribute('value', SearchState.query);
+                await performSearch();
+            } else {
+                document.getElementById('searchTitle').textContent = '請輸入搜尋關鍵字';
+                document.getElementById('searchSubtitle').textContent = '';
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        });
+
+        function doSearch() {
+            if(window.TimehutPage?.empty())return;
+            const query = document.getElementById('searchInput').value.trim();
+            if (query) {
+                window.location.href = `search.html?q=${encodeURIComponent(query)}`;
+            }
+        }
+
+        async function performSearch() {
+            const loadingEl = document.getElementById('loadingIndicator');
+            const emptyEl = document.getElementById('emptyState');
+            const gridEl = document.getElementById('resultsGrid');
+
+            loadingEl.style.display = 'block';
+            emptyEl.style.display = 'none';
+
+            document.getElementById('searchTitle').textContent = `搜尋: ${SearchState.query}`;
+            document.getElementById('searchSubtitle').textContent = '搜尋中...';
+
+            try {
+                // First try to get photos from sessionStorage (synced from timeline.html)
+                if (!SearchState.allPhotos) {
+                    const storedPhotos = (window.TimehutStorage?.session || sessionStorage).getItem('allPhotos');
+                    if (storedPhotos && (window.TimehutStorage?.session || sessionStorage).getItem('allPhotosChild') === ((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0')) {
+                        SearchState.allPhotos = JSON.parse(storedPhotos);
+                        console.log('Loaded photos from sessionStorage:', SearchState.allPhotos.length);
+                    }
+                }
+
+                // Fallback: load from API if sessionStorage is empty
+                if (!SearchState.allPhotos || SearchState.allPhotos.length === 0) {
+                    const selectedChild = (window.TimehutStorage?.local || localStorage).getItem('timehut_current_child')
+                        ?? (window.TimehutStorage?.session || sessionStorage).getItem('selectedChild');
+                    const selectedIndex = Number.parseInt(selectedChild ?? '0', 10);
+                    const childIndex = CONFIG.CHILDREN[selectedIndex] ? selectedIndex : 0;
+                    const child = CONFIG.CHILDREN[childIndex];
+
+                    if (child && child.albumId) {
+                        document.getElementById('searchSubtitle').textContent = '載入相簿中...';
+                        const albumResult = await FlickrAPI.getAlbumPhotos(child.albumId, 1, 500);
+                        SearchState.allPhotos = albumResult.photos || [];
+                    }
+                }
+
+                // Now search locally from pre-loaded photos
+                const result = await FlickrAPI.searchPhotos(SearchState.query, {
+                    page: SearchState.currentPage,
+                    perPage: 50,
+                    allPhotos: SearchState.allPhotos || []
+                });
+
+                SearchState.photos = result.photos;
+                SearchState.totalPages = result.pages;
+
+                loadingEl.style.display = 'none';
+
+                if (result.photos.length === 0) {
+                    emptyEl.style.display = 'block';
+                    document.getElementById('emptyMessage').textContent = `沒有符合「${SearchState.query}」的照片`;
+                    document.getElementById('searchSubtitle').textContent = '找到 0 筆回憶';
+                } else {
+                    document.getElementById('searchSubtitle').textContent = `找到 ${result.total} 筆回憶`;
+                    renderResults();
+                    updatePagination();
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                loadingEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+                document.getElementById('emptyMessage').textContent = `搜尋失敗: ${error.message}`;
+            }
+        }
+
+        function renderResults() {
+            const gridEl = document.getElementById('resultsGrid');
+            const loadingEl = document.getElementById('loadingIndicator');
+
+            // Clear existing results (keep loading/empty elements)
+            Array.from(gridEl.children).forEach(child => {
+                if (!child.id?.includes('loading') && !child.id?.includes('empty')) {
+                    child.remove();
+                }
+            });
+
+            SearchState.photos.forEach((photo, index) => {
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+                card.onclick = () => openModal(index);
+
+                const imgUrl = FlickrAPI.getPhotoUrl(photo, 'm');
+                const tags = photo.tags ? photo.tags.split(' ').filter(t => !t.startsWith('uploader:')).join(', ') : '';
+
+                card.tabIndex = 0; card.setAttribute('role', 'button');
+                card.setAttribute('aria-label', photo.title || '照片預覽');
+                card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openModal(index); } });
+                const wrapper = document.createElement('div'); wrapper.className = 'photo-wrapper';
+                const image = document.createElement('img'); image.src = imgUrl; image.alt = photo.title || '照片預覽'; image.loading = 'lazy'; wrapper.append(image);
+                const info = document.createElement('div'); info.className = 'photo-info';
+                const title = document.createElement('div'); title.className = 'photo-title'; title.textContent = photo.title || '未命名';
+                const meta = document.createElement('div'); meta.className = 'photo-meta';
+                const date = document.createElement('span'); date.textContent = formatDate(photo.datetaken || photo.dateupload); meta.append(date);
+                if (tags) { const label = document.createElement('span'); label.className = 'photo-tags'; label.textContent = tags; meta.append(label); }
+                info.append(title, meta); card.append(wrapper, info);
+
+                gridEl.insertBefore(card, loadingEl);
+            });
+        }
+
+        function updatePagination() {
+            const paginationEl = document.getElementById('pagination');
+            if (SearchState.totalPages > 1) {
+                paginationEl.style.display = 'flex';
+                document.getElementById('pageInfo').textContent = `第 ${SearchState.currentPage} 頁，共 ${SearchState.totalPages} 頁`;
+                document.getElementById('prevPage').disabled = SearchState.currentPage <= 1;
+                document.getElementById('nextPage').disabled = SearchState.currentPage >= SearchState.totalPages;
+            } else {
+                paginationEl.style.display = 'none';
+            }
+        }
+
+        async function changePage(delta) {
+            const newPage = SearchState.currentPage + delta;
+            if (newPage >= 1 && newPage <= SearchState.totalPages) {
+                SearchState.currentPage = newPage;
+                await performSearch();
+                window.scrollTo(0, 0);
+            }
+        }
+
+        function openModal(index) {
+            SearchState.currentModalIndex = index;
+            const photo = SearchState.photos[index];
+            if (!photo) return;
+
+            const modal = document.getElementById('photoModal');
+            const modalImg = document.getElementById('modalImage');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalDate = document.getElementById('modalDate');
+            const modalTags = document.getElementById('modalTags');
+
+            modalImg.src = FlickrAPI.getPhotoUrl(photo, 'l') || FlickrAPI.getPhotoUrl(photo, 'm');
+            modalTitle.textContent = photo.title || '未命名';
+            modalDate.textContent = formatDate(photo.datetaken || photo.dateupload);
+            modalTags.textContent = photo.tags ? photo.tags.split(' ').filter(t => !t.startsWith('uploader:')).join(' ') : '';
+
+            // Update page indicator (e.g., "1 / 10")
+            const pageIndicator = document.getElementById('modalPageIndicator');
+            if (pageIndicator) {
+                pageIndicator.textContent = `${index + 1} / ${SearchState.photos.length}`;
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            window.TimehutViewerMedia?.show(photo);
+        }
+
+        function closeModal() {
+            window.TimehutViewerMedia?.stop();
+            document.getElementById('photoModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function navigatePhoto(direction) {
+            const newIndex = SearchState.currentModalIndex + direction;
+            if (newIndex >= 0 && newIndex < SearchState.photos.length) {
+                openModal(newIndex);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('photoModal');
+            if (!modal.classList.contains('active')) return;
+
+            if (e.key === 'Escape') closeModal();
+            if (e.key === 'ArrowLeft') navigatePhoto(-1);
+            if (e.key === 'ArrowRight') navigatePhoto(1);
+        });
+    </script>
+</body>
+
+</html>

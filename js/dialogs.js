@@ -1,7 +1,7 @@
 /* Form-based confirmations keep batch operations readable on small screens. */
 window.TimehutDialogs = (() => {
     let current = null;
-    function open({ title, message = '', kind = 'confirm', confirmText = '確認', allowOther = false, danger = false }) {
+    function open({ title, message = '', kind = 'confirm', confirmText = '確認', allowOther = false, danger = false, initialValue = '' }) {
         if (current) return Promise.resolve(null);
         return new Promise(resolve => {
             const previous = document.activeElement;
@@ -15,7 +15,10 @@ window.TimehutDialogs = (() => {
             const description = document.createElement('p'); description.textContent = message;
             form.append(heading, description);
             let input;
-            if (kind === 'tags') {
+            if (kind === 'text') {
+                const label=document.createElement('label');label.textContent='相簿名稱';
+                input=document.createElement('input');input.type='text';input.name='albumTitle';input.required=true;input.maxLength=80;input.value=initialValue;label.append(input);form.append(label);
+            } else if (kind === 'tags') {
                 const label = document.createElement('label'); label.textContent = '標籤（用空格分開）';
                 input = document.createElement('input'); input.type = 'text'; input.required = true; input.name = 'tags';
                 input.placeholder = '例如：公園 家人 開心'; label.append(input); form.append(label);
@@ -79,6 +82,7 @@ window.TimehutDialogs = (() => {
     return {
         confirm: (message, options = {}) => open({ title: '確認操作', message, ...options }),
         tags: message => open({ title: '增加標籤', message, kind: 'tags', confirmText: '加入標籤' }),
+        albumTitle: value => open({title:'重新命名相簿',message:'只修改名稱，照片、權限與相簿連結會保留。',kind:'text',initialValue:value,confirmText:'儲存名稱'}),
         album: (message, allowOther = true) => open({ title: '選擇相簿', message, kind: 'album', allowOther, confirmText: '繼續' })
     };
 })();

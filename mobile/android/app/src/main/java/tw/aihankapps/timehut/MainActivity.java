@@ -16,5 +16,28 @@ public class MainActivity extends BridgeActivity {
             android.widget.TextView detail=new android.widget.TextView(this);detail.setText("請更新 Android System WebView 與 Chrome，再重新開啟小屋。更新完成後，才能在這頁開啟照片與送出新傳輸。原有檔案與收據會保留。");detail.setTextSize(17);detail.setPadding(0,32,0,32);detail.setTextColor(0xff49392b);panel.addView(detail);
             android.widget.Button retry=new android.widget.Button(this);retry.setText("重新檢查");retry.setOnClickListener(view->recreate());panel.addView(retry);setContentView(panel);
         }
+        protectContentFromSystemUi();
+    }
+
+    private void protectContentFromSystemUi() {
+        // One native inset owner protects every page, fixed dialog and the old-WebView
+        // fallback. SystemBars' CSS handling is disabled in capacitor.config.json.
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        android.view.View content = findViewById(android.R.id.content);
+        final int left = content.getPaddingLeft(), top = content.getPaddingTop();
+        final int right = content.getPaddingRight(), bottom = content.getPaddingBottom();
+        final int types = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                | androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+                | androidx.core.view.WindowInsetsCompat.Type.ime();
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(content, (view, insets) -> {
+            androidx.core.graphics.Insets safe = insets.getInsets(types);
+            view.setPadding(left + safe.left, top + safe.top,
+                    right + safe.right, bottom + safe.bottom);
+            // Pass zero geometry to WebView so env(safe-area-inset-*) cannot add
+            // the same space again. Keep dispatch alive for rotation/IME changes.
+            return new androidx.core.view.WindowInsetsCompat.Builder(insets)
+                    .setInsets(types, androidx.core.graphics.Insets.NONE).build();
+        });
+        androidx.core.view.ViewCompat.requestApplyInsets(content);
     }
 }

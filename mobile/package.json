@@ -1,0 +1,6 @@
+{
+  "name": "timehut-mobile", "version": "0.1.0", "private": true,
+  "scripts": { "sync": "cap sync", "add:ios": "cap add ios", "add:android": "cap add android" },
+  "dependencies": { "@capacitor/core": "8.5.3", "@capacitor/ios": "8.5.3", "@capacitor/android": "8.5.3" },
+  "devDependencies": { "@capacitor/cli": "8.5.3" }
+}

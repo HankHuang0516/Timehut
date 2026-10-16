@@ -37,7 +37,7 @@ text=text.replace('    buildTypes {',"""    testBuildType "candidate"
         }""",1);gradle.write_text(text)
 subprocess.run(['python3',str(ROOT/'tools/sync_mobile.py'),str(w),'--public-app',str(site),'--platform','android','--keep-build-config'],check=True)
 strings=w/'android/app/src/main/res/values/strings.xml';strings.write_text(strings.read_text().replace('>黃家小屋<','>黃家小屋測試版<'))
-version=f"/* Testing installer metadata; public site content stays separately bound. */\nwindow.TimehutBuild=Object.freeze({{version:'{args.version_name}',channel:'android-private-test',sourceBase:'caa1779'}});\n"
+version=f"/* Testing installer metadata; public site content stays separately bound. */\nwindow.TimehutBuild=Object.freeze({{version:'{args.version_name}',versionCode:{args.version_code},channel:'android-private-test',sourceBase:'caa1779'}});\n"
 for directory in [w/'www',w/'android/app/src/main/assets/public']:(directory/'js/version.js').write_text(version)
 sources={}
 for base in [ROOT/'mobile/android/app/src/main',ROOT/'mobile/android/app/src/test']:

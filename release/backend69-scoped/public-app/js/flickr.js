@@ -1,0 +1,317 @@
+/**
+ * 黃家小屋 - Flickr API 整合
+ * Flickr API Integration for Timehut Clone
+ */
+
+const FlickrAPI = {
+    async getAlbumDayPhotos(albumId, date, onProgress = () => {}, requestedIds = null) {
+        const perPage = 30, results = new Map(), ids = new Set();
+        const wanted = requestedIds ? new Set(requestedIds) : null;
+        let pages = 1, next = 2, completed = 0, stopped = false;
+        const photoDate = photo => photo.datetaken?.split(' ')[0]
+            || new Date(Number(photo.dateupload) * 1000).toISOString().slice(0, 10);
+        const accept = (data, page) => {
+            if (!Array.isArray(data.photos) || !Number.isSafeInteger(data.pages)
+                || data.pages < 0 || data.pages > 10000 || data.page !== page)
+                throw new Error('相簿分頁資料尚未確認');
+            results.set(page, data.photos.filter(photo => photoDate(photo) === date
+                && (!wanted || wanted.has(String(photo.id)))));
+            completed++;
+            const rows = [...results].sort((a, b) => a[0] - b[0]).flatMap(row => row[1]);
+            ids.clear();
+            const unique = rows.filter(photo => !ids.has(photo.id) && ids.add(photo.id));
+            onProgress(unique, { completed, pages });
+            return unique;
+        };
+        const first = await this.getAlbumPhotos(albumId, 1, perPage);
+        pages = Math.max(1, first.pages);
+        let photos = accept(first, 1);
+        if (wanted && photos.length === wanted.size) return photos;
+        return new Promise((resolve,reject)=>{
+            let readers=Math.min(3,pages-1),settled=false;
+            const finish=(error)=>{if(settled)return;settled=true;stopped=true;if(error)reject(error);else resolve(photos);};
+            if(!readers){finish(wanted&&photos.length!==wanted.size?new Error('部分照片已變更，請返回時間軸重新開啟'):null);return;}
+            for(let reader=0;reader<readers;reader++)(async()=>{
+                try{while(!stopped){const page=next++;if(page>pages)return;const data=await this.getAlbumPhotos(albumId,page,perPage);if(stopped)return;
+                    if(Math.max(1,data.pages)!==pages)throw new Error('相簿內容已變更，請重新載入');photos=accept(data,page);
+                    if(wanted&&photos.length===wanted.size){finish();return;}
+                }}catch(error){if(!settled)finish(error);}finally{readers--;if(!readers&&!settled)finish(wanted&&photos.length!==wanted.size?new Error('部分照片已變更，請返回時間軸重新開啟'):null);}
+            })();
+        });
+    },
+    /**
+     * 呼叫 Flickr API
+     * @param {string} method - API 方法名稱
+     * @param {Object} params - 額外參數
+     * @returns {Promise<Object>} API 回應
+     */
+    async call(method, params = {}) {
+        if(CONFIG.ACCOUNT_MODE){
+            if(method==='flickr.photosets.getList'){const data=await TimehutAccounts.request('/api/accounts/albums');return {stat:'ok',photosets:{photoset:data.albums.map(row=>({id:row.id,title:{_content:row.title}}))}};}
+            if(['flickr.photos.search','flickr.people.getPublicPhotos'].includes(method)){const query=new URLSearchParams({page:params.page||1,per_page:Math.min(30,params.per_page||30),query:params.text||''});return TimehutAccounts.request('/api/accounts/photos?'+query);}
+            throw new Error('此照片操作尚未接上我的帳戶');
+        }
+        const url = new URL(CONFIG.FLICKR_API_BASE);
+
+        const queryParams = {
+            method,
+            api_key: CONFIG.FLICKR_API_KEY,
+            format: 'json',
+            nojsoncallback: 1,
+            ...params
+        };
+
+        Object.entries(queryParams).forEach(([key, value]) => {
+            url.searchParams.append(key, value);
+        });
+
+        try {
+            const response = await fetch(url.toString());
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.stat !== 'ok') {
+                throw new Error(data.message || 'Flickr API error');
+            }
+
+            return data;
+        } catch (error) {
+            console.error('Flickr API Error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 取得使用者的相簿列表
+     * @returns {Promise<Array>} 相簿列表
+     */
+    async getAlbums() {
+        const data = await this.call('flickr.photosets.getList', {
+            user_id: CONFIG.FLICKR_USER_ID
+        });
+
+        return data.photosets?.photoset || [];
+    },
+
+    /**
+     * 取得相簿中的照片
+     * @param {string} albumId - 相簿 ID
+     * @param {number} page - 頁碼
+     * @param {number} perPage - 每頁數量
+     * @returns {Promise<Object>} { photos, total, pages }
+     */
+    /**
+     * 取得相簿中的照片 (透過後端 Proxy 以存取私有照片)
+     * @param {string} albumId - 相簿 ID
+     * @param {number} page - 頁碼
+     * @param {number} perPage - 每頁數量
+     * @returns {Promise<Object>} { photos, total, pages }
+     */
+    async getAlbumPhotos(albumId, page = 1, perPage = CONFIG.PHOTOS_PER_PAGE) {
+        if(CONFIG.ACCOUNT_MODE){const data=await TimehutAccounts.request(`/api/album/${encodeURIComponent(albumId)}/photos?page=${page}&per_page=${Math.min(30,perPage)}`);return {photos:data.photoset.photo||[],total:Number(data.photoset.total),pages:Number(data.photoset.pages),page:Number(data.photoset.page)};}
+        // Use backend proxy to access private photos
+        const url = `${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/photos?page=${page}&per_page=${perPage}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+
+            if (data.stat !== 'ok') {
+                throw new Error(data.message || 'Flickr API error');
+            }
+
+            const photoset = data.photoset;
+            return {
+                photos: photoset.photo || [],
+                total: parseInt(photoset.total, 10),
+                pages: parseInt(photoset.pages, 10),
+                page: parseInt(photoset.page, 10)
+            };
+        } catch (error) {
+            console.error('API Proxy Error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 取得使用者所有公開照片（如果沒有設定相簿）
+     * @param {number} page - 頁碼
+     * @param {number} perPage - 每頁數量
+     * @returns {Promise<Object>} { photos, total, pages }
+     */
+    async getPublicPhotos(page = 1, perPage = CONFIG.PHOTOS_PER_PAGE) {
+        const data = await this.call('flickr.people.getPublicPhotos', {
+            user_id: CONFIG.FLICKR_USER_ID,
+            extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,url_o,media',
+            page,
+            per_page: perPage
+        });
+
+        const photos = data.photos;
+
+        return {
+            photos: photos.photo || [],
+            total: parseInt(photos.total, 10),
+            pages: parseInt(photos.pages, 10),
+            page: parseInt(photos.page, 10)
+        };
+    },
+
+    /**
+     * 取得照片詳細資訊
+     * @param {string} photoId - 照片 ID
+     * @returns {Promise<Object>} 照片資訊
+     */
+    async getPhotoInfo(photoId) {
+        const data = await this.call('flickr.photos.getInfo', {
+            photo_id: photoId
+        });
+
+        return data.photo;
+    },
+
+    /**
+     * 取得影片來源 URL (透過 getSizes)
+     * @param {Object} photo - 照片物件
+     * @returns {Promise<string>} 影片 URL (MP4)
+     */
+    /**
+     * 取得影片來源 URL (透過 getSizes)
+     * @param {Object} photo - 照片物件
+     * @returns {Promise<string>} 影片 URL (MP4)
+     */
+    async getVideoUrl(photo) {
+        if (photo?.media !== 'video' || !photo.id) throw new Error('找不到可播放的影片');
+        if(CONFIG.ACCOUNT_MODE){if(!photo.videoPlayback)throw new Error('影片來源尚未確認');return photo.videoPlayback;}
+        return `${CONFIG.UPLOAD_API_URL}/api/photo/${encodeURIComponent(photo.id)}/video?purpose=playback`;
+    },
+
+    /**
+     * 建構照片 URL
+     * @param {Object} photo - 照片物件
+     * @param {string} size - 尺寸代碼 (sq, t, s, m, l, o)
+     * @returns {string} 照片 URL
+     */
+    getPhotoUrl(photo, size = 'm') {
+        // If URL is already in photo object
+        const urlKey = `url_${size}`;
+        if (photo[urlKey]) {
+            return photo[urlKey];
+        }
+        if(CONFIG.ACCOUNT_MODE)return '';
+
+        // Build URL from photo data
+        const sizeMap = {
+            'sq': '_sq',  // 75x75
+            't': '_t',    // 100px
+            's': '_s',    // 240px
+            'm': '_m',    // 500px
+            'l': '_b',    // 1024px
+            'o': '_o'     // Original
+        };
+
+        const suffix = sizeMap[size] || '_m';
+        return `https://live.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}${suffix}.jpg`;
+    },
+
+    /**
+     * 建構照片頁面 URL
+     * @param {Object} photo - 照片物件
+     * @returns {string} Flickr 照片頁面 URL
+     */
+    getPhotoPageUrl(photo) {
+        if(CONFIG.ACCOUNT_MODE)return '#';
+        return `https://www.flickr.com/photos/${CONFIG.FLICKR_USER_ID}/${photo.id}`;
+    },
+
+    /**
+     * 搜尋照片（支援標籤搜尋）
+     * For private photos, uses local filtering from pre-loaded album data
+     * @param {string} query - 搜尋關鍵字
+     * @param {Object} options - 額外選項 (albumId, page, perPage, allPhotos)
+     * @returns {Promise<Object>} 搜尋結果
+     */
+    async searchPhotos(query, options = {}) {
+        if(CONFIG.ACCOUNT_MODE){const params=new URLSearchParams({query:query||'',page:options.page||1,per_page:Math.min(30,options.perPage||30)});const selected=Number.parseInt(TimehutStorage.local.getItem('timehut_current_child')||'0',10),album=CONFIG.CHILDREN[selected];if(album)params.set('album',album.albumId);const result=await TimehutAccounts.request('/api/accounts/photos?'+params);return {photos:result.photos.photo||[],total:Number(result.photos.total),pages:Number(result.photos.pages),page:Number(result.photos.page)};}
+        // If we have pre-loaded photos, filter locally (for private albums)
+        if (options.allPhotos && options.allPhotos.length > 0) {
+            const filtered = this.filterPhotosLocally(options.allPhotos, query);
+            const page = options.page || 1;
+            const perPage = options.perPage || 50;
+            const start = (page - 1) * perPage;
+            const paged = filtered.slice(start, start + perPage);
+
+            return {
+                photos: paged,
+                total: filtered.length,
+                pages: Math.ceil(filtered.length / perPage),
+                page: page
+            };
+        }
+
+        // Fallback: try Flickr public API search (for public photos)
+        try {
+            const data = await this.call('flickr.photos.search', {
+                user_id: CONFIG.FLICKR_USER_ID,
+                text: query,
+                tags: query.replace(/\s+/g, ','),
+                tag_mode: 'any',
+                extras: 'date_taken,date_upload,description,tags,url_sq,url_t,url_s,url_m,url_l,media',
+                page: options.page || 1,
+                per_page: options.perPage || CONFIG.PHOTOS_PER_PAGE
+            });
+
+            const photos = data.photos;
+            return {
+                photos: photos.photo || [],
+                total: parseInt(photos.total, 10),
+                pages: parseInt(photos.pages, 10),
+                page: parseInt(photos.page, 10)
+            };
+        } catch (error) {
+            console.error('Search API failed, returning empty:', error);
+            return { photos: [], total: 0, pages: 0, page: 1 };
+        }
+    },
+
+    /**
+     * 本地過濾照片（搜尋標題、描述、標籤）
+     * @param {Array} photos - 照片陣列
+     * @param {string} query - 搜尋關鍵字
+     * @returns {Array} 過濾後的照片
+     */
+    filterPhotosLocally(photos, query) {
+        if (!query) return photos;
+
+        const lowerQuery = query.toLowerCase();
+
+        return photos.filter(photo => {
+            const title = (photo.title || '').toLowerCase();
+            // Handle Flickr description which can be { _content: "..." } or string
+            let descStr = '';
+            if (photo.description) {
+                if (typeof photo.description === 'object' && photo.description._content) {
+                    descStr = photo.description._content;
+                } else if (typeof photo.description === 'string') {
+                    descStr = photo.description;
+                }
+            }
+            const description = descStr.toLowerCase();
+            const tags = (photo.tags || '').toLowerCase();
+
+            return title.includes(lowerQuery) ||
+                description.includes(lowerQuery) ||
+                tags.includes(lowerQuery);
+        });
+    }
+};
+
+// Make FlickrAPI globally available
+window.FlickrAPI = FlickrAPI;

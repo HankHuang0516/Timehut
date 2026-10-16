@@ -4,6 +4,43 @@
  */
 
 const FlickrAPI = {
+    // A page reload intentionally loses the account's in-memory photo cache.
+    // Read bounded pages concurrently and expose matching rows as they arrive.
+    async getAlbumDayPhotos(albumId, date, onProgress = () => {}, requestedIds = null) {
+        const perPage = 30, results = new Map(), ids = new Set();
+        const wanted = requestedIds ? new Set(requestedIds) : null;
+        let pages = 1, next = 2, completed = 0, stopped = false;
+        const photoDate = photo => photo.datetaken?.split(' ')[0]
+            || new Date(Number(photo.dateupload) * 1000).toISOString().slice(0, 10);
+        const accept = (data, page) => {
+            if (!Array.isArray(data.photos) || !Number.isSafeInteger(data.pages)
+                || data.pages < 0 || data.pages > 10000 || data.page !== page)
+                throw new Error('相簿分頁資料尚未確認');
+            results.set(page, data.photos.filter(photo => photoDate(photo) === date
+                && (!wanted || wanted.has(String(photo.id)))));
+            completed++;
+            const rows = [...results].sort((a, b) => a[0] - b[0]).flatMap(row => row[1]);
+            ids.clear();
+            const unique = rows.filter(photo => !ids.has(photo.id) && ids.add(photo.id));
+            onProgress(unique, { completed, pages });
+            return unique;
+        };
+        const first = await this.getAlbumPhotos(albumId, 1, perPage);
+        pages = Math.max(1, first.pages);
+        let photos = accept(first, 1);
+        if (wanted && photos.length === wanted.size) return photos;
+        return new Promise((resolve,reject)=>{
+            let readers=Math.min(3,pages-1),settled=false;
+            const finish=(error)=>{if(settled)return;settled=true;stopped=true;if(error)reject(error);else resolve(photos);};
+            if(!readers){finish(wanted&&photos.length!==wanted.size?new Error('部分照片已變更，請返回時間軸重新開啟'):null);return;}
+            for(let reader=0;reader<readers;reader++)(async()=>{
+                try{while(!stopped){const page=next++;if(page>pages)return;const data=await this.getAlbumPhotos(albumId,page,perPage);if(stopped)return;
+                    if(Math.max(1,data.pages)!==pages)throw new Error('相簿內容已變更，請重新載入');photos=accept(data,page);
+                    if(wanted&&photos.length===wanted.size){finish();return;}
+                }}catch(error){if(!settled)finish(error);}finally{readers--;if(!readers&&!settled)finish(wanted&&photos.length!==wanted.size?new Error('部分照片已變更，請返回時間軸重新開啟'):null);}
+            })();
+        });
+    },
     /**
      * 呼叫 Flickr API
      * @param {string} method - API 方法名稱

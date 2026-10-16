@@ -64,10 +64,10 @@ function requireOwner(store,expectedId){
  return row.ownerUserId;
 }
 function familyContext(store,userId){
- const owner=requireOwner(store);if(userId!==owner)throw new Error('Private household unavailable');return structuredClone(store.state.legacyHousehold.children);
+ const owner=requireOwner(store);if(userId!==owner)throw new Error('Private household unavailable');return structuredClone(store.state.legacyHousehold.children.filter(child=>store.state.albums[child.albumId].archivedAt===undefined));
 }
 function legacyAlbumTarget(store,userId,albumId){
  store.assertAvailable();validateLegacyHousehold(store.state);const row=store.state.legacyHousehold;
- return row?.status==='ready'&&row.ownerUserId===userId&&row.children.some(child=>child.albumId===albumId)?albumId:null;
+ return row?.status==='ready'&&row.ownerUserId===userId&&store.state.albums[albumId]?.archivedAt===undefined&&row.children.some(child=>child.albumId===albumId)?albumId:null;
 }
 module.exports={legacyAlbumTarget,reserve,provision,status,requireOwner,familyContext,validateLegacyHousehold};

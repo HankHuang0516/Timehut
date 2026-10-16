@@ -20,8 +20,8 @@ const { setUserPhotoTags } = require('./photo-tags');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BACKEND_VERSION = '1.0.68';
-const BACKEND_BUILD = '2026.10.16.2';
+const BACKEND_VERSION = '1.0.69';
+const BACKEND_BUILD = '2026.10.16.3';
 
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 console.log("!!!!!!!! SERVER UNIFIED FIX STARTING - TIMESTAMP: " + Date.now() + " !!!!!!!");
@@ -601,7 +601,7 @@ if (process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true') {
     readQueue();
     accountErasure=new AccountErasure(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,legacyOwnerId,readQueue,isActive:id=>activeAccountUploads.has(id),...flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID)});
     const accounts = accountRouter(express, accountStore, { enabled: true, registrationEnabled: process.env.TIMEHUT_ACCEPT_SIGNUPS !== 'false', legacyOwnerId,
-        allowedOrigins: ['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'],onDeletion:()=>setImmediate(()=>accountErasure.run().catch(console.error)),photoView:(row,req)=>scopedAccountMedia.photoView(row,req),familyContext:id=>ownerBootstrap.familyContext(accountStore,id),familyPhotos:(req,res)=>originalFamilyMedia.photos(req,res) });
+        allowedOrigins: ['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'],onDeletion:()=>setImmediate(()=>accountErasure.run().catch(console.error)),photoView:(row,req)=>scopedAccountMedia.photoView(row,req),familyContext:id=>ownerBootstrap.familyContext(accountStore,id),familyPhotos:(req,res)=>originalFamilyMedia.photos(req,res),feedback:new (require('./account-feedback').AccountFeedback)(accountStore,UPLOADS_DIR) });
     const tickets = mediaTickets(accountStore,{legacyPhotoOwner:(userId,id)=>originalFamilyMedia?.eligible(userId,id)===true});
     scopedAccountMedia = accountMedia(accountStore, tickets, { readQueue, uploadsDirectory: UPLOADS_DIR,
         providerRequest: flickrRequest, credentials: flickrCredentials });

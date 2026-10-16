@@ -13,7 +13,7 @@ window.TimehutAccounts = (() => {
         const url = new URL(path, backend);
         return url.origin === backend && url.pathname.startsWith('/api/') && !url.hash;
     }
-    async function browserRequest(path, {method = 'GET', body, token = browserToken, expectedOwner = profile?.user?.id} = {}) {
+    async function browserRequest(path, {method = 'GET', body, token = browserToken, expectedOwner = profile?.user?.id, authRetry=true} = {}) {
         if (!pathAllowed(path)) throw new Error('此帳戶操作不支援');
         const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 20000);
         pending.add(controller);
@@ -21,15 +21,62 @@ window.TimehutAccounts = (() => {
             const response = await fetch(backend + path, {method, redirect:'error', credentials:cookieMode?'same-origin':'omit', cache:'no-store', signal:controller.signal,
                 headers:{Accept:'application/json', ...(body ? {'Content-Type':'application/json'} : {}), ...(token ? {Authorization:`Bearer ${token}`} : {}), ...(cookieMode&&expectedOwner?{'X-Timehut-Expected-User':expectedOwner}:{})},
                 ...(body ? {body:JSON.stringify(body)} : {})});
-            if (response.status === 401) { const error = new Error('登入已失效，請重新登入'); error.unauthorized = true; throw error; }
+            if(response.status===401&&cookieMode&&authRetry&&method==='GET'&&!pendingLogout()){await refreshCookie(expectedOwner);return browserRequest(path,{method,body,token,expectedOwner,authRetry:false});}
+            if (response.status === 401) { const signingIn=method==='POST'&&['/api/accounts/session','/api/accounts/login'].includes(path);const error = new Error(signingIn?'登入未成功，請確認帳號與密碼。':'登入已失效，請重新登入'); error.unauthorized = !signingIn; throw error; }
             const actor=response.headers.get('X-Timehut-Account');if(cookieMode&&profile&&token===browserToken&&actor&&actor!==profile.user.id&&!['/api/accounts/session','/api/accounts/login','/api/accounts/register'].includes(path)){const error=new Error('帳戶已變更，請重新開啟頁面');error.accountChanged=true;throw error;}
-            if (!response.ok) throw new Error(response.status === 429 ? '操作較頻繁，請稍後重試' : '操作未完成，請確認內容後重試');
+            if (!response.ok){const error=new Error(response.status === 429 ? '操作較頻繁，請稍後重試' : '操作未完成，請確認內容後重試');error.status=response.status;throw error;}
             return await response.json();
         } catch (error) {
             if (error.name === 'AbortError') throw new Error('連線暫時未完成，請稍後重試');
             throw error;
         } finally { clearTimeout(timer); pending.delete(controller); }
     }
+    let coordinationDB=null;
+    async function cookieCoordination(task){
+        if(navigator.locks?.request)return navigator.locks.request('timehut-cookie-refresh',()=>task(async()=>{}));
+        // IndexedDB read/write transactions provide cross-document atomicity.
+        // This database contains only a short lease ID/time, never credentials.
+        if(!window.indexedDB)throw new Error('此瀏覽器無法協調登入續期，請更新瀏覽器或重新登入。');
+        coordinationDB??=new Promise((resolve,reject)=>{const request=indexedDB.open('timehut-session-coordination',1);request.onupgradeneeded=()=>request.result.createObjectStore('locks');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(new Error('登入續期協調暫時無法開啟'));});
+        const db=await coordinationDB,owner=crypto.randomUUID();
+        const lease=operation=>new Promise((resolve,reject)=>{const tx=db.transaction('locks','readwrite'),table=tx.objectStore('locks'),request=table.get('refresh');let result=false;
+            request.onsuccess=()=>{const old=request.result,now=Date.now();if(operation==='acquire'&&(!old||old.expiresAt<=now)||old?.owner===owner){result=true;if(operation==='release')table.delete('refresh');else table.put({owner,expiresAt:now+120000},'refresh');}};
+            tx.oncomplete=()=>resolve(result);tx.onerror=tx.onabort=()=>reject(new Error('登入續期協調尚未確認'));});
+        const end=performance.now()+25000;while(!await lease('acquire')){if(performance.now()>=end)throw new Error('其他頁面正在確認登入，請稍後重試');await new Promise(resolve=>setTimeout(resolve,100));}
+        let lost=false;const heartbeat=setInterval(()=>lease('renew').then(ok=>{if(!ok)lost=true;}).catch(()=>{lost=true;}),10000);
+        const verify=async()=>{if(lost||!await lease('renew'))throw new Error('登入續期已交由其他頁面處理，請重試。');};
+        try{await verify();return await task(verify);}finally{clearInterval(heartbeat);await lease('release').catch(()=>{});}
+    }
+    let cookieRefresh=null;
+    const refreshKey='timehut:remember-rotation';
+    async function refreshCookie(expectedOwner=null){
+        if(!cookieMode||pendingLogout())throw new Error('請先完成登出確認');
+        if(cookieRefresh)return cookieRefresh;
+        const authority=generation;
+        const run=async(verifyOwnership)=>{
+            await verifyOwnership();if(authority!==generation||pendingLogout())throw new Error('帳戶操作已變更');
+            // A different tab may already have refreshed the HttpOnly cookie.
+            try{const current=await browserRequest('/api/accounts/me',{token:null,expectedOwner,authRetry:false});if(current.expiresAt>Date.now()+60000)return current;}catch(error){if(!error.unauthorized)throw error;}
+            let attempt;try{attempt=JSON.parse(localStorage.getItem(refreshKey)||'null');}catch(_){}
+            if(!attempt||typeof attempt.id!=='string'||!Number.isSafeInteger(attempt.at)){attempt={id:crypto.randomUUID(),at:Date.now()};localStorage.setItem(refreshKey,JSON.stringify(attempt));}
+            try{
+                await verifyOwnership();let result=await browserRequest('/api/accounts/session/refresh',{method:'POST',body:{rotationId:attempt.id},token:null,expectedOwner,authRetry:false});
+                if(authority!==generation||pendingLogout())throw new Error('帳戶操作已變更');
+                if(expectedOwner&&result.user?.id!==expectedOwner){const error=new Error('帳戶已變更，請重新開啟頁面');error.accountChanged=true;throw error;}
+                const saved=JSON.parse(localStorage.getItem(refreshKey)||'null');if(saved?.id===attempt.id)localStorage.removeItem(refreshKey);
+                if(result.expiresAt<=Date.now()){
+                    const followup={id:crypto.randomUUID(),at:Date.now()};localStorage.setItem(refreshKey,JSON.stringify(followup));
+                    await verifyOwnership();result=await browserRequest('/api/accounts/session/refresh',{method:'POST',body:{rotationId:followup.id},token:null,expectedOwner,authRetry:false});
+                    if(authority!==generation||pendingLogout()||expectedOwner&&result.user?.id!==expectedOwner)throw new Error('帳戶操作已變更');
+                    if(result.expiresAt<=Date.now())throw new Error('登入續期尚未確認');localStorage.removeItem(refreshKey);
+                }
+                return result;
+            }catch(error){if(error.unauthorized){localStorage.removeItem(refreshKey);}throw error;}
+        };
+        cookieRefresh=cookieCoordination(run).then(result=>{if(profile&&authority===generation&&(!expectedOwner||profile.user.id===expectedOwner))profile={...profile,expiresAt:result.expiresAt};return result;}).finally(()=>{cookieRefresh=null;});
+        return cookieRefresh;
+    }
+    async function ensureFreshCookie(){if(cookieMode&&profile&&profile.expiresAt<=Date.now()+60000){const authority=generation;try{await refreshCookie(profile.user.id);}catch(error){if((error.unauthorized||error.accountChanged)&&authority===generation)clearBrowser();throw error;}}}
     function clearBrowser() { browserToken = null; profile = null; nativeEpoch = null; generation++; for (const controller of pending) controller.abort(); changed(); }
     function pendingLogout(){const raw=localStorage.getItem(logoutKey);if(!raw)return null;const row=JSON.parse(raw);if(!row||typeof row.owner!=='string'||typeof row.id!=='string')throw new Error('登出紀錄尚未確認');return row;}
     function confirmLogout(row){const current=pendingLogout();if(current?.id===row.id)localStorage.removeItem(logoutKey);}
@@ -146,6 +193,27 @@ window.TimehutAccounts = (() => {
             async accountSignOut(scope){const authority=generation;return unwrap(await raw.accountSignOut(scope),authority,{closed:true});}
         };
     }
+    let webInitializationError=null,webRecovery=null;
+    async function initializeCookie(){
+            const authority=generation;let intent=pendingLogout();
+            try{
+                if(intent){try{await logoutRequest(null,intent.owner);confirmLogout(intent);return;}catch(error){if(error.status!==409)throw error;}}
+                const current=await browserRequest('/api/accounts/me',{token:null,expectedOwner:null});
+                if(authority!==generation)return {native:false,authenticated:false};
+                // Logout may have been written by another tab while /me was in flight.
+                intent=pendingLogout();
+                if(intent&&intent.owner===current.user.id){await logoutRequest(null,intent.owner);confirmLogout(intent);}
+                else if(authority===generation){if(intent)confirmLogout(intent);profile=current;}
+            }catch(error){
+                if(authority!==generation)return {native:false,authenticated:false};
+                if(error.unauthorized){if(intent)confirmLogout(intent);}else throw error;
+            }
+    }
+    async function ensureReady(){
+        await ready;if(!webInitializationError)return;
+        if(!webRecovery)webRecovery=initializeCookie().then(()=>{webInitializationError=null;}).catch(error=>{webInitializationError=error;throw error;}).finally(()=>{webRecovery=null;});
+        await webRecovery;
+    }
     const ready = (async () => {
         if (window.Capacitor?.isNativePlatform?.() && ['android','ios'].includes(window.Capacitor.getPlatform())) {
             nativeIOS = window.Capacitor.getPlatform() === 'ios';
@@ -155,24 +223,11 @@ window.TimehutAccounts = (() => {
             if (status.authenticated) try { profile = await native.accountRequest({method:'GET', path:'/api/accounts/me'}); }
             catch (error) { if ((await native.accountStatus()).authenticated) throw error; }
         }
-        else if(cookieMode){
-            const authority=generation;let intent=pendingLogout();
-            try{
-                const current=await browserRequest('/api/accounts/me',{token:null,expectedOwner:null});
-                if(authority!==generation)return {native:false,authenticated:false};
-                // Logout may have been written by another tab while /me was in flight.
-                intent=pendingLogout();
-                if(intent&&intent.owner===current.user.id){await logoutRequest(null,intent.owner);confirmLogout(intent);}
-                else if(authority===generation)profile=current;
-            }catch(error){
-                if(authority!==generation)return {native:false,authenticated:false};
-                if(error.unauthorized){if(intent)confirmLogout(intent);}else throw error;
-            }
-        }
+        else if(cookieMode)try{await initializeCookie();}catch(error){webInitializationError=error;}
         return {native:!!native, authenticated:!!profile};
     })();
     async function request(path, {method = 'GET', body} = {}) {
-        await ready; if (!profile) throw new Error('請先登入帳戶');
+        await ensureReady(); await ensureFreshCookie(); if (!profile) throw new Error('請先登入帳戶');
         if (!pathAllowed(path)) throw new Error('此帳戶操作不支援');
         const authority = generation;
         const closing = nativeIOS && method === 'DELETE' && path === '/api/accounts/me' ? {generation: authority} : null;
@@ -188,14 +243,14 @@ window.TimehutAccounts = (() => {
             throw error;
         } finally { if (closingIntent === closing) closingIntent = null; }
     }
-    async function signIn({username, password, displayName = '', register = false}) {
-        await ready;if(native&&!nativeIOS&&pendingNativeLogin)throw new Error('請先確認目前的登入結果');const intent=native?{...(nativeLogoutScope||{expectedGeneration:nativeEpoch,expectedOwner:profile?.user?.id??null}),pendingLogin:!nativeIOS}:null;if(native)clearBrowser();generation++;const authority=generation;if(native){pendingNativeLogin=intent;nativeLogoutScope=intent;}
+    async function signIn({username, password, displayName = '', register = false, rememberDevice = false}) {
+        await ensureReady();if(native&&!nativeIOS&&pendingNativeLogin)throw new Error('請先確認目前的登入結果');const intent=native?{...(nativeLogoutScope||{expectedGeneration:nativeEpoch,expectedOwner:profile?.user?.id??null}),pendingLogin:!nativeIOS}:null;if(native)clearBrowser();generation++;const authority=generation;if(native){pendingNativeLogin=intent;nativeLogoutScope=intent;}
         try {
         let next;
         if (native) next = await native.accountSignIn({username, password, displayName, register});
         else {
             if (register) await browserRequest('/api/accounts/register', {method:'POST', body:{username, password, displayName}, token:null});
-            const login = await browserRequest(cookieMode?'/api/accounts/session':'/api/accounts/login', {method:'POST', body:{username, password}, token:null});
+            const login = await browserRequest(cookieMode?'/api/accounts/session':'/api/accounts/login', {method:'POST', body:{username, password,...(cookieMode?{rememberDevice:rememberDevice===true}:{})}, token:null});
             if(cookieMode){if(authority!==generation)throw new Error('登入操作已變更，請重試');next=login;}
             else {
             if (typeof login.token !== 'string' || !/^[A-Za-z0-9_-]{32,128}$/.test(login.token)) throw new Error('登入回應尚未確認');
@@ -209,7 +264,7 @@ window.TimehutAccounts = (() => {
         } finally {if(pendingNativeLogin===intent)pendingNativeLogin=null;}
     }
     async function signOut() {
-        await ready;
+        await ensureReady();
         if (nativeIOS) {
             const scope = pendingNativeLogin||nativeLogoutScope||{expectedGeneration: nativeEpoch, expectedOwner: profile?.user?.id ?? null};
             clearBrowser(); const authority = generation;
@@ -230,9 +285,9 @@ window.TimehutAccounts = (() => {
         try { await logoutRequest(token,expectedOwner);if(intent)confirmLogout(intent);return {signedOut:true, serverConfirmed:true}; }
         catch (error) { if(intent&&error.unauthorized)confirmLogout(intent);return {signedOut:true, serverConfirmed:!!error.unauthorized}; }
     }
-    function status() { return {authenticated:!!profile, native:!!native, user:profile?.user ? {...profile.user} : null, legacyOwner:!!profile?.legacyOwner, generation, backend}; }
+    function status() { return {authenticated:!!profile, unconfirmed:!!webInitializationError, native:!!native, user:profile?.user ? {...profile.user} : null, legacyOwner:!!profile?.legacyOwner, generation, backend}; }
     async function mediaFetch(value,options={}) {
-        await ready;if(!profile)throw new Error('請先登入帳戶');const url=new URL(value),authority=generation,owner=profile.user.id,token=browserToken;
+        await ensureReady();await ensureFreshCookie();if(!profile)throw new Error('請先登入帳戶');const url=new URL(value),authority=generation,owner=profile.user.id,token=browserToken;
         if(url.origin!==backend||url.username||url.password||url.hash||!/^\/api\/(photo\/[0-9]+\/(image|video)|uploads\/file\/[A-Za-z0-9_-]+)$/.test(url.pathname))throw new Error('媒體來源尚未確認');
         const controller=new AbortController(),cancel=()=>controller.abort();pending.add(controller);
         const cleanup=()=>{clearTimeout(timer);pending.delete(controller);options.signal?.removeEventListener('abort',cancel);};
@@ -263,7 +318,7 @@ window.TimehutAccounts = (() => {
     }
     async function deletionStatus(receipt) { if (typeof receipt !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(receipt)) throw new Error('請輸入完整的刪除查詢碼'); return browserRequest('/api/accounts/deletion/'+receipt, {token:null}); }
     async function download(photo) {
-        await ready; if (!profile || !photo?.id) throw new Error('請先登入並選擇自己的照片');
+        await ensureReady(); if (!profile || !photo?.id) throw new Error('請先登入並選擇自己的照片');
         const url = photo.media === 'video' ? photo.videoOriginal : photo.url_o;
         const source = url && new URL(url), variant = photo.media === 'video' ? 'video' : 'image';
         if (!source || source.origin !== backend || source.username || source.password || source.hash || source.pathname !== `/api/photo/${photo.id}/${variant}` || (variant === 'video' ? source.searchParams.get('purpose') !== 'original' : source.searchParams.get('size') !== 'o')) throw new Error('原檔來源尚未確認');
@@ -281,7 +336,7 @@ window.TimehutAccounts = (() => {
         } finally { clearTimeout(timer); pending.delete(controller); }
     }
     async function upload(albumId, files) {
-        await ready; if (!profile || !(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(albumId || '') || profile.legacyOwner===true&&/^[0-9]{1,32}$/.test(albumId||''))) throw new Error('請登入並選擇自己的相簿');
+        await ensureReady(); if (!profile || !(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(albumId || '') || profile.legacyOwner===true&&/^[0-9]{1,32}$/.test(albumId||''))) throw new Error('請登入並選擇自己的相簿');
         const authority = generation, owner = profile.user.id;
         if (native) {
             const prepared = await native.prepareUpload(), accepted = [], errors = [...(prepared.errors || [])];

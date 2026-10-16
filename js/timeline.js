@@ -56,7 +56,13 @@ function navigateToAlbum(momentId) {
         (window.TimehutStorage?.session || sessionStorage).setItem('albumMomentId', momentId);
         const album = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
         const date = momentData.photos[0].datetaken?.split(' ')[0] || new Date(momentData.timestamp).toISOString().slice(0, 10);
-        window.location.href = `album.html?${new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex })}`;
+        const query = new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex });
+        const photoIds = momentData.photos.map(photo => String(photo.id));
+        // Carry only bounded identifiers, never private media URLs or credentials.
+        // The next page still reads through the authenticated album endpoint.
+        if (photoIds.length <= 200 && photoIds.every(id => /^[0-9]{1,32}$/.test(id)))
+            query.set('photos', [...new Set(photoIds)].join(','));
+        window.location.href = `album.html?${query}`;
     } else {
         console.error('Moment data not found:', momentId);
     }

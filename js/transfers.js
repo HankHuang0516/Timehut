@@ -268,6 +268,8 @@ window.TimehutTransfers = (() => {
         }else networkStatus.textContent=plugin?'此 App 版本尚不支援 Wi-Fi 限制；請勿依此頁假設已限制網路。':'網頁版無法限制傳輸網路；請先確認手機的 Wi-Fi 連線。';
         const album = document.getElementById('transferAlbum');
         CONFIG.CHILDREN.forEach(child => album.add(new Option(child.name, child.albumId)));
+        const chosenChild = Number((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child'));
+        if (Number.isInteger(chosenChild) && CONFIG.CHILDREN[chosenChild]) album.value = CONFIG.CHILDREN[chosenChild].albumId;
         const previewObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries=>{
             entries.forEach(entry=>{if(entry.isIntersecting){previewObserver.unobserve(entry.target);entry.target.loadPreview?.();}});
         },{rootMargin:'160px 0px'}) : null;
@@ -343,13 +345,14 @@ window.TimehutTransfers = (() => {
                         const label=document.createElement('label'); label.textContent='這個檔案的標籤';
                         const input=document.createElement('input'); input.className='upload-input'; input.value=drafts.get(row.id) ?? document.getElementById('transferTags').value.trim(); input.placeholder='例如：公園 家人 開心';
                         input.addEventListener('input',()=>drafts.set(row.id,input.value));label.append(input);card.append(label);
-                        add('開始上傳',()=>{
+                        add('重試加入上傳佇列',()=>{
                             const actor=window.TimehutAccounts?.status().user;
                             if(CONFIG.ACCOUNT_MODE&&!actor?.username)throw new Error('請先登入帳戶');
                             const uploader=CONFIG.ACCOUNT_MODE?actor.username:CONFIG.FAMILY_MEMBERS?.[0]?.name;
                             const tags=[uploader?`uploader:${uploader}`:'',input.value.trim()].filter(Boolean).join(' ');
                             return plugin.enqueueUpload({id:row.id,endpoint:CONFIG.UPLOAD_API_URL,albumId:album.value,tags});
                         });
+                        add('停止手機傳輸',()=>plugin.cancel({id:row.id}));
                     }
                     else if (['queued','transferring','waiting_network','waiting_wifi'].includes(row.stage)) add('停止手機傳輸',()=>plugin.cancel({id:row.id}));
                     if (['failed','cancelled','waiting_network','waiting_wifi','waiting_system'].includes(row.stage) && row.endpoint && !row.networkPolicyPending) add('重試',()=>plugin.retry({id:row.id}));
@@ -369,7 +372,56 @@ window.TimehutTransfers = (() => {
                 listEl.append(card);
             }
         }
-        document.getElementById('nativePickButton').addEventListener('click',async()=>{try{const result=await plugin.prepareUpload();if(result.errors?.length)document.getElementById('transferCapability').textContent=result.errors.join('；');await render();}catch(error){document.getElementById('transferCapability').textContent=error.message;}});
+        const pickButton=document.getElementById('nativePickButton'), capabilityText=document.getElementById('transferCapability');
+        let pickBusy=false, stopBusy=false, cancelPicked=false, pickedActor=null;
+        window.addEventListener('timehut-account-changed',()=>{cancelPicked=true;pickedActor=null;});
+        const pickedIds=new Set(), stopPicked=document.createElement('button');
+        stopPicked.type='button';stopPicked.className='btn-secondary';stopPicked.textContent='停止這次選取的傳輸';stopPicked.hidden=true;pickButton.after(stopPicked);
+        stopPicked.addEventListener('click',async()=>{
+            if(stopBusy||CONFIG.ACCOUNT_MODE&&TimehutAccounts.status().user?.id!==pickedActor)return;
+            const stoppingActor=pickedActor,stoppingIds=new Set(pickedIds);stopBusy=true;cancelPicked=true;stopPicked.disabled=true;pickButton.disabled=true;
+            let stopped=0;const failures=[];
+            try{
+                const rows=await list();
+                if(CONFIG.ACCOUNT_MODE&&TimehutAccounts.status().user?.id!==stoppingActor)return;
+                for(const row of rows.filter(row=>stoppingIds.has(row.id)&&!['completed','photo_deleted','saved','cancelled'].includes(row.stage)))
+                    try{if(CONFIG.ACCOUNT_MODE&&TimehutAccounts.status().user?.id!==stoppingActor)throw Error('帳戶已變更，停止操作尚未確認');await plugin.cancel({id:row.id});stopped++;}catch(error){failures.push(error.message);}
+                capabilityText.textContent=failures.length?'部分停止結果尚未確認，請核對下方任務後重試。':`已停止 ${stopped} 個未完成傳輸；已完成的照片仍會保留。`;
+                await render();
+            }catch(error){capabilityText.textContent=error.message;}
+            finally{stopBusy=false;stopPicked.disabled=false;if(!pickBusy)pickButton.disabled=false;}
+        });
+        pickButton.textContent='選擇照片／影片並上傳';
+        pickButton.addEventListener('click',async()=>{
+            if(pickBusy||stopBusy)return;
+            const destination=album.value, actor=window.TimehutAccounts?.status().user;
+            if(!CONFIG.CHILDREN.some(child=>String(child.albumId)===destination)||(CONFIG.ACCOUNT_MODE&&!actor?.id)){
+                capabilityText.textContent='請先登入並選擇上傳相簿。';return;
+            }
+            const uploader=CONFIG.ACCOUNT_MODE?actor.username:CONFIG.FAMILY_MEMBERS?.[0]?.name;
+            const tags=[uploader?`uploader:${uploader}`:'',document.getElementById('transferTags').value.trim()].filter(Boolean).join(' ');
+            pickBusy=true;pickButton.disabled=true;album.disabled=true;document.getElementById('transferTags').disabled=true;
+            cancelPicked=false;pickedIds.clear();pickedActor=actor?.id;stopPicked.hidden=true;
+            let accepted=0;const errors=[];
+            try{
+                capabilityText.textContent='請選取照片／影片；確認選取後會自動加入上傳佇列。';
+                const result=await plugin.prepareUpload(),seen=new Set();
+                errors.push(...(result.errors||[]));
+                for(const row of result.tasks||[])if(typeof row.id==='string')pickedIds.add(row.id);
+                stopPicked.hidden=pickedIds.size===0;
+                for(const row of result.tasks||[]){
+                    if(typeof row.id!=='string'||seen.has(row.id))continue;seen.add(row.id);
+                    if(CONFIG.ACCOUNT_MODE&&window.TimehutAccounts?.status().user?.id!==actor.id)throw new Error('帳戶已變更，未送出的原檔會保留在原帳戶。');
+                    if(cancelPicked){await plugin.cancel({id:row.id});continue;}
+                    try{await plugin.enqueueUpload({id:row.id,endpoint:CONFIG.UPLOAD_API_URL,albumId:destination,tags});accepted++;}
+                    catch(error){errors.push(`${row.filename||'檔案'}：${error.message||'加入佇列尚未確認，請核對下方狀態。'}`);}
+                    capabilityText.textContent=`已加入 ${accepted}／${result.tasks.length} 個上傳佇列，手機會接續傳輸。`;
+                }
+                capabilityText.textContent=cancelPicked?'已要求停止這次選取，請核對下方任務狀態。':errors.length?`已加入 ${accepted} 個；${errors.join('；')}`:accepted?`已加入 ${accepted} 個上傳佇列，請在下方查看進度與 Flickr 完成結果。`:'未選取檔案，沒有新增上傳。';
+                await render();
+            }catch(error){capabilityText.textContent=error.message||'選取結果尚未確認，請核對下方任務。';}
+            finally{pickBusy=false;pickButton.disabled=stopBusy;album.disabled=false;document.getElementById('transferTags').disabled=false;}
+        });
         document.getElementById('refreshTransfers').addEventListener('click',render);
         document.querySelectorAll('[data-transfer-filter]').forEach(button => button.addEventListener('click', () => {
             filter=button.dataset.transferFilter;

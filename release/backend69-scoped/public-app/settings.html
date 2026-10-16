@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016-hotfix69.1"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016-hotfix69.1"></script>
+    <link rel="stylesheet" href="css/service-info.css"><script src="js/service-info.js?v=20261016.1" defer></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="黃家小屋 - 設定">
+    <title>黃家小屋 - 設定</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=20261014.2">
+    <style>
+        .settings-page {
+            min-height: 100vh;
+            background: var(--color-background);
+            padding-bottom: 40px;
+        }
+
+        .settings-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--color-primary);
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: var(--color-surface);
+            border: none;
+            border-radius: 12px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: var(--color-primary);
+            transform: scale(1.05);
+        }
+
+        .settings-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        .settings-section {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .child-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: var(--color-background);
+            border-radius: var(--radius-lg);
+            margin-bottom: 12px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .child-card:hover {
+            border-color: var(--color-primary);
+        }
+
+        .child-emoji {
+            font-size: 2.5rem;
+        }
+
+        .child-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .child-name {
+            font-weight: 600;
+            overflow-wrap: anywhere;
+            font-size: 1.1rem;
+            color: var(--color-text);
+            margin-bottom: 4px;
+        }
+
+        .child-age {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+        }
+
+        .child-birthdate {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .birthdate-label {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+        }
+
+        .birthdate-input {
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .birthdate-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(255, 236, 0, 0.3);
+        }
+
+        .save-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+            color: #333;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(255, 236, 0, 0.3);
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(255, 236, 0, 0.4);
+        }
+
+        .save-btn:active {
+            transform: scale(0.98);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #333;
+            color: white;
+            border-radius: 12px;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideUp 0.3s ease;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
+    <script defer src="js/dialogs.js?v=20261016.1"></script>
+    <script defer src="js/storybook.js?v=20261016.1"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#fff3be">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script defer src="js/transfers.js?v=20261016.1"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
+</head>
+
+<body class="storybook-page settings-page">
+    <div class="settings-container">
+        <div class="settings-header">
+            <a href="timeline.html" class="back-btn" title="返回">←</a>
+            <h1 class="settings-title">⚙️ 設定</h1>
+        </div>
+
+        <div class="settings-section">
+            <h2 class="section-title">👶 小孩資料</h2>
+            <div id="childrenList">
+                <!-- 動態生成 -->
+            </div>
+        </div>
+
+        <p id="settingsStatus" class="settings-status toast" role="status" aria-live="polite" hidden></p>
+        <button class="save-btn" onclick="saveSettings()">
+            💾 儲存設定
+        </button>
+        <section class="settings-section device-settings" aria-labelledby="deviceSettingsTitle">
+            <h2 class="section-title" id="deviceSettingsTitle">手機 App 與權限</h2>
+            <div class="device-status-grid">
+                <div class="device-status-card"><h3>目前開啟方式</h3><p id="deviceAppStatus" role="status">正在確認…</p><a class="btn-secondary" href="install.html">查看安裝方式</a></div>
+                <div class="device-status-card"><h3>完成通知</h3><p id="deviceNotificationStatus" role="status">正在確認…</p><a class="btn-secondary" href="transfer.html">到傳輸中心設定</a></div>
+                <div class="device-status-card"><h3>保存照片與影片</h3><p id="devicePhotoStatus" role="status">正在確認…</p><a class="btn-secondary" href="transfer.html">查看下載與保存結果</a></div>
+            </div>
+            <p class="storybook-note">此處只查看目前狀態。開啟完成通知、保存至手機相簿時，才會依需要顯示權限提示。</p>
+            <button class="btn-secondary" id="refreshDeviceSettings" type="button">更新手機狀態</button>
+        </section>
+        <section class="settings-section service-card" aria-labelledby="serviceInfoTitle"><h2 class="section-title" id="serviceInfoTitle">服務資訊</h2><nav class="service-links" aria-label="服務資訊"><a href="privacy.html">隱私與資料使用</a><a href="support.html">使用與支援</a><a href="delete-account.html">刪除帳戶與資料</a></nav><p class="service-notice" data-flickr-attribution></p></section>
+    </div>
+
+
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/version.js?v=20261016.1"></script>
+    <script>
+        function parseBirthDate(value) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+            const [year, month, day] = value.split('-').map(Number);
+            const date = new Date(0);
+            date.setHours(0, 0, 0, 0);
+            date.setFullYear(year, month - 1, day);
+            return year > 0 && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+        }
+
+        function todayDate() {
+            const date = new Date(); date.setHours(0, 0, 0, 0); return date;
+        }
+
+        // 計算年齡
+        function calculateAge(birthDate) {
+            const birth = parseBirthDate(birthDate);
+            const now = new Date();
+
+            // Check for invalid date
+            if (!birth) {
+                return '日期無效';
+            }
+
+            let years = now.getFullYear() - birth.getFullYear();
+            let months = now.getMonth() - birth.getMonth();
+            if (now.getDate() < birth.getDate()) months--;
+
+            // Adjust for negative months
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
+
+            // Handle future birthdates
+            if (years < 0) {
+                return '尚未出生';
+            }
+
+            if (years >= 1) {
+                return `${years}歲${months}個月`;
+            } else if (months >= 1) {
+                return `${months}個月`;
+            } else {
+                return '新生兒';
+            }
+        }
+
+        // 取得儲存的出生日期
+        function getSavedBirthDate(index) {
+            const saved = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`);
+            return saved || CONFIG.CHILDREN[index].birthDate;
+        }
+
+        // 渲染小孩列表
+        function renderChildren() {
+            const container = document.getElementById('childrenList');
+
+            container.innerHTML = CONFIG.CHILDREN.map((child, index) => {
+                const birthDate = getSavedBirthDate(index);
+                const age = calculateAge(birthDate);
+
+                return `
+                    <div class="child-card">
+                        <span class="child-emoji">${child.emoji}</span>
+                        <div class="child-info">
+                            <div class="child-name">${escapeTimehutText(child.name)}</div>
+                            <div class="child-age">目前 ${age}</div>
+                        </div>
+                        <div class="child-birthdate">
+                            <label class="birthdate-label" for="birthdate-${index}">出生日期</label>
+                            <input type="date" 
+                                   class="birthdate-input" 
+                                   id="birthdate-${index}"
+                                   value="${birthDate}"
+                                   required
+                                   max="${todayDate().getFullYear()}-${String(todayDate().getMonth()+1).padStart(2,'0')}-${String(todayDate().getDate()).padStart(2,'0')}"
+                                   oninput="updateAge(${index})">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 更新年齡顯示
+        function updateAge(index) {
+            document.getElementById('settingsStatus').hidden = true;
+            const input = document.getElementById(`birthdate-${index}`);
+            const card = input.closest('.child-card');
+            const ageEl = card.querySelector('.child-age');
+
+            const date = parseBirthDate(input.value);
+            const valid = date && date <= todayDate();
+            input.setAttribute('aria-invalid', String(!valid));
+            ageEl.textContent = `目前 ${calculateAge(input.value)}`;
+        }
+
+        // 儲存設定
+        async function saveSettings() {
+            const inputs = CONFIG.CHILDREN.map((child, index) => document.getElementById(`birthdate-${index}`));
+            if (inputs.some(input => !parseBirthDate(input?.value) || parseBirthDate(input.value) > todayDate())) {
+                inputs.forEach((input, index) => updateAge(index));
+                showToast('請填寫有效且不晚於今天的出生日期', 'error'); return;
+            }
+            if(CONFIG.ACCOUNT_MODE){try{const result=await TimehutAccounts.request('/api/accounts/albums/dates',{method:'PUT',body:{updates:CONFIG.CHILDREN.map((child,index)=>({id:child.albumId,birthDate:inputs[index].value}))}});for(const child of CONFIG.CHILDREN){const saved=result.albums.find(album=>album.id===child.albumId);if(!saved)throw new Error('生日保存尚未確認');child.birthDate=saved.birthDate;}showToast('設定已儲存！');}catch(error){showToast(error.message||'生日尚未儲存，請稍後重試。','error');}return;}
+            const previous = [];
+            try {
+                inputs.forEach((input, index) => previous.push((window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`)));
+                inputs.forEach((input, index) => (window.TimehutStorage?.local || localStorage).setItem(`timehut_child_${index}_birthdate`, input.value));
+                showToast('設定已儲存！');
+            } catch (_) {
+                let restored = true;
+                previous.forEach((value, index) => {
+                    try { if (value === null) (window.TimehutStorage?.local || localStorage).removeItem(`timehut_child_${index}_birthdate`); else (window.TimehutStorage?.local || localStorage).setItem(`timehut_child_${index}_birthdate`, value); }
+                    catch (_) { restored = false; }
+                });
+                showToast(restored ? '設定無法儲存，原設定已保留。請確認瀏覽器儲存空間。' : '設定未完整儲存，請確認儲存空間後重新檢查兩個生日。', 'error');
+            }
+        }
+
+        // 顯示 Toast (with icon support)
+        function showToast(message, type = 'success') {
+            const icons = {
+                success: '✅',
+                error: '❌',
+                info: 'ℹ️'
+            };
+            const icon = icons[type] || '✅';
+
+            const toast = document.getElementById('settingsStatus');
+            toast.className = `settings-status toast ${type}`;
+            toast.textContent = `${icon} ${message}`;
+            toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+            toast.hidden = false;
+        }
+
+        // 初始化
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( renderChildren);
+    </script>
+    <!-- Version Footer -->
+    <div style="text-align: center; color: #666; padding: 20px; font-size: 0.8em; margin-top: auto;">
+        前端版本：<span id="fe-version">讀取中</span><br>
+        後端版本：<span id="be-version">確認中</span>
+    </div>
+
+    <script>
+        document.getElementById('fe-version').textContent = `候選版 ${TimehutBuild.version}`;
+
+        // Backend Version (Fetch from server)
+        const API_BASE = CONFIG.UPLOAD_API_URL;
+        (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${API_BASE}/health`)
+            .then(r => { if (!r.ok) throw new Error('版本查詢失敗'); return r.json(); })
+            .then(d => {
+                if (!d.version || typeof d.version !== 'string') throw new Error('沒有版本資料');
+                document.getElementById('be-version').textContent = d.version;
+            })
+            .catch(() => {
+                document.getElementById('be-version').textContent = '暫時無法確認';
+            });
+    </script>
+</body>
+
+</html>

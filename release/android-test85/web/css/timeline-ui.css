@@ -1,0 +1,130 @@
+/* Timeline refinement. Scoped to this page so other album flows keep their layout. */
+.timeline-page {
+    --color-background: #f7f6f2;
+    --color-text: #292d29;
+    --color-text-muted: #656b63;
+    --color-border: #e5e7de;
+    background: var(--color-background);
+}
+
+.timeline-page .header {
+    position: sticky;
+    height: auto;
+    min-height: 80px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px 28px;
+    padding: 12px 28px;
+    box-shadow: 0 2px 12px #292d2905;
+}
+
+.timeline-page .header-row-top,
+.timeline-page .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.timeline-page .header-row-top { flex: 1; margin: 0; }
+.timeline-page .header-right { margin-left: auto; padding-right: 0; gap: 8px; }
+.timeline-page .header-row-search { flex: 0 1 350px; }
+.timeline-page .search-box { max-width: none; padding: 4px 8px 4px 14px; border-radius: 14px; }
+.timeline-page .search-box input { min-width: 0; min-height: 44px; font-family: inherit; }
+.timeline-page .search-btn { min-height: 44px; }
+
+.timeline-page .header-btn {
+    width: auto;
+    min-width: 52px;
+    min-height: 48px;
+    height: auto;
+    border-radius: 12px;
+    padding: 8px 12px;
+    flex-direction: row;
+    gap: 6px;
+    color: var(--color-text);
+}
+
+.timeline-page .header-btn .btn-label { display: block; font-size: .85rem; }
+.timeline-page .upload-header-btn { background: #ffec00; margin: 0; }
+.timeline-page .header-btn.active { background: #fff5a4; box-shadow: inset 0 0 0 2px #8a7910; }
+.timeline-page .hamburger-btn { min-width: 44px; min-height: 44px; }
+.timeline-page .main-content { margin-top: 0; min-height: calc(100vh - 80px); }
+.timeline-page .sidebar-left,
+.timeline-page .sidebar-right { top: var(--timeline-header-height, 80px); height: calc(100dvh - var(--timeline-header-height, 80px)); }
+.timeline-page .sidebar-left { background: transparent; border: 0; }
+.timeline-page .sidebar-right { background: transparent; border: 0; }
+.timeline-page .timeline-section { max-width: none; min-width: 0; margin-left: var(--sidebar-width); margin-right: var(--age-nav-width); padding: 32px; }
+.timeline-page .timeline-header {
+    text-align: left;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-left: 5px solid #ffdf36;
+    padding: 28px 32px;
+    box-shadow: 0 4px 24px #292d2904;
+    margin-bottom: 28px;
+}
+.timeline-page .timeline-eyebrow { font-size: .8rem; color: #6b681a; font-weight: 700; letter-spacing: .12em; margin-bottom: 8px; }
+.timeline-page .current-child-name { font-size: 2rem; line-height: 1.3; }
+.timeline-page .current-child-age { color: #565e53; opacity: 1; margin: 8px 0 12px; }
+.timeline-page .timeline-hint { font-size: .9rem; color: #656b63; }
+.timeline-page .age-group-title { color: #555a34; font-size: 1.2rem; }
+.timeline-page .age-group-header { scroll-margin-top: calc(var(--timeline-header-height, 80px) + 16px); }
+.timeline-page .moment-item { border: 1px solid var(--color-border); box-shadow: 0 4px 16px #292d2906; }
+.timeline-page .loading-indicator,
+.timeline-page .empty-state { grid-column: 1 / -1; }
+.timeline-page .time-travel-item,
+.timeline-page .sidebar-album-card { width: 100%; text-align: left; color: inherit; }
+.timeline-page .album-card-name,
+.timeline-page .album-card-subtitle { display: block; }
+.timeline-page .sidebar-close,
+.timeline-page .time-travel-header button { min-width: 44px; min-height: 44px; }
+.timeline-page .album-sidebar { max-width: calc(100vw - 32px); height: 100dvh; }
+.timeline-page .time-travel-menu { max-height: 70dvh; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.timeline-page :is(button, a, input, select):focus-visible { outline: 3px solid #637448; outline-offset: 3px; }
+.timeline-page .skip-link { position: fixed; top: -100px; left: 16px; padding: 12px 20px; background: #fff; color: #292d29; border-radius: 8px; z-index: 10010; }
+.timeline-page .skip-link:focus { top: 12px; }
+
+@media (max-width: 1100px) {
+    .timeline-page .header { flex-direction: column; align-items: stretch; padding: 12px 20px; gap: 8px; }
+    .timeline-page .header-row-top { flex: auto; justify-content: space-between; }
+    .timeline-page .header-row-search { flex: auto; width: 100%; }
+}
+
+@media (max-width: 1024px) {
+    .timeline-page .timeline-section { margin-right: 0; }
+}
+
+@media (max-width: 768px) {
+    .timeline-page .header { padding: max(8px, env(safe-area-inset-top)) 12px 10px; }
+    .timeline-page .header-row-top { gap: 8px; }
+    .timeline-page .header-left { gap: 6px; }
+    .timeline-page .header-title { display: none; }
+    .timeline-page .header-right { gap: 4px; }
+    .timeline-page .header-btn { min-width: 44px; min-height: 48px; padding: 5px 7px; flex-direction: column; gap: 1px; }
+    .timeline-page .header-btn .btn-label { font-size: .72rem; }
+    .timeline-page .header-btn .btn-icon { font-size: 1.1rem; }
+    .timeline-page .sidebar-tab-handle { display: none; }
+    .timeline-page .timeline-section { margin: 0; padding: 20px 16px max(100px, env(safe-area-inset-bottom)); }
+    .timeline-page .timeline-header { padding: 22px; margin-bottom: 20px; }
+    .timeline-page .current-child-name { font-size: 1.7rem; }
+    .timeline-page .timeline-container { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .timeline-page .age-group-header { padding-left: 0 !important; }
+    .timeline-page .age-group-title { margin-left: 0 !important; }
+    .timeline-page .selection-bar,
+    .timeline-page .moment-selection-bar { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .timeline-page *, .timeline-page *::before, .timeline-page *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+@media (max-width: 360px) {
+    .timeline-page .header-row-top { gap: 6px; }
+    .timeline-page .header-right { gap: 3px; }
+}
+/* Keep album lookup feedback beside the destination, including on narrow screens. */
+.album-load-status { margin-top: 6px; font-size: 13px; line-height: 1.5; color: #625746; overflow-wrap: anywhere; }
+.album-load-status[hidden], .album-load-status button[hidden] { display: none; }
+.album-load-status button { display: block; min-height: 44px; margin-top: 4px; padding: 6px 12px; border: 1px solid #b7a98f; border-radius: 8px; background: #fffaf0; color: #514531; cursor: pointer; }
+.album-load-status button:focus-visible { outline: 3px solid #856e45; outline-offset: 2px; }
