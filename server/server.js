@@ -20,8 +20,8 @@ const { setUserPhotoTags } = require('./photo-tags');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BACKEND_VERSION = '1.0.67';
-const BACKEND_BUILD = '2026.10.16.1';
+const BACKEND_VERSION = '1.0.68';
+const BACKEND_BUILD = '2026.10.16.2';
 
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 console.log("!!!!!!!! SERVER UNIFIED FIX STARTING - TIMESTAMP: " + Date.now() + " !!!!!!!");

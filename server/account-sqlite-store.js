@@ -40,7 +40,15 @@ class SQLiteAccountStore extends AccountStore {
    this.database.exec('COMMIT;');
   }catch(error){this.database.exec('ROLLBACK;');throw error;}
   this.compactDeletedAccountDatabase();
-  const checkpoint=this.database.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();if(checkpoint.busy!==0||checkpoint.log!==0)throw new Error('Private journal truncation requires idle readers');
+  const mode=this.database.prepare('PRAGMA journal_mode').get().journal_mode;
+  const checkpoint=this.database.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+  const truncatedWAL=mode==='wal'&&checkpoint.busy===0&&checkpoint.log===0&&checkpoint.checkpointed===0;
+  // A closed standalone owner import retains DELETE mode. SQLite reports -1
+  // for both WAL counters because that mode has no WAL to checkpoint. VACUUM
+  // above must still finish, and no WAL sidecar may remain before completion.
+  const standaloneDelete=mode==='delete'&&checkpoint.busy===0&&checkpoint.log===-1&&checkpoint.checkpointed===-1&&
+   !fs.existsSync(this.sqliteFile+'-wal')&&!fs.existsSync(this.sqliteFile+'-shm');
+  if(!truncatedWAL&&!standaloneDelete)throw new Error('Private journal cleanup requires idle readers');
   const fd=fs.openSync(this.directory,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
  }
  compactDeletedAccountDatabase(){const disk=fs.statfsSync(this.directory),available=disk.bavail*disk.bsize,size=fs.statSync(this.sqliteFile).size;if(!Number.isSafeInteger(available)||available<2*size+32*1024*1024)throw new Error('Private database compaction capacity unavailable');this.database.exec('VACUUM;');}
