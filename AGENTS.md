@@ -21,7 +21,7 @@ Hank 直接指示：「因為那顆硬碟壞了現在目前都要改到 `/Volume
 - 新實體碟是 `/Volumes/codex_2T`，Volume UUID `4E209AF2-AF33-3CF7-8F47-54D26FE14F19`，目前 ExFAT。長期專案與資料的目標以此碟為準；Git、symlink、POSIX 權限與活躍 SQLite 使用此碟上經確認的 APFS 資料區。APFS 資料區的掛載名稱可能不同，須核對映像檔實際位於新碟，不能只看路徑名稱。測試執行、必要測試快取／暫存與模擬器留在本機 SSD，仍保留 20 GiB 系統空間。
 - 舊 `/Volumes/CodexData` 是 `/Volumes/codex/CodexData.sparsebundle` 的 APFS 掛載點；它不是新碟。目前舊資料區未掛載，指向它的連結不能視為可用工程。不得把舊碟 UUID 當成新碟身分。
 - 各專案須先找到可讀且完整的來源，保留未提交／未追蹤資料、Git/worktree 引用及檔案語意，確認新位置與來源一致並協調停止寫入後，才切換原入口。已有專案完成新碟切換時沿用其已驗證路徑；不要重複搬移。來源不可讀則記錄「待復原／未切換」，不能把連結改到空目錄、建立假的掛載點或用遠端 Git 宣稱原工程已恢復。
-- 作品網站的編寫工程 `/Users/hank/Desktop/Project/app-showcase-site` 仍待復原；它與已搬移的部署工程不同。部署工程實際在 `/Volumes/codex_2T/codex_project/AiHankApps/EClaw-ai-hank-apps-route`，網站檔案在其 `backend/public/AiHankApps/`；原 `/Users/hank/Desktop/Project/EClaw-ai-hank-apps-route` 已轉接新位置。此工作副本的 Git 共用資料仍在 `/Users/hank/Desktop/Project/EClaw/.git`，保留其他 EClaw 工作副本的關聯。啟動前執行 `python3 /Volumes/codex_2T/codex_project/AiHankApps/check_storage.py`；測試留 SSD，現有未提交／未追蹤修改不得重置。最新位置及驗證紀錄查 `/Users/hank/.local/share/project-storage/storage-policy-20261011.json` 與新碟 `AiHankApps/workspace-location.json`。
+- 作品網站的編寫工程 `/Users/hank/Desktop/Project/app-showcase-site` 仍待復原；它與已搬移的部署工程不同。部署工程實際在 `/Volumes/AiHankAppsData/EClaw-ai-hank-apps-route`，網站檔案在其 `backend/public/AiHankApps/`；原 `/Users/hank/Desktop/Project/EClaw-ai-hank-apps-route` 已轉接新位置。此工作副本的 Git 共用資料仍在 `/Users/hank/Desktop/Project/EClaw/.git`，保留其他 EClaw 工作副本的關聯。啟動前執行 `python3 /Volumes/AiHankAppsData/check_storage.py`；測試留 SSD，現有未提交／未追蹤修改不得重置。最新位置及驗證紀錄查 `/Users/hank/.local/share/project-storage/storage-policy-20261014.json` 與新碟 `AiHankApps/workspace-location.json`。
 - 全域 `project-storage` CLI 目前仍為 `internal`；本節只更新目標與已查明狀態，不宣稱整體切換完成，不重啟舊搬移程序、不搬動正在寫入的資料庫，也不恢復暫停目標。新專案／工作副本沿用本節與 H 浮水印發布前自檢規定，發布與清理仍按各自授權及檢查辦理。
 <!-- HANK_EXTERNAL_TARGET_CODEX_2T_20261011_END -->
 
@@ -84,3 +84,45 @@ Hank 明確回覆「允許更新後端與新版網站」。此授權覆蓋上方
 後續查明既有 MOV 原檔被 MP4 限制拒絕，故部署後端 **1.0.64 / 2026.10.14.2**，Railway deployment `fe899e4f-585e-445b-8df7-7afce9e21375` 成功。最新七檔部署來源與複查快照完全一致，持久卷／保留原件仍完整，當版部署前後佇列均為0。既有影片只讀核對：MOV 原檔 HEAD200、64-byte Range206、正確 .mov 與 video/quicktime；播放用 MP4 HEAD200。沒有新增 Flickr 檔案或修改其公開性。網站候選 .2 的時間軸／相簿單檔及 ZIP 保留 MOV／MP4 原始內容與副檔名，49組本機 HTTP、6組實際無頭 Web 下載、24組頁面／尺寸與4組離線檢查通過；独立有界複查通過，當版實際圖示 H 目視通過。紀錄在 `.codex-local/qa/20261014-mov-original/`。
 
 以上不算新的正式端到端／真機驗收。原正式33/36、06/2與06/6、08/6、真機背景傳輸／相簿保存仍未驗；APK55未更新。根工作副本 HEAD／index 不切換，僅另用 index 選檔提交發布，保留其他候選修改；後續不可直接 reset/pull 覆寫。網站 .2 的實際 commit、Pages與逐檔讀回收據以同資料夾 publication-commit.json／live-static.json 為準，發布成功前不能以候選宣稱已上線。
+
+
+## 2026-10-14 Android 背景傳輸、雙平台上架與開放註冊新授權
+
+Hank 要求完成 Android App 背景上下載，確認切換 App、鎖屏後仍能傳輸，測試通過後更新安裝版並繼續原目標；同時規劃 Android／iOS 上架，改為開放註冊。此授權允許完成必要實作、管理下的無頭 Android 系統測試與通過後的測試安裝版更新；商店上架目前是規劃，不能當成已提交／發布授權。
+
+帳戶與照片必須按使用者／家庭隔離，不能把現有家庭密碼或全域 Flickr token 當成公開註冊方案，不能讓新註冊者存取 Hank 的家庭媒體／收據。既有家人資料、相簿與授權保留。不得重建已刪七個人工 ID；本輪優先使用本機人工檔案及隔離後端測試，不能為背景測試擴及真實家人媒體寫入。模擬器系統測試與實體手機／廠商省電測試如實區分；普通切換、熄屏／鎖屏與強制停止分別驗證，不宣稱任意強停後必定繼續。當版 APK／網站 icon H 自檢及獨立複查仍適用。工作紀錄：`.codex-local/qa/20261014-android-background-and-registration/`。
+
+<!-- HANK_AIHANKAPPS_MOUNT_REPAIR_20261014_BEGIN -->
+## AiHankApps 掛載入口修復（Hank，2026-10-14）
+
+- 原映像仍在 `/Volumes/codex_2T/codex_project/AiHankAppsData.sparsebundle`，目前真正掛載點為 `/Volumes/AiHankAppsData`；實體／APFS UUID 不變，資料沒有搬回 SSD。
+- 部署工程 `/Volumes/AiHankAppsData/EClaw-ai-hank-apps-route`；原 Desktop 入口已轉接這裡。共用 Git 仍在 `/Users/hank/Desktop/Project/EClaw/.git`，工作副本反向登記已修正。
+- 啟動前執行 `python3 /Volumes/AiHankAppsData/check_storage.py`。檢查實體／APFS UUID、實際映像、ownership、可寫性、原入口及兩個工作副本的 Git 雙向關聯，不得弱化 guard。Timehut 另執行其 `tools/check_storage.py`。
+- 舊 `/Volumes/codex_2T/codex_project/AiHankApps` 不是目前資料區；不能往空目錄建立替代工程。編寫來源 `app-showcase-site` 仍待復原，本次不代表它已恢復。
+- 最新位置：`/Users/hank/.local/share/project-storage/storage-policy-20261014.json`、`/Volumes/AiHankAppsData/workspace-location.json`；修復與保留證據：`/Volumes/AiHankAppsData/entry-repair-20261014/`。測試及必要快取留本機 SSD，至少保留 20 GiB。
+- H 沿用 Hank 最新規則：小而低調，只需在 icon 畫面中可見且樣式正確，不為縮圖辨字放大；不得遮主體、自成一排或改動原圖構圖，每版仍查實際發布產物。
+<!-- HANK_AIHANKAPPS_MOUNT_REPAIR_20261014_END -->
+
+Hank 補充：「都先存到我後台正在使用的flicker帳戶」。公開使用者先共用既有 Flickr 儲存帳戶；用應用程式端的帳戶／相簿／照片歸屬資料做後端隔離，不要求註冊者自行綁定 Flickr。原家人媒體保留，新使用者不得看見它們；不得只依靠前端篩選或隱藏圖示防止越權。
+
+## Android test.56 實際發布（2026-10-14）
+
+已發布 test.56，APK SHA256 `f1e8c4b1ed9f481fae314e62957a65104b30d161abebef838add9b842dd95e36`、13,728,381 bytes，既有測試 applicationID／簽章延續。Pages commit `78337a8a2ccebad50f45e92f4bbb915501819823`、run `38572248641` 成功，線上實際安裝按鈕下載的檔名／完整 bytes 與複查產物一致。
+
+Android 16／API36 管理下模擬器使用真實 JS bridge、原生上下載與本機人工服務，確認 HOME、其他 App、interactive=false 且 keyguard=true 之後的上下載 bytes 持續增加；原 PNG／MOV／MP4、照片保存與完成收據重開核對通過。API26／WebView58 只通過實際更新指引，不算較舊系統背景傳輸通過。實體手机／廠商省電、任意活動任務強停續傳、iOS 未驗；正式33/36保持不變。候選原生6 Java來源與測試來源一致，打包 variant 的DEBUG=false關閉loopback例外；本版實際APK、安裝後圖示及實際網站4icons H目視通過，獨立有界複查通過。
+
+本次只更新安裝入口／APK，Railway仍1.0.64、公開註冊未啟用。新註冊程式仍在本機隔離實作／驗收階段；管理者帳戶名稱的使用者問題待回覆，不能把新註冊者指定為原家庭資料管理者。根HEAD／index保持原狀，不得直接pull/reset覆寫候選來源；發布／本機實驗收據見 `.codex-local/qa/20261014-android-background-and-registration/`。
+
+## 2026-10-15 公開服務與家庭管理者直接回覆
+
+Hank 已指定既有家庭管理者登入名稱為 `huanghome2026`，支援／隱私聯絡信箱為 `hankhuang0516@gmail.com`；並直接確認已有公開註冊者照片集中存入既有中央 Flickr 帳戶這個用途的核准。不得重問已回答事項，不從支援信箱推定身分、不要求使用者在對話提供密碼。用途核准為使用者確認，未冒稱獨立查閱文件或現用帳戶方案／額度。
+
+可信任的本機初始化工具與原家庭相簿編號／日期歸屬已有人工SQL／HTTP／無頭瀏覽器證據；沒有執行正式保留／建立或家庭私密資料導入。公開模式只接受資料庫內已完成的綁定，不能讓第一個／同名普通註冊者或單設環境ID取得家庭權限。test.56／Railway1.0.64／註冊OFF與正式33/36保持；完整家庭歷史媒體及當版發布門檻仍未完成。紀錄：`.codex-local/qa/20261014-android-background-and-registration/owner-bootstrap-latest-bindings.json`。
+
+## 2026-10-15 私有管理者資料庫已在 APFS 準備，尚未移交正式服務
+
+`tools/prepare_private_owner.cjs status` 是只讀狀態入口。指定帳號 `huanghome2026` 的新私有帳戶庫位於 `.codex-local/private/owner-bootstrap-huanghome2026/`；兩個原相簿已透過現行後端只讀確認歸屬。輸入僅保留家庭名稱／生日／原相簿ID，舊設定只在記憶體以AST解析，未執行或保存原密鑰／家庭密碼。新隨機初始密碼只存該私有目錄，不能輸出至對話、命令列、環境變數、QA、Git、部署包或雲端備份；需要時由使用者自行讀取 `initial-password.txt`。
+
+私有目錄與檔案分別為0700／0600，完整登入／登出核對後零sessions，以單一已關閉SQLite檔移交；`transfer-manifest.json` 是私有移交收據。既有或中斷目錄不覆蓋、不重新產生密碼、不刪除重做。這些是正式準備資料，不能當生成QA清理。不要把真實帳戶庫複製到測試工程；移交測試只用人工家庭資料。
+
+此紀錄覆蓋上段「家庭私密資料未導入」在本機準備階段的狀態；正式Railway沒有建立／上傳／啟用此帳戶，Flickr沒有寫入，test.56／Railway1.0.64／註冊OFF與正式33/36不變。當版獨立複查仍缺，不能以本機準備或人工移交測試作為發布通過。

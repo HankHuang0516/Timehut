@@ -2,12 +2,17 @@
 <html lang="zh-TW">
 
 <head>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.1"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 記錄寶貝成長的每一刻">
     <title>黃家小屋 - 家庭相簿</title>
-    <link rel="icon" type="image/jpeg" href="16120.jpg">
-    <link rel="apple-touch-icon" href="16120.jpg">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -15,13 +20,13 @@
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=20261014.2">
     <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261014.2"></script>
-    <script defer src="js/storybook.js?v=20261014.2"></script>
+    <script defer src="js/dialogs.js?v=20261016.1"></script>
+    <script defer src="js/storybook.js?v=20261016.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261014.2"></script>
-<script defer src="js/pwa.js?v=20261014.2"></script>
+    <script defer src="js/transfers.js?v=20261016.1"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
 <body class="storybook-page login-page">
@@ -119,9 +124,9 @@
         </footer>
     </div>
 
-    <script src="js/config.js?v=20261014.2"></script>
-    <script src="js/results.js?v=20261014.2"></script>
-    <script src="js/utils.js?v=20261014.2"></script>
+    
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261016.1"></script>
     <script>
         // Auth keys for localStorage
         const AUTH_KEY = 'timehut_authenticated';
@@ -147,14 +152,14 @@
 
         // Check if already authenticated
         function checkAuth() {
-            const isAuth = localStorage.getItem(AUTH_KEY);
-            const expiry = localStorage.getItem(AUTH_EXPIRY_KEY);
+            const isAuth = (window.TimehutStorage?.local || localStorage).getItem(AUTH_KEY);
+            const expiry = (window.TimehutStorage?.local || localStorage).getItem(AUTH_EXPIRY_KEY);
 
             if (isAuth === 'true') {
                 // Check expiry (30 days)
                 if (expiry && Date.now() > parseInt(expiry)) {
-                    localStorage.removeItem(AUTH_KEY);
-                    localStorage.removeItem(AUTH_EXPIRY_KEY);
+                    (window.TimehutStorage?.local || localStorage).removeItem(AUTH_KEY);
+                    (window.TimehutStorage?.local || localStorage).removeItem(AUTH_EXPIRY_KEY);
                     return false;
                 }
                 return true;
@@ -164,14 +169,15 @@
 
         // Initialize page
         function init() {
+            if(CONFIG.ACCOUNT_MODE){passwordSection.style.display="none";memberSection.style.display="none";childSection.style.display="block";currentUserBadge.style.display="flex";currentUserName.textContent=TimehutAccounts.status().user.displayName;generateChildCards();if(!CONFIG.CHILDREN.length){const link=document.createElement('a');link.href='account.html';link.textContent='建立第一本相簿';childCards.append(link);}return;}
             if (checkAuth()) {
                 // Already logged in
-                const currentMember = localStorage.getItem(MEMBER_KEY);
-                const currentChild = localStorage.getItem(CHILD_KEY);
+                const currentMember = (window.TimehutStorage?.local || localStorage).getItem(MEMBER_KEY);
+                const currentChild = (window.TimehutStorage?.local || localStorage).getItem(CHILD_KEY);
 
                 // AUTO-REDIRECT: If user has remembered child, go directly to timeline
                 if (currentChild !== null) {
-                    sessionStorage.setItem('selectedChild', currentChild);
+                    (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', currentChild);
                     window.location.href = 'timeline.html';
                     return; // Exit early
                 }
@@ -203,7 +209,7 @@
                     <div class="member-avatar">
                         <span class="avatar-emoji">${member.emoji}</span>
                     </div>
-                    <span class="member-name">${member.name}</span>
+                    <span class="member-name">${escapeTimehutText(member.name)}</span>
                 </button>
             `).join('');
 
@@ -227,7 +233,7 @@
                             <span class="avatar-emoji">${child.emoji}</span>
                         </div>
                         <div class="child-info">
-                            <span class="child-name">${child.name}</span>
+                            <span class="child-name">${escapeTimehutText(child.name)}</span>
                             <span class="child-age">${ageStr}</span>
                         </div>
                         <div class="card-arrow">→</div>
@@ -251,12 +257,12 @@
 
             if (password === CONFIG.FAMILY_PASSWORD) {
                 // Correct password
-                localStorage.setItem(AUTH_KEY, 'true');
+                (window.TimehutStorage?.local || localStorage).setItem(AUTH_KEY, 'true');
 
                 if (rememberMe.checked) {
                     // Set 30 day expiry
                     const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
-                    localStorage.setItem(AUTH_EXPIRY_KEY, expiry.toString());
+                    (window.TimehutStorage?.local || localStorage).setItem(AUTH_EXPIRY_KEY, expiry.toString());
                 }
 
                 passwordError.style.display = 'none';
@@ -298,7 +304,7 @@
         function selectMember(memberId) {
             const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
             if (member) {
-                localStorage.setItem(MEMBER_KEY, memberId);
+                (window.TimehutStorage?.local || localStorage).setItem(MEMBER_KEY, memberId);
                 showCurrentUser(memberId);
             }
             showChildSelection();
@@ -321,22 +327,23 @@
 
         // Logout
         logoutBtn.addEventListener('click', () => {
-            localStorage.removeItem(AUTH_KEY);
-            localStorage.removeItem(AUTH_EXPIRY_KEY);
-            localStorage.removeItem(MEMBER_KEY);
-            localStorage.removeItem(CHILD_KEY);
+            if(CONFIG.ACCOUNT_MODE){TimehutAccounts.signOut().finally(()=>location.replace('account.html'));return;}
+            (window.TimehutStorage?.local || localStorage).removeItem(AUTH_KEY);
+            (window.TimehutStorage?.local || localStorage).removeItem(AUTH_EXPIRY_KEY);
+            (window.TimehutStorage?.local || localStorage).removeItem(MEMBER_KEY);
+            (window.TimehutStorage?.local || localStorage).removeItem(CHILD_KEY);
             location.reload();
         });
 
         // Select child and navigate (save to localStorage for persistence)
         function selectChild(childIndex) {
-            localStorage.setItem(CHILD_KEY, childIndex); // Remember child for auto-login
-            sessionStorage.setItem('selectedChild', childIndex);
+            (window.TimehutStorage?.local || localStorage).setItem(CHILD_KEY, childIndex); // Remember child for auto-login
+            (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', childIndex);
             window.location.href = 'timeline.html';
         }
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', init);
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( init);
     </script>
 </body>
 

@@ -10,11 +10,12 @@
  * @returns {Object} { years, months, days, totalDays }
  */
 function calculateAge(birthDate, targetDate) {
-    const birth = new Date(birthDate);
-    const target = new Date(targetDate);
+    const calendarDate=value=>new Date(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)?value+'T00:00:00':value);
+    const birth = calendarDate(birthDate);
+    const target = calendarDate(targetDate);
 
     // Calculate total days for sorting
-    const totalDays = Math.floor((target - birth) / (1000 * 60 * 60 * 24));
+    const totalDays = Math.round((Date.UTC(target.getFullYear(),target.getMonth(),target.getDate())-Date.UTC(birth.getFullYear(),birth.getMonth(),birth.getDate()))/(1000*60*60*24));
 
     let years = target.getFullYear() - birth.getFullYear();
     let months = target.getMonth() - birth.getMonth();

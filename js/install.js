@@ -15,8 +15,11 @@
       : message || (deferredPrompt ? '此裝置支援安裝獨立網頁 App。' : '請依所選平台的步驟安裝；瀏覽器符合條件時也會顯示安裝按鈕。');
     element('webInstallBadge').textContent = native ? '網頁版本' : opened ? '使用中' : installed ? '已安裝' : '安裝指引';
     element('nativeInstallBadge').textContent = native ? '使用中' : 'Android 測試版';
-    element('nativeInstallStatus').textContent = native ? '目前正以手機 App 開啟。Android 16 背景傳輸測試已通過，實體手機與省電設定仍需確認。' : 'Android 測試版已提供，可與原版並存。iPhone 手機版尚未提供。';
-    element('androidDownload').hidden = native;
+    const download=element('androidDownload'), available=download.dataset.releaseAvailable==='true';
+    element('nativeInstallStatus').textContent = native ? '目前正以手機 App 開啟。請到傳輸中心確認檔案的實際結果。'
+      : available ? (download.dataset.releaseState==='candidate' ? 'Android 測試候選版仍在驗證，尚未公開發布。iPhone 手機版尚未提供。' : 'Android 測試版已提供，可與原版並存。iPhone 手機版尚未提供。')
+      : '新版 Android App 仍在驗證，尚未公開提供。iPhone 手機版尚未提供。';
+    download.hidden = native || !available;
     const button = element('installButton');
     button.hidden = native || installed || (!deferredPrompt && !busy);
     button.disabled = busy;

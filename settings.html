@@ -2,13 +2,19 @@
 <html lang="zh-TW">
 
 <head>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.1"></script>
+    <link rel="stylesheet" href="css/service-info.css"><script src="js/service-info.js?v=20261016.1" defer></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 設定">
     <title>黃家小屋 - 設定</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <link rel="icon" type="image/jpeg" href="16120.jpg">
-    <link rel="apple-touch-icon" href="16120.jpg">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
@@ -101,10 +107,12 @@
 
         .child-info {
             flex: 1;
+            min-width: 0;
         }
 
         .child-name {
             font-weight: 600;
+            overflow-wrap: anywhere;
             font-size: 1.1rem;
             color: var(--color-text);
             margin-bottom: 4px;
@@ -200,13 +208,13 @@
         }
     </style>
     <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261014.2"></script>
-    <script defer src="js/storybook.js?v=20261014.2"></script>
+    <script defer src="js/dialogs.js?v=20261016.1"></script>
+    <script defer src="js/storybook.js?v=20261016.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261014.2"></script>
-<script defer src="js/pwa.js?v=20261014.2"></script>
+    <script defer src="js/transfers.js?v=20261016.1"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
 <body class="storybook-page settings-page">
@@ -237,11 +245,12 @@
             <p class="storybook-note">此處只查看目前狀態。開啟完成通知、保存至手機相簿時，才會依需要顯示權限提示。</p>
             <button class="btn-secondary" id="refreshDeviceSettings" type="button">更新手機狀態</button>
         </section>
+        <section class="settings-section service-card" aria-labelledby="serviceInfoTitle"><h2 class="section-title" id="serviceInfoTitle">服務資訊</h2><nav class="service-links" aria-label="服務資訊"><a href="privacy.html">隱私與資料使用</a><a href="support.html">使用與支援</a><a href="delete-account.html">刪除帳戶與資料</a></nav><p class="service-notice" data-flickr-attribution></p></section>
     </div>
 
-    <script src="js/config.js?v=20261014.2"></script>
-    <script src="js/results.js?v=20261014.2"></script>
-    <script src="js/version.js?v=20261014.2"></script>
+
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/version.js?v=20261016.1"></script>
     <script>
         function parseBirthDate(value) {
             if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
@@ -292,7 +301,7 @@
 
         // 取得儲存的出生日期
         function getSavedBirthDate(index) {
-            const saved = localStorage.getItem(`timehut_child_${index}_birthdate`);
+            const saved = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`);
             return saved || CONFIG.CHILDREN[index].birthDate;
         }
 
@@ -308,7 +317,7 @@
                     <div class="child-card">
                         <span class="child-emoji">${child.emoji}</span>
                         <div class="child-info">
-                            <div class="child-name">${child.name}</div>
+                            <div class="child-name">${escapeTimehutText(child.name)}</div>
                             <div class="child-age">目前 ${age}</div>
                         </div>
                         <div class="child-birthdate">
@@ -340,21 +349,22 @@
         }
 
         // 儲存設定
-        function saveSettings() {
+        async function saveSettings() {
             const inputs = CONFIG.CHILDREN.map((child, index) => document.getElementById(`birthdate-${index}`));
             if (inputs.some(input => !parseBirthDate(input?.value) || parseBirthDate(input.value) > todayDate())) {
                 inputs.forEach((input, index) => updateAge(index));
                 showToast('請填寫有效且不晚於今天的出生日期', 'error'); return;
             }
+            if(CONFIG.ACCOUNT_MODE){try{const result=await TimehutAccounts.request('/api/accounts/albums/dates',{method:'PUT',body:{updates:CONFIG.CHILDREN.map((child,index)=>({id:child.albumId,birthDate:inputs[index].value}))}});for(const child of CONFIG.CHILDREN){const saved=result.albums.find(album=>album.id===child.albumId);if(!saved)throw new Error('生日保存尚未確認');child.birthDate=saved.birthDate;}showToast('設定已儲存！');}catch(error){showToast(error.message||'生日尚未儲存，請稍後重試。','error');}return;}
             const previous = [];
             try {
-                inputs.forEach((input, index) => previous.push(localStorage.getItem(`timehut_child_${index}_birthdate`)));
-                inputs.forEach((input, index) => localStorage.setItem(`timehut_child_${index}_birthdate`, input.value));
+                inputs.forEach((input, index) => previous.push((window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`)));
+                inputs.forEach((input, index) => (window.TimehutStorage?.local || localStorage).setItem(`timehut_child_${index}_birthdate`, input.value));
                 showToast('設定已儲存！');
             } catch (_) {
                 let restored = true;
                 previous.forEach((value, index) => {
-                    try { if (value === null) localStorage.removeItem(`timehut_child_${index}_birthdate`); else localStorage.setItem(`timehut_child_${index}_birthdate`, value); }
+                    try { if (value === null) (window.TimehutStorage?.local || localStorage).removeItem(`timehut_child_${index}_birthdate`); else (window.TimehutStorage?.local || localStorage).setItem(`timehut_child_${index}_birthdate`, value); }
                     catch (_) { restored = false; }
                 });
                 showToast(restored ? '設定無法儲存，原設定已保留。請確認瀏覽器儲存空間。' : '設定未完整儲存，請確認儲存空間後重新檢查兩個生日。', 'error');
@@ -378,7 +388,7 @@
         }
 
         // 初始化
-        document.addEventListener('DOMContentLoaded', renderChildren);
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( renderChildren);
     </script>
     <!-- Version Footer -->
     <div style="text-align: center; color: #666; padding: 20px; font-size: 0.8em; margin-top: auto;">
@@ -391,7 +401,7 @@
 
         // Backend Version (Fetch from server)
         const API_BASE = CONFIG.UPLOAD_API_URL;
-        fetch(`${API_BASE}/health`)
+        (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${API_BASE}/health`)
             .then(r => { if (!r.ok) throw new Error('版本查詢失敗'); return r.json(); })
             .then(d => {
                 if (!d.version || typeof d.version !== 'string') throw new Error('沒有版本資料');

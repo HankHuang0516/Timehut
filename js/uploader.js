@@ -22,7 +22,7 @@ const Uploader = {
     // 開始授權流程
     async startAuth() {
         try {
-            const response = await fetch(`${this.apiUrl}/api/auth/start`);
+            const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${this.apiUrl}/api/auth/start`);
             const data = await response.json();
 
             if (data.authUrl) {
@@ -54,7 +54,7 @@ const Uploader = {
         signal?.addEventListener('abort', cancel, { once: true });
         const timeout = setTimeout(cancel, 8000);
         try {
-            const response = await fetch(`${this.apiUrl}${path}`, { signal: controller.signal });
+            const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${this.apiUrl}${path}`, { signal: controller.signal });
             if (!response.ok) throw new Error('目前無法取得相簿服務回應');
             return await response.json();
         } finally {
@@ -74,6 +74,10 @@ const Uploader = {
 
     // 上傳檔案 (Modified to use XHR for progress)
     uploadFiles(files, options = {}) {
+        if (CONFIG.ACCOUNT_MODE) {
+            if (files.length !== 1) return Promise.reject(new Error('每個檔案需要獨立收件，請依序上傳'));
+            return window.TimehutWebUpload.upload(files[0], options);
+        }
         const { albumId, title, description, tags, onProgress, signal } = options;
 
         return new Promise((resolve, reject) => {
@@ -437,7 +441,7 @@ const BackgroundWorker = {
 
                 try {
                     // Call Delete API
-                    const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                    const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ photoIds: chunk })
@@ -507,7 +511,7 @@ const BackgroundWorker = {
 };
 
 // Start Global Init
-document.addEventListener('DOMContentLoaded', () => {
+(window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
     BackgroundUploader.init();
 });
 
@@ -587,10 +591,10 @@ const UploadUI = {
         if (!albumSelect || typeof CONFIG === 'undefined') return;
 
         // Get current child index from localStorage
-        const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
+        const currentChildIndex = parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0');
 
         albumSelect.replaceChildren(...CONFIG.CHILDREN.map((child, index) =>
-            new Option(`${child.emoji || ''} ${child.name}`, child.albumId, false, index === currentChildIndex)));
+            new Option(`${child.emoji || ''} ${escapeTimehutText(child.name)}`, child.albumId, false, index === currentChildIndex)));
     },
 
     async addFiles(files) {
@@ -922,7 +926,7 @@ const UploadUI = {
 };
 
 // 初始化
-document.addEventListener('DOMContentLoaded', () => {
+(window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
     UploadUI.init();
 });
 

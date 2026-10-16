@@ -530,3 +530,5 @@
 .transfer-page .transfer-default-tags[open] label.transfer-notification-option { display:flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; }
 .transfer-page .transfer-notification-option input { flex:0 0 auto; width:20px; height:20px; accent-color:#ac7623; margin:0; }
 .transfer-page #notificationStatus { margin:4px 0 0; line-height:1.6; }
+/* Account album names can contain long filenames or unbroken text. */
+.storybook-page #currentChildName { overflow-wrap: anywhere; word-break: normal; }

@@ -2,12 +2,17 @@
 <html lang="zh-TW">
 
 <head>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.1"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 搜尋照片">
     <title>黃家小屋 - 搜尋結果</title>
-    <link rel="icon" type="image/jpeg" href="16120.jpg">
-    <link rel="apple-touch-icon" href="16120.jpg">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -15,13 +20,13 @@
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=20261014.2">
     <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261014.2"></script>
-    <script defer src="js/storybook.js?v=20261014.2"></script>
+    <script defer src="js/dialogs.js?v=20261016.1"></script>
+    <script defer src="js/storybook.js?v=20261016.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261014.2"></script>
-<script defer src="js/pwa.js?v=20261014.2"></script>
+    <script defer src="js/transfers.js?v=20261016.1"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
 <body class="storybook-page timeline-page">
@@ -29,7 +34,7 @@
     <header class="header">
         <div class="header-left">
             <a href="timeline.html" class="header-logo">
-                <img src="16120.jpg" alt="黃家小屋" class="logo-img">
+                <img src="assets/app-icon-192.png" alt="黃家小屋" class="logo-img">
                 <span class="header-title">黃家小屋</span>
             </a>
         </div>
@@ -96,10 +101,10 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js?v=20261014.2"></script>
-    <script src="js/results.js?v=20261014.2"></script>
-    <script src="js/utils.js?v=20261014.2"></script>
-    <script src="js/flickr.js?v=20261014.2"></script>
+    
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261016.1"></script>
+    <script src="js/flickr.js?v=20261016.1"></script>
     <script>
         // Search state
         const SearchState = {
@@ -112,7 +117,7 @@
         };
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', async () => {
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( async () => {
             // Get query from URL
             const urlParams = new URLSearchParams(window.location.search);
             SearchState.query = urlParams.get('q') || '';
@@ -130,6 +135,7 @@
         });
 
         function doSearch() {
+            if(window.TimehutPage?.empty())return;
             const query = document.getElementById('searchInput').value.trim();
             if (query) {
                 window.location.href = `search.html?q=${encodeURIComponent(query)}`;
@@ -150,8 +156,8 @@
             try {
                 // First try to get photos from sessionStorage (synced from timeline.html)
                 if (!SearchState.allPhotos) {
-                    const storedPhotos = sessionStorage.getItem('allPhotos');
-                    if (storedPhotos && sessionStorage.getItem('allPhotosChild') === (localStorage.getItem('timehut_current_child') || '0')) {
+                    const storedPhotos = (window.TimehutStorage?.session || sessionStorage).getItem('allPhotos');
+                    if (storedPhotos && (window.TimehutStorage?.session || sessionStorage).getItem('allPhotosChild') === ((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0')) {
                         SearchState.allPhotos = JSON.parse(storedPhotos);
                         console.log('Loaded photos from sessionStorage:', SearchState.allPhotos.length);
                     }
@@ -159,8 +165,8 @@
 
                 // Fallback: load from API if sessionStorage is empty
                 if (!SearchState.allPhotos || SearchState.allPhotos.length === 0) {
-                    const selectedChild = localStorage.getItem('timehut_current_child')
-                        ?? sessionStorage.getItem('selectedChild');
+                    const selectedChild = (window.TimehutStorage?.local || localStorage).getItem('timehut_current_child')
+                        ?? (window.TimehutStorage?.session || sessionStorage).getItem('selectedChild');
                     const selectedIndex = Number.parseInt(selectedChild ?? '0', 10);
                     const childIndex = CONFIG.CHILDREN[selectedIndex] ? selectedIndex : 0;
                     const child = CONFIG.CHILDREN[childIndex];
@@ -187,9 +193,9 @@
                 if (result.photos.length === 0) {
                     emptyEl.style.display = 'block';
                     document.getElementById('emptyMessage').textContent = `沒有符合「${SearchState.query}」的照片`;
-                    document.getElementById('searchSubtitle').textContent = '找到 0 張照片';
+                    document.getElementById('searchSubtitle').textContent = '找到 0 筆回憶';
                 } else {
-                    document.getElementById('searchSubtitle').textContent = `找到 ${result.total} 張照片`;
+                    document.getElementById('searchSubtitle').textContent = `找到 ${result.total} 筆回憶`;
                     renderResults();
                     updatePagination();
                 }
@@ -281,9 +287,11 @@
 
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
+            window.TimehutViewerMedia?.show(photo);
         }
 
         function closeModal() {
+            window.TimehutViewerMedia?.stop();
             document.getElementById('photoModal').classList.remove('active');
             document.body.style.overflow = '';
         }

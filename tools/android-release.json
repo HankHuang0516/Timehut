@@ -1,7 +1,10 @@
 {
-  "version": "2026.10.14-test.56",
-  "filename": "HuangJiaXiaoWu-2026.10.14-test56.apk",
-  "url": "https://github.com/HankHuang0516/Timehut/releases/download/android-test-2026.10.14-56/HuangJiaXiaoWu-2026.10.14-test56.apk",
-  "bytes": 13728381,
-  "sha256": "f1e8c4b1ed9f481fae314e62957a65104b30d161abebef838add9b842dd95e36"
+  "version": "2026.10.16-test.75",
+  "versionCode": 75,
+  "filename": "HuangJiaXiaoWu-2026.10.16-test75.apk",
+  "bytes": 13768009,
+  "sha256": "e89c445ad0f9e624a202407026a1fadfa04863fc9cbc58e8b6592e9ee29e13e2",
+  "publicAccounts": true,
+  "publication": "released",
+  "url": "https://github.com/HankHuang0516/Timehut/releases/download/android-test-2026.10.16-75/HuangJiaXiaoWu-2026.10.16-test75.apk"
 }

@@ -20,8 +20,8 @@ const { setUserPhotoTags } = require('./photo-tags');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BACKEND_VERSION = '1.0.64';
-const BACKEND_BUILD = '2026.10.14.2';
+const BACKEND_VERSION = '1.0.67';
+const BACKEND_BUILD = '2026.10.16.1';
 
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 console.log("!!!!!!!! SERVER UNIFIED FIX STARTING - TIMESTAMP: " + Date.now() + " !!!!!!!");
@@ -33,10 +33,31 @@ app.get('/api/test_video_fix/:id', (req, res) => res.status(410).json({ error: '
 // ==================== 上傳佇列管理 ====================
 const QUEUE_FILE = path.join(__dirname, 'uploads', 'queue.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
+let accountStore = null;
+let scopedAccountMedia = null;
+let accountUploadJournal = null;
+let accountPhotoMutations = null;
+let accountPhotoDeletion = null;
+let accountUploadReceiver = null;
+let accountErasure = null;
+const activeAccountUploads = new Set();
 
 // 確保 uploads 目錄存在
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+// Once account data exists, a configuration rollback must not reopen the
+// legacy global API. Pausing signup is independent of account isolation.
+if (process.env.TIMEHUT_PUBLIC_REGISTRATION !== 'true') {
+    let accountStatePresent = false;
+    try { fs.lstatSync(path.join(UPLOADS_DIR, '.accounts')); accountStatePresent = true; }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (accountStatePresent || readQueue().some(row => row?.ownerUserId)) {
+        throw new Error('Existing account data requires account isolation; original files preserved');
+    }
+}
+if (process.env.TIMEHUT_ACCEPT_SIGNUPS !== undefined && !['true', 'false'].includes(process.env.TIMEHUT_ACCEPT_SIGNUPS)) {
+    throw new Error('Invalid signup configuration; account data preserved');
 }
 
 /**
@@ -48,19 +69,21 @@ function readQueue() {
             const data = fs.readFileSync(QUEUE_FILE, 'utf8');
             const queue = JSON.parse(data);
             if (!Array.isArray(queue)) throw new Error('Invalid receipt store shape');
+            if(accountUploadJournal){if(queue.some(row=>row.ownerUserId))throw new Error('Earlier public receipts require explicit journal migration');return [...queue,...accountUploadJournal.list()];}
             return queue;
         }
     } catch (error) {
         console.error('[QUEUE] Error reading queue:', error);
         throw new Error('Upload receipt store is unreadable; existing receipts are preserved');
     }
-    return [];
+    return accountUploadJournal?accountUploadJournal.list():[];
 }
 
 /**
  * 寫入上傳佇列
  */
 function writeQueue(queue) {
+    if(queue.some(row=>row.ownerUserId))throw new Error('Public receipts must be written through the atomic journal');
     const temporary = QUEUE_FILE + '.tmp';
     fs.writeFileSync(temporary, JSON.stringify(queue, null, 2), { mode: 0o600 });
     fs.renameSync(temporary, QUEUE_FILE);
@@ -70,7 +93,8 @@ function writeQueue(queue) {
  * 新增項目到佇列
  */
 function addToQueue(item) {
-    const queue = readQueue();
+    if(item.ownerUserId)throw new Error('Public original requires its admission journal');
+    const queue = readQueue().filter(row=>!row.ownerUserId);
     queue.push(item);
     writeQueue(queue);
     return item;
@@ -80,7 +104,8 @@ function addToQueue(item) {
  * 更新佇列項目
  */
 function updateQueueItem(localId, updates) {
-    const queue = readQueue();
+    if(accountUploadJournal?.get(localId))return accountUploadJournal.update(localId,updates);
+    const queue = readQueue().filter(row=>!row.ownerUserId);
     const index = queue.findIndex(item => item.localId === localId);
     if (index !== -1) {
         queue[index] = { ...queue[index], ...updates };
@@ -113,7 +138,7 @@ function recoverInterruptedUploads() {
             item.error = '上次 Flickr 上傳結果尚未確認；已保留原檔與收據，請先核對 Flickr，避免重複上傳';
         }
     }
-    if (changed) writeQueue(queue);
+    if (changed){if(accountUploadJournal){for(const row of queue.filter(row=>row.ownerUserId))updateQueueItem(row.localId,{status:row.status,error:row.error,retryBlocked:row.retryBlocked});writeQueue(queue.filter(row=>!row.ownerUserId));}else writeQueue(queue);}
 }
 
 /**
@@ -191,11 +216,11 @@ async function checkNetworkConnectivity() {
 /**
  * 帶重試的上傳到 Flickr
  */
-async function uploadToFlickrWithRetry(file, title, description, tags) {
+async function uploadToFlickrWithRetry(file, title, description, tags, credentialSnapshot=null) {
     // Flickr creation has no idempotency key. A lost response cannot safely be
     // retried: preserve the local file and receipt until the outcome is known.
     try {
-        return await uploadToFlickr(file, title, description, tags);
+        return await uploadToFlickr(file, title, description, tags,credentialSnapshot);
     } catch (error) {
         error.uploadOutcomeUnknown = true;
         throw error;
@@ -206,9 +231,19 @@ async function uploadToFlickrWithRetry(file, title, description, tags) {
  * 處理單一上傳項目的核心邏輯
  */
 async function processSingleItem(item) {
+    if(!item||activeAccountUploads.has(item.localId))return{success:false,type:'not_pending'};
+    activeAccountUploads.add(item.localId);
+    try{return await processSingleItemImpl(item);}finally{activeAccountUploads.delete(item.localId);if(accountErasure)setImmediate(()=>accountErasure.run().catch(console.error));}
+}
+async function processSingleItemImpl(item) {
     item = readQueue().find(row => row.localId === item.localId);
     if (!item || item.status === 'cancelled') return { success: false, type: 'cancelled' };
+    if (item.ownerUserId && (!accountStore || !accountStore.owns(item.ownerUserId, 'receipt', item.localId))) {
+        updateQueueItem(item.localId, { status: 'error', error: 'Account is unavailable; upload and original retained', retryBlocked: item.retryBlocked===true||(!item.flickrPhotoId&&['uploading','processing'].includes(item.status)) });
+        return { success: false, type: 'account_unavailable' };
+    }
     if (item.retryBlocked && !item.flickrPhotoId) return { success: false, type: 'unknown' };
+    if(item.ownerUserId&&accountUploadJournal){const claimed=accountUploadJournal.claim(item.localId);if(!claimed)return{success:false,type:'not_pending'};item=claimed;}
     console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
 
     // 更新狀態為上傳中，記錄嘗試次數
@@ -235,6 +270,11 @@ async function processSingleItem(item) {
 
     let photoId = item.flickrPhotoId || null;
     try {
+        let credentialSnapshot=null;
+        if(item.ownerUserId){
+            try{credentialSnapshot={...flickrCredentials()};const identity=await flickrRequest('flickr.test.login',{},credentialSnapshot,'GET');if(identity.stat!=='ok'||identity.user?.id!==process.env.FLICKR_USER_ID)throw new Error('Identity unconfirmed');}
+            catch(_){const failure=new Error('儲存帳戶尚未確認，原檔與收據會保留');failure.storagePrincipalUnconfirmed=true;throw failure;}
+        }
         // 上傳到 Flickr（帶重試）
         const file = {
             path: item.localPath,
@@ -242,13 +282,18 @@ async function processSingleItem(item) {
             mimetype: item.mimetype
         };
 
-        photoId ||= await uploadToFlickrWithRetry(file, item.title, item.description, item.tags);
+        photoId ||= await uploadToFlickrWithRetry(file, item.title, item.description, item.tags,credentialSnapshot);
         if (photoId) updateQueueItem(item.localId, { flickrPhotoId: photoId, retryBlocked: false });
+        if (photoId && item.ownerUserId) accountStore.attachPhoto(item.ownerUserId, item.localId, photoId, {
+            title: item.title, tags: item.tags, date: item.date, media: item.mimetype.startsWith('video/') ? 'video' : 'photo',
+            originalFilename: item.originalFilename, bytes: item.size
+        });
         console.log(`[WORKER] Uploaded to Flickr, photoId: ${photoId}`);
 
         if (photoId) {
             // Completion includes the requested membership and date metadata.
-            if (item.albumId) await addPhotoToAlbumWithRetry(photoId, item.albumId);
+            const providerAlbumId=item.albumId||(item.ownerUserId?require('./account-owner-bootstrap').legacyAlbumTarget(accountStore,item.ownerUserId,item.accountAlbumId):null);
+            if (providerAlbumId) await addPhotoToAlbumWithRetry(photoId, providerAlbumId);
             if (item.date) await setPhotoDate(photoId, item.date);
 
             // 更新佇列：標記完成並記錄 Flickr photoId
@@ -283,6 +328,7 @@ async function processSingleItem(item) {
 
     } catch (error) {
         console.error(`[WORKER] Error processing ${item.localId}:`, error.message);
+        if(error.storagePrincipalUnconfirmed){updateQueueItem(item.localId,{status:'error',retryBlocked:false,error:'儲存帳戶尚未確認，原檔與收據會保留'});return{success:false,type:'storage_unavailable'};}
 
         const saved = readQueue().find(row => row.localId === item.localId);
         if (!saved?.flickrPhotoId && (error.uploadOutcomeUnknown || photoId)) {
@@ -503,6 +549,10 @@ const GIT_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA ||
 app.use((req, res, next) => {
     // 允許任何來源 (Reflect origin)
     const origin = req.headers.origin;
+    if (process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true' && origin &&
+        !['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'].includes(origin)) {
+        return res.status(403).json({ error: 'Origin rejected' });
+    }
     if (origin) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
@@ -511,7 +561,8 @@ app.use((req, res, next) => {
 
     // 允許的 Headers
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Timehut-Album, X-Timehut-Upload, X-Timehut-Content-SHA256, X-Timehut-Metadata-SHA256, X-Timehut-Expected-User');
+    res.setHeader('Access-Control-Expose-Headers','X-Timehut-Account');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     // 處理 Preflight
@@ -521,7 +572,62 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true' ? '16kb' : '100kb' }));
+
+// Staged migration. Enabling this requires an explicit account owner, updated
+// web/native account clients and complete media/deletion gates; default is off.
+if (process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true') {
+    const { SQLiteAccountStore } = require('./account-sqlite-store');
+    const { AccountUploadJournal } = require('./account-upload-journal');
+    const { publicUploadReceiver } = require('./account-upload-receiver');
+    const { AccountErasure } = require('./account-erasure');
+    const { flickrErasure } = require('./flickr-erasure');
+    const { accountRouter } = require('./account-routes');
+    const { accountGateway } = require('./account-gateway');
+    const { accountAlbumMembership } = require('./account-album-membership');
+    const { AccountPhotoMutations } = require('./account-photo-mutations');
+    const { flickrPhotoMutations } = require('./flickr-photo-mutations');
+    const { AccountPhotoDeletion } = require('./account-photo-deletion');
+    const { mediaTickets } = require('./media-tickets');
+    const { accountMedia } = require('./account-media');
+    accountStore = new SQLiteAccountStore(path.join(UPLOADS_DIR, '.accounts'));
+    const ownerBootstrap=require('./account-owner-bootstrap');
+    const legacyOwnerId=ownerBootstrap.requireOwner(accountStore,process.env.TIMEHUT_LEGACY_OWNER_ID);
+    const {familyMedia}=require('./account-family-media');let originalFamilyMedia;
+    accountUploadJournal = new AccountUploadJournal(accountStore,UPLOADS_DIR);
+    accountPhotoMutations = new AccountPhotoMutations(accountStore,flickrPhotoMutations(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID));
+    accountPhotoDeletion = new AccountPhotoDeletion(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,readQueue,deletePhoto:flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID).deletePhoto,isActive:(id,receipt)=>activeAccountUploads.has(receipt)||Object.values(accountStore.state.photoMutations||{}).some(job=>job.photoId===id&&accountPhotoMutations.active.has(job.id))});
+    // Fail closed if an earlier scoped queue has not been explicitly migrated.
+    readQueue();
+    accountErasure=new AccountErasure(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,legacyOwnerId,readQueue,isActive:id=>activeAccountUploads.has(id),...flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID)});
+    const accounts = accountRouter(express, accountStore, { enabled: true, registrationEnabled: process.env.TIMEHUT_ACCEPT_SIGNUPS !== 'false', legacyOwnerId,
+        allowedOrigins: ['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'],onDeletion:()=>setImmediate(()=>accountErasure.run().catch(console.error)),photoView:(row,req)=>scopedAccountMedia.photoView(row,req),familyContext:id=>ownerBootstrap.familyContext(accountStore,id),familyPhotos:(req,res)=>originalFamilyMedia.photos(req,res) });
+    const tickets = mediaTickets(accountStore,{legacyPhotoOwner:(userId,id)=>originalFamilyMedia?.eligible(userId,id)===true});
+    scopedAccountMedia = accountMedia(accountStore, tickets, { readQueue, uploadsDirectory: UPLOADS_DIR,
+        providerRequest: flickrRequest, credentials: flickrCredentials });
+    originalFamilyMedia=familyMedia(accountStore,tickets,{providerRequest:flickrRequest,credentials:flickrCredentials,storageUserId:process.env.FLICKR_USER_ID,request:fetch,photoView:scopedAccountMedia.photoView});
+    const gateway = accountGateway(accountStore, accounts.authenticate, {
+        legacyOwnerId, readQueue,
+        callbackAllowed: token => typeof token === 'string' && Object.hasOwn(tempRequestTokens, token)&&typeof tempRequestTokens[token]==='string',
+        tickets, photoView: scopedAccountMedia.photoView, sizesView: scopedAccountMedia.sizesView, delivery: scopedAccountMedia.delivery, familyMedia:originalFamilyMedia
+    });
+    accountUploadReceiver=publicUploadReceiver(multer,{store:accountStore,journal:accountUploadJournal,uploadsDirectory:UPLOADS_DIR,providerConnected:()=>!!oauthTokens.accessToken,onAccepted:()=>setImmediate(()=>processUploadQueue().catch(console.error)),legacyLookup:(userId,clientId)=>userId===legacyOwnerId?readQueue().find(row=>!row.ownerUserId&&row.clientUploadId===clientId):null});
+    app.use('/api/accounts', accounts.router);
+    app.get('/api/uploads/admission/:clientId',accounts.authenticate,accountUploadReceiver.lookup);
+    app.use(['/api', '/uploads'], gateway.guard);
+    app.post('/api/album/:albumId/:operation',accountAlbumMembership(accountStore));
+    app.put('/api/photo/:photoId/tags',accountPhotoMutations.handler());
+    app.post(['/api/photos/tags/add','/api/photos/update-date'],accountPhotoMutations.handler());
+    app.delete('/api/photo/:photoId',accountPhotoDeletion.handler());
+    app.post('/api/photos/delete',accountPhotoDeletion.handler());
+    app.use('/app',express.static(path.join(__dirname,'public-app'),{dotfiles:'deny',index:'index.html',setHeaders:res=>res.set({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'})}));
+    const erasureTimer=setInterval(()=>accountErasure.run().catch(console.error),30000);erasureTimer?.unref?.();
+    setImmediate(()=>accountErasure.run().catch(console.error));
+    const photoMutationTimer=setInterval(()=>accountPhotoMutations.run().catch(console.error),30000);photoMutationTimer?.unref?.();
+    setImmediate(()=>accountPhotoMutations.run().catch(console.error));
+    const photoDeletionTimer=setInterval(()=>accountPhotoDeletion.run().catch(console.error),30000);photoDeletionTimer?.unref?.();
+    setImmediate(()=>accountPhotoDeletion.run().catch(console.error));
+}
 
 // 靜態檔案服務 - 提供本地上傳檔案存取
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -624,8 +730,9 @@ app.get('/api/auth/start', (req, res) => {
 
 // OAuth 回調
 app.get('/api/auth/callback', (req, res) => {
+    res.set('Cache-Control','no-store');
     const { oauth_token, oauth_verifier } = req.query;
-    const tokenSecret = tempRequestTokens[oauth_token];
+    const tokenSecret = typeof oauth_token==='string'&&Object.hasOwn(tempRequestTokens,oauth_token)?tempRequestTokens[oauth_token]:null;
 
     if (!tokenSecret) {
         return res.status(400).send('無效的授權請求');
@@ -637,9 +744,11 @@ app.get('/api/auth/callback', (req, res) => {
         oauth_verifier,
         (error, accessToken, accessTokenSecret, results) => {
             if (error) {
-                console.error('OAuth Access Token Error:', error);
+                console.error('OAuth access request failed');
                 return res.status(500).send('授權失敗');
             }
+
+            if(process.env.TIMEHUT_PUBLIC_REGISTRATION==='true'&&results?.user_nsid!==process.env.FLICKR_USER_ID){delete tempRequestTokens[oauth_token];return res.status(403).send('儲存帳戶不符，既有授權已保留');}
 
             // 儲存 access tokens
             oauthTokens.accessToken = accessToken;
@@ -649,9 +758,7 @@ app.get('/api/auth/callback', (req, res) => {
             delete tempRequestTokens[oauth_token];
 
             console.log('✅ Flickr 授權成功！');
-            console.log('請將以下 token 加入環境變數：');
-            console.log(`FLICKR_OAUTH_TOKEN=${accessToken}`);
-            console.log(`FLICKR_OAUTH_TOKEN_SECRET=${accessTokenSecret}`);
+            res.set('Cache-Control','no-store');
 
             res.send(`
                 <!DOCTYPE html>
@@ -669,11 +776,6 @@ app.get('/api/auth/callback', (req, res) => {
                 <body>
                     <h1>✅ Flickr 授權成功！</h1>
                     <p>您現在可以關閉此視窗，回到黃家小屋上傳照片了。</p>
-                    <div class="token-box">
-                        <p><strong>請將以下環境變數加入 Railway：</strong></p>
-                        <p><code>FLICKR_OAUTH_TOKEN=${accessToken}</code></p>
-                        <p><code>FLICKR_OAUTH_TOKEN_SECRET=${accessTokenSecret}</code></p>
-                    </div>
                     <script>
                         // 通知父視窗授權完成
                         if (window.opener) {
@@ -689,7 +791,7 @@ app.get('/api/auth/callback', (req, res) => {
 
 // 上傳照片/影片 - Staged Upload (v2.0)
 // 先存本地並立即回應，背景上傳到 Flickr
-app.post('/api/upload', upload.array('files', 20), async (req, res) => {
+app.post('/api/upload', (req,res,next)=>req.memberAdmission?accountUploadReceiver.handle(req,res):upload.array('files',20)(req,res,next), async (req, res) => {
     console.log('[UPLOAD] Received staged upload request');
 
     // 檢查授權（仍需授權，但上傳會在背景進行）
@@ -703,6 +805,15 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
     }
 
     const { albumId, title, description, tags, date, clientUploadId } = req.body;
+    const admission = req.memberAdmission;
+    if (admission && (albumId !== admission.albumId || !accountStore.owns(admission.userId, 'album', albumId))) {
+        for (const file of req.files) try { fs.unlinkSync(file.path); } catch (_) {}
+        return res.status(404).json({ error: 'Resource unavailable' });
+    }
+    if (admission && (!clientUploadId || req.files.length !== 1)) {
+        for (const file of req.files) try { fs.unlinkSync(file.path); } catch (_) {}
+        return res.status(400).json({ error: 'A per-file upload identity is required' });
+    }
     try {
         if (clientUploadId) for (const file of req.files) {
             const digest = uploadHash.createHash('sha256');
@@ -719,14 +830,15 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
             for (const file of req.files) try { fs.unlinkSync(file.path); } catch (_) {}
             return res.status(400).json({ error: 'Invalid per-file upload identity' });
         }
-        const existing = readQueue().find(item => item.clientUploadId === clientUploadId);
+        const existing = readQueue().find(item => item.clientUploadId === clientUploadId &&
+            (admission ? item.ownerUserId === admission.userId : !item.ownerUserId));
         if (existing) {
             const file = req.files[0];
             try { fs.unlinkSync(file.path); } catch (_) {}
             if (existing.status === 'cancelled') {
                 return res.status(409).json({ error: '此上傳已取消；原收件編號保留，不能重新建立', localId: existing.localId, retryBlocked: true });
             }
-            if (existing.size !== file.size || existing.contentSha256 !== file.contentSha256 || existing.originalFilename !== file.originalname || existing.albumId !== (albumId || null) || existing.tags !== (tags || '') || existing.title !== (title || file.originalname) || existing.description !== (description || '') || existing.date !== (date || null)) {
+            if (existing.size !== file.size || existing.contentSha256 !== file.contentSha256 || existing.originalFilename !== file.originalname || (admission ? existing.accountAlbumId : existing.albumId) !== (albumId || null) || existing.tags !== (tags || '') || existing.title !== (title || file.originalname) || existing.description !== (description || '') || existing.date !== (date || null)) {
                 return res.status(409).json({ error: 'Upload identity belongs to different file metadata' });
             }
             return res.json({ _staged: existing.status !== 'completed', results: [{ success: true, localId: existing.localId, photoId: existing.flickrPhotoId, _staged: existing.status !== 'completed' }] });
@@ -754,7 +866,10 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
                 originalFilename: file.originalname,
                 mimetype: file.mimetype,
                 size: file.size,
-                albumId: albumId || null,
+                // Public account album IDs are app-owned; they are never sent
+                // to central Flickr as arbitrary provider album IDs.
+                albumId: admission ? null : albumId || null,
+                ...(admission ? { ownerUserId: admission.userId, accountAlbumId: admission.albumId } : {}),
                 title: title || file.originalname,
                 description: description || '',
                 tags: tags || '',
@@ -765,11 +880,16 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
             };
 
             // 加入佇列
+            if (admission) accountStore.attachReceipt(admission.userId, admission.albumId, localId);
             addToQueue(queueItem);
             queuedItems.push(queueItem);
 
             // 建立本地照片物件（模擬 Flickr 格式）
             const localPhotoObject = createLocalPhotoObject(queueItem, baseUrl);
+            if (admission) {
+                const localUrl = scopedAccountMedia.localURL(queueItem, req);
+                for (const size of ['sq','t','s','m','l','o']) localPhotoObject['url_' + size] = localUrl;
+            }
 
             results.push({
                 filename: file.originalname,
@@ -1166,7 +1286,7 @@ app.get('/api/uploads/status', (req, res) => {
             status: item.status,
             flickrPhotoId: item.flickrPhotoId,
             error: item.error,
-            retryBlocked: item.retryBlocked === true,
+            retryBlocked: item.retryBlocked === true||item.photoDeletedAt!==undefined,
             createdAt: item.createdAt
         }))
     });
@@ -1184,10 +1304,10 @@ app.get('/api/uploads/status/:localId', (req, res) => {
     res.json({
         localId: item.localId,
         filename: item.originalFilename,
-        status: item.status,
+        status: item.photoDeletedAt!==undefined?'deleted':item.status,
         flickrPhotoId: item.flickrPhotoId,
         error: item.error,
-        retryBlocked: item.retryBlocked === true,
+        retryBlocked: item.retryBlocked === true||item.photoDeletedAt!==undefined,
         createdAt: item.createdAt,
         completedAt: item.completedAt
     });
@@ -1198,7 +1318,7 @@ app.post('/api/uploads/retry', async (req, res) => {
     const { localIds } = req.body;
     if (!Array.isArray(localIds) || !localIds.length || localIds.length > 500 || localIds.some(id => typeof id !== 'string')) return res.status(400).json({ error: '請提供要重試的收據' });
     const queue = readQueue();
-    const blocked = queue.filter(item => localIds.includes(item.localId) && item.retryBlocked);
+    const blocked = queue.filter(item => localIds.includes(item.localId) && (item.retryBlocked||item.photoDeletedAt!==undefined));
     if (blocked.length) return res.status(409).json({ error: 'Flickr 結果尚未確認，請先核對，避免重複上傳', localIds: blocked.map(item => item.localId) });
 
     let retryCount = 0;
@@ -1230,6 +1350,7 @@ app.delete('/api/uploads/:localId', (req, res) => {
     if (!item) {
         return res.status(404).json({ error: 'Upload not found' });
     }
+    if (item.photoDeletedAt !== undefined) return res.status(409).json({error:'照片已刪除，原上傳收據保留，不能取消或重新上傳',localId,retryBlocked:true});
     if (item.status === 'completed') {
         return res.json({ success: true, localId, status: 'completed' });
     }
@@ -1245,6 +1366,7 @@ app.delete('/api/uploads/:localId', (req, res) => {
     if (item.localPath && fs.existsSync(item.localPath)) {
         try {
             fs.unlinkSync(item.localPath);
+            if(item.ownerUserId&&accountUploadJournal)accountUploadJournal.releaseCancelled(localId);
         } catch (e) {
             console.error('[DELETE-UPLOAD] Failed to delete file:', e);
         }
@@ -1495,10 +1617,11 @@ app.post('/api/photo/:id/set_public', async (req, res) => {
 // Debug Endpoint REMOVED for Ghostbusting
 
 
-async function uploadToFlickr(file, title, description, tags) {
+async function uploadToFlickr(file, title, description, tags,credentialSnapshot=null) {
     return new Promise((resolve, reject) => {
         const FormData = require('form-data');
         const form = new FormData();
+        const credentials=credentialSnapshot||flickrCredentials();
 
         // 設定超時
         const UPLOAD_TIMEOUT = UPLOAD_CONFIG.uploadTimeoutMs; // 5 分鐘
@@ -1521,8 +1644,8 @@ async function uploadToFlickr(file, title, description, tags) {
         };
 
         const oauthParams = {
-            oauth_consumer_key: process.env.FLICKR_API_KEY,
-            oauth_token: oauthTokens.accessToken,
+            oauth_consumer_key: credentials.key,
+            oauth_token: credentials.token,
             oauth_signature_method: 'HMAC-SHA1',
             oauth_timestamp: timestamp,
             oauth_nonce: nonce,
@@ -1535,7 +1658,7 @@ async function uploadToFlickr(file, title, description, tags) {
         // 建立簽名
         const crypto = require('crypto');
         const baseString = buildBaseString('POST', uploadUrl, allParams);
-        const signingKey = `${encodeURIComponent(process.env.FLICKR_API_SECRET)}&${encodeURIComponent(oauthTokens.accessTokenSecret)}`;
+        const signingKey = `${encodeURIComponent(credentials.secret)}&${encodeURIComponent(credentials.tokenSecret)}`;
         const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
 
         oauthParams.oauth_signature = signature;
@@ -1868,7 +1991,7 @@ async function addPhotoTags(photoId, tags) {
 // 啟動伺服器
 app.listen(PORT, process.env.TIMEHUT_BIND_HOST || '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Deploy Version: Deploy to GitHub Pages #63`);
+    console.log(`Backend Release: ${BACKEND_VERSION} (${BACKEND_BUILD})`);
     console.log(`Backend Version (Git SHA): ${GIT_VERSION}`);
     console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT || 'Local'}`);
     console.log(`Uploads directory: ${UPLOADS_DIR}`);

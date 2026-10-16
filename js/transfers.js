@@ -4,13 +4,21 @@ window.TimehutTransfers = (() => {
     let plugin = null;
     let webPoll = null;
     const drafts = new Map();
-    const labels = {preparing:'準備檔案',queued:'等待送出',transferring:'手機傳輸中',waiting_network:'等待網路',waiting_wifi:'等待 Wi-Fi',waiting_system:'等待手機系統',server_accepted:'伺服器已收到',server_processing:'Flickr 處理中',file_ready:'已下載至 App',saving:'保存至手機相簿',saved:'已保存至手機相簿',completed:'Flickr 已完成',failed:'未完成',cancelled:'手機傳輸已停止'};
+    const labels = {preparing:'準備檔案',queued:'等待送出',transferring:'手機傳輸中',waiting_network:'等待網路',waiting_wifi:'等待 Wi-Fi',waiting_system:'等待手機系統',server_accepted:'伺服器已收到',server_processing:'Flickr 處理中',file_ready:'已下載至 App',saving:'保存至手機相簿',saved:'已保存至手機相簿',completed:'Flickr 已完成',photo_deleted:'照片已刪除',failed:'未完成',cancelled:'手機傳輸已停止'};
     const webCapabilities = {nativeBackgroundUpload:false,nativeBackgroundDownload:false,photoLibrarySave:false,completionNotifications:false,localThumbnails:false,platform:'web'};
     const ready = (async () => {
         const cap = window.Capacitor;
         if (!cap?.isNativePlatform?.()) return webCapabilities;
         if (!cap.isPluginAvailable?.('TimehutTransfer')) return {...webCapabilities,platform:cap.getPlatform?.() || 'native',nativeError:'原生傳輸功能未能啟動，請先確認 App 安裝與儲存狀態'};
-        try { plugin = cap.registerPlugin('TimehutTransfer'); return await plugin.capabilities(); }
+        try {
+            plugin = cap.registerPlugin('TimehutTransfer');
+            const capabilities=await plugin.capabilities();
+            if(cap.getPlatform?.()==='android') {
+                const raw=plugin,owned=new Set(['list','thumbnail','prepareUpload','enqueueUpload','enqueueDownload','cancel','retry','saveToPhotos']);
+                plugin=new Proxy(raw,{get(target,name){return owned.has(name)?options=>window.TimehutAccounts.transfer(name,options):Reflect.get(target,name);}});
+            }
+            return capabilities;
+        }
         catch (error) { plugin = null; return {...webCapabilities,platform:cap.getPlatform?.() || 'native',nativeError:error.message || String(error)}; }
     })();
     // Small previews live only in this page's memory. No arbitrary image URL or private path is loaded.
@@ -55,16 +63,17 @@ window.TimehutTransfers = (() => {
         if(entry?.finished){entry.data=null;entry.promise=Promise.resolve(null);}
     }
     function receipts() {
-        try { const rows=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(rows))throw new Error();return rows; }
+        try { const rows=JSON.parse((window.TimehutStorage?.local || localStorage).getItem(key)||'[]');if(!Array.isArray(rows))throw new Error();return rows; }
         catch (_) { throw new Error('傳輸收據無法讀取，既有紀錄已保留'); }
     }
     function trackReceipt(receipt, filename, options = {}) {
+        if (CONFIG.ACCOUNT_MODE) { window.dispatchEvent(new Event('timehut-receipt-changed')); return; }
         const rows = receipts();
         for (const item of receipt.results || []) {
             if (!item.localId || rows.some(row => row.serverReceiptId === item.localId)) continue;
             rows.push({id:item.localId,direction:'upload',filename,stage:'server_accepted',serverReceiptId:item.localId,createdAt:new Date().toISOString(),client:'web',albumId:options.albumId || null,byteSize:Number.isFinite(options.byteSize) ? options.byteSize : null});
         }
-        localStorage.setItem(key, JSON.stringify(rows));
+        (window.TimehutStorage?.local || localStorage).setItem(key, JSON.stringify(rows));
         window.dispatchEvent(new Event('timehut-receipt-changed'));
     }
     async function list() {
@@ -76,13 +85,19 @@ window.TimehutTransfers = (() => {
         finally { webPoll = null; }
     }
     async function pollReceipts() {
+        if (CONFIG.ACCOUNT_MODE) {
+            const data = await window.TimehutAccounts.request('/api/uploads/status');
+            if (!Array.isArray(data.items)) throw new Error('傳輸收據尚未確認');
+            const rows = data.items.map(item => ({id:item.localId,serverReceiptId:item.localId,direction:'upload',filename:item.filename,albumId:item.albumId,byteSize:item.byteSize,stage:item.status==='deleted'?'photo_deleted':item.status==='completed'&&item.flickrPhotoId?'completed':item.status==='error'?'failed':item.status==='cancelled'?'cancelled':item.status==='pending'?'server_accepted':'server_processing',flickrPhotoId:item.flickrPhotoId,retryBlocked:item.retryBlocked===true,errorCode:item.error||'',createdAt:item.createdAt,client:'web'}));
+            return [...rows,...await window.TimehutWebUpload.pendingReceipts()];
+        }
         const rows = receipts();
         const resolved = new Set();
         await Promise.all(rows.filter(row => row.stage !== 'completed').map(async row => {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 8000);
             try {
-                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/uploads/status/${encodeURIComponent(row.serverReceiptId)}`, {signal:controller.signal});
+                const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/uploads/status/${encodeURIComponent(row.serverReceiptId)}`, {signal:controller.signal});
                 if (!response.ok) throw new Error(response.status === 404 ? '找不到收據，尚未確認完成' : '暫時無法確認收據');
                 const data = await response.json();
                 // An unresolved creation must stay blocked across old-server replies and reloads.
@@ -108,7 +123,7 @@ window.TimehutTransfers = (() => {
             if (saved.retryBlocked && !resolved.has(saved.serverReceiptId)) row.retryBlocked = true;
             return row;
         });
-        localStorage.setItem(key, JSON.stringify(merged)); return merged;
+        (window.TimehutStorage?.local || localStorage).setItem(key, JSON.stringify(merged)); return merged;
     }
     async function mediaUrl(photo) {
         if (!photo) throw new Error('找不到可下載的媒體');
@@ -282,7 +297,7 @@ window.TimehutTransfers = (() => {
             return frame;
         }
         let filter = 'all';
-        const isComplete = row => ['saved','completed'].includes(row.stage);
+        const isComplete = row => ['saved','completed','photo_deleted'].includes(row.stage);
         const albumName = id => CONFIG.CHILDREN.find(child => String(child.albumId) === String(id))?.name || '尚未確認相簿';
         const sizeText = bytes => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${(bytes / 1024).toFixed(1)} KiB`;
         album.addEventListener('change', () => {
@@ -301,12 +316,12 @@ window.TimehutTransfers = (() => {
                 const card = document.createElement('article'); card.className = 'transfer-task';
                 const title = document.createElement('h3'); title.textContent = row.filename;
                 card.dataset.stage = row.stage;card.dataset.taskId=row.id;
-                const status = document.createElement('p'); status.className='transfer-stage'; status.textContent = `${row.direction === 'download' ? '↓ 下載' : '↑ 上傳'} · ${row.retryBlocked ? '需要核對上傳結果' : labels[row.stage] || '等待確認'}`;
+                const status = document.createElement('p'); status.className='transfer-stage'; status.textContent = `${row.direction === 'download' ? '↓ 下載' : '↑ 上傳'} · ${row.stage==='photo_deleted' ? labels.photo_deleted : row.retryBlocked ? '需要核對上傳結果' : labels[row.stage] || '等待確認'}`;
                 const detail = document.createElement('p'); detail.className='storybook-note'; detail.textContent = [row.errorCode,row.waitReason].filter(Boolean).join('；') || (row.flickrPhotoId ? `Flickr 照片 ${row.flickrPhotoId}` : Number.isFinite(row.byteSize) && row.byteSize > 0 ? `檔案大小 ${sizeText(row.byteSize)}` : '尚未取得檔案總量');
                 const overview=document.createElement('div');overview.className='transfer-task-overview';const meta=document.createElement('div');meta.className='transfer-task-meta';meta.append(title,status,detail);overview.append(previewFor(row),meta);card.append(overview);
                 if (row.retryBlocked) {
                     const note=document.createElement('p');note.className='transfer-review-note storybook-note';
-                    note.textContent='先核對 Flickr 的上傳結果，再決定後續處理。';card.append(note);
+                    note.textContent=row.stage==='photo_deleted'?'照片已刪除；原上傳收據保留，不會再次上傳。手機已保存的檔案仍保留。':'先核對 Flickr 的上傳結果，再決定後續處理。';card.append(note);
                 }
                 if (row.direction === 'upload') {
                     const destination = document.createElement('p'); destination.className='transfer-destination';
@@ -328,7 +343,13 @@ window.TimehutTransfers = (() => {
                         const label=document.createElement('label'); label.textContent='這個檔案的標籤';
                         const input=document.createElement('input'); input.className='upload-input'; input.value=drafts.get(row.id) ?? document.getElementById('transferTags').value.trim(); input.placeholder='例如：公園 家人 開心';
                         input.addEventListener('input',()=>drafts.set(row.id,input.value));label.append(input);card.append(label);
-                        add('開始上傳',()=>plugin.enqueueUpload({id:row.id,endpoint:CONFIG.UPLOAD_API_URL,albumId:album.value,tags:`uploader:爸爸 ${input.value.trim()}`}));
+                        add('開始上傳',()=>{
+                            const actor=window.TimehutAccounts?.status().user;
+                            if(CONFIG.ACCOUNT_MODE&&!actor?.username)throw new Error('請先登入帳戶');
+                            const uploader=CONFIG.ACCOUNT_MODE?actor.username:CONFIG.FAMILY_MEMBERS?.[0]?.name;
+                            const tags=[uploader?`uploader:${uploader}`:'',input.value.trim()].filter(Boolean).join(' ');
+                            return plugin.enqueueUpload({id:row.id,endpoint:CONFIG.UPLOAD_API_URL,albumId:album.value,tags});
+                        });
                     }
                     else if (['queued','transferring','waiting_network','waiting_wifi'].includes(row.stage)) add('停止手機傳輸',()=>plugin.cancel({id:row.id}));
                     if (['failed','cancelled','waiting_network','waiting_wifi','waiting_system'].includes(row.stage) && row.endpoint && !row.networkPolicyPending) add('重試',()=>plugin.retry({id:row.id}));
@@ -336,10 +357,10 @@ window.TimehutTransfers = (() => {
                 } else if(row.stage==='failed' && row.serverReceiptId && !row.retryBlocked && !row.waitReason && !capabilities.nativeError) {
                     const retry=document.createElement('button');retry.className='btn-tag';retry.textContent='重試 Flickr 處理';
                     retry.addEventListener('click',async()=>{retry.disabled=true;try{
-                        const response=await fetch(`${CONFIG.UPLOAD_API_URL}/api/uploads/retry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({localIds:[row.serverReceiptId]})});
+                        const response=await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/uploads/retry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({localIds:[row.serverReceiptId]})});
                         if(response.status===409) {
                             const rows=receipts();const saved=rows.find(item=>item.serverReceiptId===row.serverReceiptId);
-                            if(saved && !(saved.stage==='completed' && saved.flickrPhotoId)){saved.retryBlocked=true;saved.errorCode='Flickr 結果尚未確認，請先核對，避免重複上傳';localStorage.setItem(key,JSON.stringify(rows));}
+                            if(saved && !(saved.stage==='completed' && saved.flickrPhotoId)){saved.retryBlocked=true;saved.errorCode='Flickr 結果尚未確認，請先核對，避免重複上傳';(window.TimehutStorage?.local || localStorage).setItem(key,JSON.stringify(rows));}
                             await render();return;
                         }
                         if(!response.ok)throw new Error('Flickr 處理重試未被接受');await render();
@@ -418,8 +439,8 @@ window.TimehutTransfers = (() => {
         window.addEventListener('pageshow',event=>{if(event.persisted){disposed=false;refresh();}});
         refresh();
     }
-    document.addEventListener('DOMContentLoaded',initDeviceSettings);
-    document.addEventListener('DOMContentLoaded',initQueueEntry);
-    document.addEventListener('DOMContentLoaded',()=>initCenter().catch(error=>{const e=document.getElementById('transferCapability');if(e)e.textContent='傳輸狀態暫時無法讀取：'+error.message;}));
+    (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(initDeviceSettings);
+    (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(initQueueEntry);
+    (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(()=>initCenter().catch(error=>{const e=document.getElementById('transferCapability');if(e)e.textContent='傳輸狀態暫時無法讀取：'+error.message;}));
     return {ready,trackReceipt,list,mediaUrl,download,downloadMany,confirmDownloads};
 })();

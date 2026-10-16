@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>安裝黃家小屋</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="favicon.png" type="image/png"><link rel="apple-touch-icon" href="assets/app-icon-512.png"><meta name="theme-color" content="#fff3be"><meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="stylesheet" href="css/style.css?v=20261014.2"><link rel="stylesheet" href="css/storybook.css?v=20261014.2"><script defer src="js/install.js?v=20261014.2"></script><script defer src="js/pwa.js?v=20261014.2"></script>
+<link rel="stylesheet" href="css/style.css?v=20261014.2"><link rel="stylesheet" href="css/storybook.css?v=20261014.2"><script defer src="js/install.js?v=20261016.1"></script><script defer src="js/pwa.js?v=20261016.1"></script>
 </head><body class="storybook-page install-page">
 <svg class="install-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 <symbol id="guide-safari" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#e1f0fa" stroke="#417397" stroke-width="2"/><path d="m33 15-5 13-13 5 5-13Z" fill="#f7faff" stroke="#417397" stroke-width="2"/><path d="m33 15-5 13-8-8Z" fill="#d97d74"/><path d="M24 5v4m0 30v4M5 24h4m30 0h4" stroke="#417397" stroke-width="2"/></symbol>
@@ -21,11 +21,11 @@
 <p>將小屋加入手機主畫面，以獨立 App 視窗開啟。</p><p id="installStatus" class="install-status" role="status" aria-live="polite">正在確認安裝方式…</p><button id="installButton" class="btn-tag" hidden>安裝黃家小屋</button><p class="storybook-note">網頁 App 上傳期間須保持畫面開啟。</p></section>
 <section class="settings-section install-native-card" aria-labelledby="nativeAppTitle">
 <div class="install-card-title"><svg aria-hidden="true"><use href="#guide-phone"></use></svg><div><span class="install-option-label">Android・獨立安裝包</span><h2 id="nativeAppTitle">手機 App</h2></div><span id="nativeInstallBadge" class="install-badge">Android 測試版</span></div>
-<p id="nativeInstallStatus">Android 測試版已提供，可與原版並存。iPhone 手機版尚未提供。</p>
-<p class="install-build">版本 2026.10.14-test.56 · 約 13.7 MB · Android 7.0 以上</p>
-<div class="install-actions"><a id="androidDownload" class="btn-tag" href="downloads/HuangJiaXiaoWu-2026.10.14-test56.apk" download="HuangJiaXiaoWu-2026.10.14-test56.apk">下載 Android 測試版</a></div>
-<ol class="install-apk-steps"><li>下載後開啟 APK，依手機提示允許此來源安裝。</li><li>開啟「黃家小屋測試版」，使用原本的家庭密碼登入。</li></ol>
-<p class="storybook-note">Android 16 測試已確認切換 App、熄屏並鎖定後持續上下載，也已核對 MOV／MP4 原檔與照片保存。實體手機與不同廠牌的省電設定仍待確認。</p>
+<p id="nativeInstallStatus">新版 Android App 仍在驗證，尚未公開提供。iPhone 手機版尚未提供。</p>
+<p class="install-build">新版安裝資訊將於發布時更新 · Android 7.0 以上</p>
+<div class="install-actions"><a id="androidDownload" class="btn-tag" data-release-available="false" href="#nativeAppTitle" hidden>下載 Android 測試版</a></div>
+<ol class="install-apk-steps"><li>下載後開啟 APK，依手機提示允許此來源安裝。</li><li>開啟「黃家小屋測試版」，使用自己的帳號與密碼登入。</li></ol>
+<p class="storybook-note">這版的完整背景上下載仍在驗證；實體手機與不同廠牌的省電設定也待確認。請到傳輸中心核對每個檔案的實際結果。</p>
 <p class="storybook-note">請先更新 Android System WebView 與 Chrome。舊版網頁元件會顯示更新指引；較舊 Android 系統的背景傳輸尚未完成驗證。</p>
 <p class="storybook-note">背景傳輸需手機 App。手動強制結束可能中止或延後，請回來確認結果。</p></section>
 </div>

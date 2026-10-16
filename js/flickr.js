@@ -11,6 +11,11 @@ const FlickrAPI = {
      * @returns {Promise<Object>} API 回應
      */
     async call(method, params = {}) {
+        if(CONFIG.ACCOUNT_MODE){
+            if(method==='flickr.photosets.getList'){const data=await TimehutAccounts.request('/api/accounts/albums');return {stat:'ok',photosets:{photoset:data.albums.map(row=>({id:row.id,title:{_content:row.title}}))}};}
+            if(['flickr.photos.search','flickr.people.getPublicPhotos'].includes(method)){const query=new URLSearchParams({page:params.page||1,per_page:Math.min(30,params.per_page||30),query:params.text||''});return TimehutAccounts.request('/api/accounts/photos?'+query);}
+            throw new Error('此照片操作尚未接上我的帳戶');
+        }
         const url = new URL(CONFIG.FLICKR_API_BASE);
 
         const queryParams = {
@@ -72,6 +77,7 @@ const FlickrAPI = {
      * @returns {Promise<Object>} { photos, total, pages }
      */
     async getAlbumPhotos(albumId, page = 1, perPage = CONFIG.PHOTOS_PER_PAGE) {
+        if(CONFIG.ACCOUNT_MODE){const data=await TimehutAccounts.request(`/api/album/${encodeURIComponent(albumId)}/photos?page=${page}&per_page=${Math.min(30,perPage)}`);return {photos:data.photoset.photo||[],total:Number(data.photoset.total),pages:Number(data.photoset.pages),page:Number(data.photoset.page)};}
         // Use backend proxy to access private photos
         const url = `${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/photos?page=${page}&per_page=${perPage}`;
 
@@ -148,6 +154,7 @@ const FlickrAPI = {
      */
     async getVideoUrl(photo) {
         if (photo?.media !== 'video' || !photo.id) throw new Error('找不到可播放的影片');
+        if(CONFIG.ACCOUNT_MODE){if(!photo.videoPlayback)throw new Error('影片來源尚未確認');return photo.videoPlayback;}
         return `${CONFIG.UPLOAD_API_URL}/api/photo/${encodeURIComponent(photo.id)}/video?purpose=playback`;
     },
 
@@ -163,6 +170,7 @@ const FlickrAPI = {
         if (photo[urlKey]) {
             return photo[urlKey];
         }
+        if(CONFIG.ACCOUNT_MODE)return '';
 
         // Build URL from photo data
         const sizeMap = {
@@ -184,6 +192,7 @@ const FlickrAPI = {
      * @returns {string} Flickr 照片頁面 URL
      */
     getPhotoPageUrl(photo) {
+        if(CONFIG.ACCOUNT_MODE)return '#';
         return `https://www.flickr.com/photos/${CONFIG.FLICKR_USER_ID}/${photo.id}`;
     },
 
@@ -195,6 +204,7 @@ const FlickrAPI = {
      * @returns {Promise<Object>} 搜尋結果
      */
     async searchPhotos(query, options = {}) {
+        if(CONFIG.ACCOUNT_MODE){const params=new URLSearchParams({query:query||'',page:options.page||1,per_page:Math.min(30,options.perPage||30)});const selected=Number.parseInt(TimehutStorage.local.getItem('timehut_current_child')||'0',10),album=CONFIG.CHILDREN[selected];if(album)params.set('album',album.albumId);const result=await TimehutAccounts.request('/api/accounts/photos?'+params);return {photos:result.photos.photo||[],total:Number(result.photos.total),pages:Number(result.photos.pages),page:Number(result.photos.page)};}
         // If we have pre-loaded photos, filter locally (for private albums)
         if (options.allPhotos && options.allPhotos.length > 0) {
             const filtered = this.filterPhotosLocally(options.allPhotos, query);

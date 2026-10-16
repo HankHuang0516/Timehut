@@ -5,7 +5,7 @@
 
 // Global state
 const TimelineState = {
-    currentChildIndex: parseInt(localStorage.getItem('timehut_current_child') || '0'),
+    currentChildIndex: parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0'),
     photos: [],
     groupedPhotos: [],
     currentPage: 1,
@@ -51,9 +51,9 @@ function navigateToAlbum(momentId) {
     const momentData = TimelineState.momentData.get(momentId);
     if (momentData) {
         // Store moment photos in sessionStorage for album page
-        sessionStorage.setItem('albumPhotos', JSON.stringify(momentData.photos));
-        sessionStorage.setItem('albumDate', momentData.dateStr);
-        sessionStorage.setItem('albumMomentId', momentId);
+        (window.TimehutStorage?.session || sessionStorage).setItem('albumPhotos', JSON.stringify(momentData.photos));
+        (window.TimehutStorage?.session || sessionStorage).setItem('albumDate', momentData.dateStr);
+        (window.TimehutStorage?.session || sessionStorage).setItem('albumMomentId', momentId);
         const album = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
         const date = momentData.photos[0].datetaken?.split(' ')[0] || new Date(momentData.timestamp).toISOString().slice(0, 10);
         window.location.href = `album.html?${new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex })}`;
@@ -161,14 +161,18 @@ function populateTimeTravelMenu() {
  * 初始化時間軸頁面
  */
 async function initTimeline() {
+    if(window.TimehutPage?.empty())return;
+    const profiles=document.querySelector('.child-profiles')||document.querySelector('.profile-btn')?.parentElement;
+    if(profiles&&CONFIG.ACCOUNT_MODE){profiles.replaceChildren(...CONFIG.CHILDREN.map((child,index)=>{const button=document.createElement('button');button.className='profile-btn';button.dataset.child=String(index);button.title=child.name;button.setAttribute('aria-label',`查看 ${child.name} 的相簿`);const emoji=document.createElement('span');emoji.textContent=child.emoji;button.append(emoji);return button;}));}
     // Check for URL params (e.g. tag filter)
     const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
     const tagName = urlParams.get('tag_name');
     const q = urlParams.get('q');
 
     // Get selected child from localStorage (set by album sidebar)
-    const selectedChild = localStorage.getItem('timehut_current_child');
+    const selectedChild = (window.TimehutStorage?.local || localStorage).getItem('timehut_current_child');
     TimelineState.currentChildIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
+    if(!CONFIG.CHILDREN[TimelineState.currentChildIndex])TimelineState.currentChildIndex=0;
 
     // Update UI with selected child
     updateChildDisplay();
@@ -209,7 +213,7 @@ function updateChildDisplay() {
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
 
     // Get birthdate from localStorage or use default
-    const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
+    const birthDate = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
         || child.birthDate;
 
     // Update header
@@ -323,8 +327,8 @@ function setupEventListeners() {
  */
 async function switchChild(index) {
     if (!Number.isInteger(index) || !CONFIG.CHILDREN[index]) return;
-    localStorage.setItem('timehut_current_child', String(index));
-    sessionStorage.setItem('selectedChild', String(index));
+    (window.TimehutStorage?.local || localStorage).setItem('timehut_current_child', String(index));
+    (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', String(index));
     if (index === TimelineState.currentChildIndex) return;
     if (SelectionState.isSelectMode) toggleSelectMode();
     if (MomentSelectionState.isSelectMode) window.toggleMomentSelectMode();
@@ -337,7 +341,7 @@ async function switchChild(index) {
     TimelineState.photos = [];
     TimelineState.groupedPhotos = [];
 
-    sessionStorage.setItem('selectedChild', index);
+    (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', index);
 
     updateChildDisplay();
     await loadPhotos();
@@ -400,7 +404,7 @@ async function loadPhotos() {
             TimelineState.photoBatches = calculatePhotoBatches(TimelineState.photos);
 
             // Get birthdate from localStorage or use default
-            const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
+            const birthDate = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
                 || child.birthDate;
 
             // Group photos by age and render
@@ -409,8 +413,8 @@ async function loadPhotos() {
             updateAgeNavCounts();
 
             // Sync photos to sessionStorage for search.html to use
-            sessionStorage.setItem('allPhotos', JSON.stringify(TimelineState.photos));
-            sessionStorage.setItem('allPhotosChild', String(TimelineState.currentChildIndex));
+            (window.TimehutStorage?.session || sessionStorage).setItem('allPhotos', JSON.stringify(TimelineState.photos));
+            (window.TimehutStorage?.session || sessionStorage).setItem('allPhotosChild', String(TimelineState.currentChildIndex));
         }
 
     } catch (error) {
@@ -441,11 +445,11 @@ async function loadPhotos() {
     TimelineState.isLoading = false;
 
     // Restore scroll position if returning from album page
-    const savedScrollPosition = sessionStorage.getItem(TimelineState.SCROLL_POSITION_KEY);
+    const savedScrollPosition = (window.TimehutStorage?.session || sessionStorage).getItem(TimelineState.SCROLL_POSITION_KEY);
     if (savedScrollPosition) {
         setTimeout(() => {
             window.scrollTo(0, parseInt(savedScrollPosition));
-            sessionStorage.removeItem(TimelineState.SCROLL_POSITION_KEY);
+            (window.TimehutStorage?.session || sessionStorage).removeItem(TimelineState.SCROLL_POSITION_KEY);
         }, 100);
     }
 }
@@ -519,7 +523,7 @@ function renderTimeline() {
             moment.flatStartIndex = TimelineState.allPhotosFlat.length;
             moment.photos.forEach(p => TimelineState.allPhotosFlat.push(p));
 
-            const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate;
+            const birthDate = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate;
             const cardEl = createMomentCard(moment, birthDate);
             containerEl.insertBefore(cardEl, loadingEl);
         });
@@ -892,7 +896,7 @@ function openModal(index) {
         videoLink.target = '_blank'; videoLink.rel = 'noopener'; videoLink.textContent = '▶ 在 Flickr 開啟影片';
         document.querySelector('#photoModal .modal-info').append(videoLink);
     }
-    videoLink.hidden = photo.media !== 'video';
+    videoLink.hidden = CONFIG.ACCOUNT_MODE || photo.media !== 'video';
     videoLink.href = `https://www.flickr.com/photos/${encodeURIComponent(CONFIG.FLICKR_USER_ID)}/${encodeURIComponent(photo.id)}`;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -1004,7 +1008,7 @@ async function handleSearch(event) {
 
         // If local filter found results, show them
         if (filteredPhotos.length > 0) {
-            TimelineState.groupedPhotos = groupPhotosByAge(filteredPhotos, localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate);
+            TimelineState.groupedPhotos = groupPhotosByAge(filteredPhotos, (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate);
             loadingEl.style.display = 'none';
             renderTimeline();
             return;
@@ -1020,7 +1024,7 @@ async function handleSearch(event) {
             document.querySelector('#emptyState p').textContent = `沒有符合「${query}」的照片`;
         } else {
             TimelineState.photos = result.photos;
-            TimelineState.groupedPhotos = groupPhotosByAge(result.photos, localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate);
+            TimelineState.groupedPhotos = groupPhotosByAge(result.photos, (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate);
             loadingEl.style.display = 'none';
             renderTimeline();
         }
@@ -1158,7 +1162,7 @@ function refreshTimelineAfterBatch() {
     const pendingMomentPhotos = new Set(getSelectedMomentPhotoIds().map(String));
     TimelineState.photoBatches = calculatePhotoBatches(TimelineState.photos);
     const child = CONFIG.CHILDREN[TimelineState.currentChildIndex];
-    const birthDate = localStorage.getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate;
+    const birthDate = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`) || child.birthDate;
     TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, birthDate);
     TimelineState.momentData.clear();
     MomentSelectionState.selectedMoments.clear();
@@ -1200,7 +1204,7 @@ async function deleteSelectedPhotos() {
     // Use custom modal instead of native confirm
     const confirmed = await showConfirmModal(
         '確認刪除',
-        `確定要背景刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
+        `確定要背景刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！\n手機已保存的檔案仍會保留。`,
         '🗑️ 確認刪除'
     );
 
@@ -1228,7 +1232,7 @@ async function deleteSelectedPhotos() {
         }
 
         try {
-            const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+            const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ photoIds })
@@ -1298,7 +1302,7 @@ async function batchDownload() {
         for(const photo of photos){
             try{
                 const url=await TimehutTransfers.mediaUrl(photo);
-                const response=await fetch(url);if(!response.ok)throw new Error('下載失敗');
+                const response=await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(url);if(!response.ok)throw new Error('下載失敗');
                 const blob=await response.blob();
                 const filename=photo.media==='video'?`${photo.id}.${blob.type.split(';')[0].trim().toLowerCase()==='video/quicktime'?'mov':'mp4'}`:`${photo.id}-${new URL(url).pathname.split('/').at(-1)||'media'}`;
                 zip.file(filename,blob);acquired.push(photo.id);
@@ -1332,7 +1336,7 @@ async function batchAddTags() {
     btn.textContent = '處理中...';
 
     try {
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
+        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds, tags })
@@ -1397,7 +1401,7 @@ async function batchAddToAlbum() {
     btn.textContent = '處理中...';
 
     try {
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
+        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
@@ -1426,7 +1430,7 @@ async function batchAddToAlbum() {
 window.batchAddToAlbum = batchAddToAlbum;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+(window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
     if (document.getElementById('timelineContainer')) {
         initTimeline();
     }
@@ -1464,7 +1468,7 @@ async function savePhotoTags() {
     try {
         if (saveBtn) saveBtn.textContent = '⏳';
 
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/tags`, {
+        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/tags`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags: finalTags })
@@ -1676,6 +1680,7 @@ function updateAlbumUploadLink() {
     const albumLink = document.getElementById('albumUploadLink');
 
     if (!albumLink) return;
+    if(CONFIG.ACCOUNT_MODE){albumLink.href='account.html';albumLink.textContent='前往我的相簿';return;}
 
     if (child.albumId) {
         // Link to specific album
@@ -1860,7 +1865,7 @@ async function downloadCurrentPhoto() {
 
     try {
         // Fetch the image as blob for direct download
-        const response = await fetch(downloadUrl);
+        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(downloadUrl);
         if (!response.ok) throw new Error('下載失敗');
         const blob = await response.blob();
 
@@ -1900,12 +1905,12 @@ function initAlbumSidebar() {
     const sidebarAlbums = document.getElementById('sidebarAlbums');
     if (!sidebarAlbums) return;
 
-    const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
+    const currentChildIndex = parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0');
 
     // Render album cards
     sidebarAlbums.innerHTML = CONFIG.CHILDREN.map((child, index) => {
         // Use correct calculateAge from utils.js (returns object)
-        const age = calculateAge(localStorage.getItem(`timehut_child_${index}_birthdate`) || child.birthDate, new Date());
+        const age = calculateAge((window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`) || child.birthDate, new Date());
         const ageString = formatAgeString(age.years, age.months, age.days);
 
         return `
@@ -1913,7 +1918,7 @@ function initAlbumSidebar() {
                  aria-pressed="${index === currentChildIndex}" onclick="switchAlbum(${index})">
                 <span class="album-card-emoji">${child.emoji}</span>
                 <span class="album-card-info">
-                    <span class="album-card-name">${child.name}</span>
+                    <span class="album-card-name">${escapeTimehutText(child.name)}</span>
                     <span class="album-card-subtitle">${ageString}</span>
                 </span>
             </button>
@@ -2010,7 +2015,7 @@ document.addEventListener('keydown', event => {
     }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+(window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
     const header = document.querySelector('.timeline-page .header');
     if (header) new ResizeObserver(() => {
         document.documentElement.style.setProperty('--timeline-header-height', `${header.getBoundingClientRect().height}px`);
@@ -2033,11 +2038,11 @@ window.closeAlbumSidebar = closeAlbumSidebar;
 window.switchAlbum = switchAlbum;
 
 // Initialize sidebar on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', initAlbumSidebar);
+(window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( initAlbumSidebar);
 
 // Save scroll position when leaving the page
 window.addEventListener('beforeunload', () => {
-    sessionStorage.setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
+    (window.TimehutStorage?.session || sessionStorage).setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
 });
 
 // =====================================================
@@ -2165,7 +2170,7 @@ window.batchMomentDelete = async function batchMomentDelete() {
     const photoIds = getSelectedMomentPhotoIds();
     const photoCount = photoIds.length;
 
-    if (!await TimehutDialogs.confirm(`確定要永久刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！`, {title:'永久刪除照片',confirmText:'永久刪除',danger:true})) return;
+    if (!await TimehutDialogs.confirm(`確定要永久刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！\n手機已保存的檔案仍會保留。`, {title:'永久刪除照片',confirmText:'永久刪除',danger:true})) return;
 
     // Hand off to background worker
     if (typeof BackgroundWorker !== 'undefined') {
@@ -2184,7 +2189,7 @@ window.batchMomentDelete = async function batchMomentDelete() {
         btn.textContent = '刪除中...';
 
         try {
-            const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+            const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ photoIds })
@@ -2236,7 +2241,7 @@ window.batchMomentAddTags = async function batchMomentAddTags() {
     btn.textContent = '處理中...';
 
     try {
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
+        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds, tags })
@@ -2330,7 +2335,7 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
 
     try {
         // First add photos to new album
-        const addResponse = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${targetAlbumId}/add_photos`, {
+        const addResponse = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${targetAlbumId}/add_photos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
@@ -2349,7 +2354,7 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
 
         // Only confirmed destination membership permits removing originals.
         // The user may switch children while the destination request is pending.
-        const removeResponse = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${sourceAlbumId}/remove_photos`, {
+        const removeResponse = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${sourceAlbumId}/remove_photos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
@@ -2541,7 +2546,7 @@ async function confirmMoveCollection() {
     btn.textContent = '處理中...';
 
     try {
-        const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
+        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds, targetDate })

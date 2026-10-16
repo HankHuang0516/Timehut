@@ -36,7 +36,7 @@
             const info=modal.querySelector('.modal-info');info.prepend(mediaStatus);mediaStatus.after(mediaRetry);
             let activeVideo=false,activePhoto=null;
             const stop=()=>{token++;activeVideo=false;activePhoto=null;mediaStatus.hidden=true;mediaRetry.hidden=true;video.pause();video.removeAttribute('src');video.load();video.hidden=true;};
-            const playbackFailed=()=>{if(!activeVideo||!modal.classList.contains('active'))return;video.hidden=true;video.style.display='none';image.hidden=false;image.style.display='block';mediaStatus.textContent='影片暫時無法播放，請重試或在 Flickr 開啟';mediaStatus.hidden=false;mediaRetry.hidden=false;};
+            const playbackFailed=()=>{if(!activeVideo||!modal.classList.contains('active'))return;video.hidden=true;video.style.display='none';image.hidden=false;image.style.display='block';mediaStatus.textContent=CONFIG.ACCOUNT_MODE?'影片暫時無法播放，請重試或下載原檔':'影片暫時無法播放，請重試或在 Flickr 開啟';mediaStatus.hidden=false;mediaRetry.hidden=false;};
             const loadVideo=async(current)=>{
                 try {
                     const url=await FlickrAPI.getVideoUrl(activePhoto);
@@ -53,7 +53,7 @@
                 stop();const current=token;image.hidden=false;image.style.display='block';
                 let link=document.getElementById('modalVideoLink');
                 if(!link){link=document.createElement('a');link.id='modalVideoLink';link.className='modal-download-btn';link.target='_blank';link.rel='noopener';link.textContent='▶ 在 Flickr 開啟影片';modal.querySelector('.modal-info').append(link);}
-                link.hidden=photo.media!=='video';link.href=`https://www.flickr.com/photos/${encodeURIComponent(CONFIG.FLICKR_USER_ID)}/${encodeURIComponent(photo.id)}`;
+                link.hidden=CONFIG.ACCOUNT_MODE||photo.media!=='video';link.href=`https://www.flickr.com/photos/${encodeURIComponent(CONFIG.FLICKR_USER_ID)}/${encodeURIComponent(photo.id)}`;
                 const download=document.getElementById('modalDownloadBtn');if(download)download.textContent=photo.media==='video'?'📥 下載影片':'📥 下載原圖';
                 if(photo.media!=='video')return;
                 activeVideo=true;activePhoto=photo;
@@ -124,5 +124,5 @@
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         });
     }
-    document.addEventListener('DOMContentLoaded', init);
+    (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( init);
 })();

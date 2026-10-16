@@ -2,6 +2,11 @@
 <html lang="zh-TW">
 
 <head>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.1"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 相集詳情">
@@ -13,8 +18,8 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=20261014.2">
-    <script src="js/vendor/jszip-3.10.1.min.js?v=20261014.2"></script>
-    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261014.2"></script>
+    <script src="js/vendor/jszip-3.10.1.min.js?v=20261016.1"></script>
+    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261016.1"></script>
     <style>
         .album-page-content {
             max-width: 1200px;
@@ -249,13 +254,13 @@
         }
     </style>
     <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261014.2"></script>
-    <script defer src="js/storybook.js?v=20261014.2"></script>
+    <script defer src="js/dialogs.js?v=20261016.1"></script>
+    <script defer src="js/storybook.js?v=20261016.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261014.2"></script>
-<script defer src="js/pwa.js?v=20261014.2"></script>
+    <script defer src="js/transfers.js?v=20261016.1"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
 <body class="storybook-page timeline-page">
@@ -280,7 +285,7 @@
     <header class="header">
         <div class="header-left">
             <a href="timeline.html" class="header-logo">
-                <img src="16120.jpg" alt="黃家小屋" class="logo-img">
+                <img src="assets/app-icon-192.png" alt="黃家小屋" class="logo-img">
                 <span class="header-title">黃家小屋</span>
             </a>
         </div>
@@ -432,12 +437,12 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js?v=20261014.2"></script>
-    <script src="js/results.js?v=20261014.2"></script>
-    <script src="js/utils.js?v=20261014.2"></script>
-    <script src="js/flickr.js?v=20261014.2"></script>
-    <script src="js/uploader.js?v=20261014.2"></script>
-    <script src="js/timeline.js?v=20261014.2"></script>
+    
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261016.1"></script>
+    <script src="js/flickr.js?v=20261016.1"></script>
+    <script src="js/uploader.js?v=20261016.1"></script>
+    <script src="js/timeline.js?v=20261016.1"></script>
     <script>
         // AlbumState updated to be more robust
         const AlbumState = {
@@ -450,16 +455,16 @@
         };
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', async () => {
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( async () => {
             // Get moment data from URL or sessionStorage
             const urlParams = new URLSearchParams(window.location.search);
             AlbumState.momentId = urlParams.get('id');
 
             // Try to get photos from sessionStorage
-            const storedPhotos = sessionStorage.getItem('albumPhotos');
-            const storedDate = sessionStorage.getItem('albumDate');
+            const storedPhotos = (window.TimehutStorage?.session || sessionStorage).getItem('albumPhotos');
+            const storedDate = (window.TimehutStorage?.session || sessionStorage).getItem('albumDate');
 
-            if (storedPhotos && sessionStorage.getItem('albumMomentId') === AlbumState.momentId) {
+            if (storedPhotos && (window.TimehutStorage?.session || sessionStorage).getItem('albumMomentId') === AlbumState.momentId) {
                 AlbumState.photos = JSON.parse(storedPhotos);
                 document.getElementById('momentDate').textContent = storedDate || '相集';
                 document.getElementById('momentInfo').textContent = `共 ${AlbumState.photos.length} 張照片`;
@@ -516,7 +521,7 @@
                 const date = first.datetaken?.split(' ')[0] || new Date(Number(first.dateupload) * 1000).toISOString().slice(0, 10);
                 document.getElementById('momentDate').textContent = '▦ ' + new Date(date + 'T12:00:00').toLocaleDateString('zh-TW', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
                 const index = Math.max(0, CONFIG.CHILDREN.findIndex(child => String(child.albumId) === new URLSearchParams(location.search).get('album')));
-                const birthday = localStorage.getItem(`timehut_child_${index}_birthdate`) || CONFIG.CHILDREN[index].birthDate;
+                const birthday = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`) || CONFIG.CHILDREN[index].birthDate;
                 const age = calculateAge(birthday, date);
                 document.getElementById('momentAge').textContent = '☺ ' + formatAgeString(age.years, age.months, age.days);
                 document.getElementById('albumCover').src = FlickrAPI.getPhotoUrl(first, 'm');
@@ -664,7 +669,7 @@
             tagBtn.textContent = '處理中...';
 
             try {
-                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
+                const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/tags/add`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ photoIds, tags })
@@ -677,7 +682,7 @@
                     AlbumState.photos.forEach(photo => { if (succeeded.includes(String(photo.id))) photo.tags = [photo.tags, tags].filter(Boolean).join(' '); });
                     succeeded.forEach(id => AlbumState.selectedPhotos.delete(id));
                     TimehutResults.invalidateAlbumCache();
-                    sessionStorage.setItem('albumPhotos', JSON.stringify(AlbumState.photos));
+                    (window.TimehutStorage?.session || sessionStorage).setItem('albumPhotos', JSON.stringify(AlbumState.photos));
                     renderPhotos(); updateSelectionUI();
                     if (failed.length) {
                         alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取與標籤供重試`);
@@ -698,7 +703,7 @@
         }
 
         // 支援 Enter 鍵提交標籤
-        document.addEventListener('DOMContentLoaded', () => {
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
             const tagInput = document.getElementById('tagInput');
             if (tagInput) {
                 tagInput.addEventListener('keydown', (e) => {
@@ -756,7 +761,7 @@
                         // Use backend proxy to avoid CORS if needed
                         // const proxyUrl = `${CONFIG.UPLOAD_API_URL}/api/proxy-image?url=${encodeURIComponent(url)}`;
                         // Using direct fetch for now, mostly works with Flickr
-                        const response = await fetch(url);
+                        const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(url);
                         if (!response.ok) throw new Error('下載失敗');
 
                         const blob = await response.blob();
@@ -817,7 +822,7 @@
 
             const confirmed = await showConfirmModal(
                 '確認刪除',
-                `確定要背景刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！`,
+                `確定要背景刪除 ${count} 張照片嗎？\n⚠️ 此操作無法復原！\n手機已保存的檔案仍會保留。`,
                 '🗑️ 確認刪除'
             );
 
@@ -848,7 +853,7 @@
                 deleteBtn.textContent = '刪除中...';
 
                 try {
-                    const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
+                    const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/delete`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ photoIds })
@@ -910,7 +915,7 @@
             btn.textContent = '處理中...';
 
             try {
-                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
+                const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ photoIds })
@@ -959,7 +964,7 @@
 
             try {
                 // 獲取當前孩子的所有照片並分組
-                const currentChildIndex = parseInt(localStorage.getItem('timehut_current_child') || '0');
+                const currentChildIndex = parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0');
                 const child = CONFIG.CHILDREN[currentChildIndex];
 
                 if (!child || !child.albumId) {
@@ -1026,7 +1031,7 @@
 
         function renderCollectionList(collections) {
             const listEl = document.getElementById('collectionList');
-            const currentDate = sessionStorage.getItem('albumDate');
+            const currentDate = (window.TimehutStorage?.session || sessionStorage).getItem('albumDate');
 
             // 過濾掉當前相集（可選）
             const filteredCollections = collections;
@@ -1092,7 +1097,7 @@
             btn.textContent = '處理中...';
 
             try {
-                const response = await fetch(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
+                const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photos/update-date`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ photoIds, targetDate })
@@ -1219,7 +1224,7 @@
 
             try {
                 const url = await TimehutTransfers.mediaUrl(photo);
-                const response = await fetch(url);
+                const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(url);
                 if (!response.ok) throw new Error('下載失敗');
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
@@ -1282,7 +1287,7 @@
         });
 
         // Fix: Click background to close photo modal
-        document.addEventListener('DOMContentLoaded', () => {
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
             const modal = document.getElementById('photoModal');
             if (modal) {
                 modal.addEventListener('click', (e) => {

@@ -2,13 +2,18 @@
 <html lang="zh-TW">
 
 <head>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.1"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.1"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="黃家小屋 - 寶貝成長時間軸">
     <title>黃家小屋 - 時間軸</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <link rel="icon" type="image/jpeg" href="16120.jpg">
-    <link rel="apple-touch-icon" href="16120.jpg">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -16,16 +21,16 @@
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=20261014.2">
     <link rel="stylesheet" href="css/timeline-ui.css?v=20261014.2">
-    <script src="js/vendor/jszip-3.10.1.min.js?v=20261014.2"></script>
-    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261014.2"></script>
+    <script src="js/vendor/jszip-3.10.1.min.js?v=20261016.1"></script>
+    <script src="js/vendor/filesaver-2.0.5.min.js?v=20261016.1"></script>
     <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261014.2"></script>
-    <script defer src="js/storybook.js?v=20261014.2"></script>
+    <script defer src="js/dialogs.js?v=20261016.1"></script>
+    <script defer src="js/storybook.js?v=20261016.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261014.2"></script>
-<script defer src="js/pwa.js?v=20261014.2"></script>
+    <script defer src="js/transfers.js?v=20261016.1"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
 </head>
 
 <body class="storybook-page timeline-page">
@@ -71,7 +76,7 @@
                     <span class="hamburger-icon">☰</span>
                 </button>
                 <a href="index.html" class="header-logo header-logo-large">
-                    <img src="16120.jpg" alt="黃家小屋" class="logo-img">
+                    <img src="assets/app-icon-192.png" alt="黃家小屋" class="logo-img">
                     <span class="header-title">黃家小屋</span>
                 </a>
             </div>
@@ -157,12 +162,8 @@
         <!-- Left Sidebar - Child Profiles -->
         <aside class="sidebar-left">
             <div class="child-profiles">
-                <button class="profile-btn" data-child="0" title="漢堡" aria-label="查看漢堡的相簿">
-                    <span class="profile-emoji">👶</span>
-                </button>
-                <button class="profile-btn" data-child="1" title="涵涵" aria-label="查看涵涵的相簿">
-                    <span class="profile-emoji">👼</span>
-                </button>
+                
+                
             </div>
         </aside>
 
@@ -365,19 +366,20 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/config.js?v=20261014.2"></script>
-    <script src="js/results.js?v=20261014.2"></script>
-    <script src="js/utils.js?v=20261014.2"></script>
-    <script src="js/flickr.js?v=20261014.2"></script>
-    <script src="js/uploader.js?v=20261014.2"></script>
-    <script src="js/timeline.js?v=20261014.2"></script>
+    
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261016.1"></script>
+    <script src="js/flickr.js?v=20261016.1"></script>
+    <script src="js/uploader.js?v=20261016.1"></script>
+    <script src="js/timeline.js?v=20261016.1"></script>
     <script>
         // Auth check - redirect if not authenticated
         (function () {
+            if(CONFIG.ACCOUNT_MODE)return;
             const AUTH_KEY = 'timehut_authenticated';
             const AUTH_EXPIRY_KEY = 'timehut_auth_expiry';
-            const isAuth = localStorage.getItem(AUTH_KEY);
-            const expiry = localStorage.getItem(AUTH_EXPIRY_KEY);
+            const isAuth = (window.TimehutStorage?.local || localStorage).getItem(AUTH_KEY);
+            const expiry = (window.TimehutStorage?.local || localStorage).getItem(AUTH_EXPIRY_KEY);
 
             // Check if authenticated
             if (isAuth !== 'true') {
@@ -387,8 +389,8 @@
 
             // Check expiry
             if (expiry && Date.now() > parseInt(expiry)) {
-                localStorage.removeItem(AUTH_KEY);
-                localStorage.removeItem(AUTH_EXPIRY_KEY);
+                (window.TimehutStorage?.local || localStorage).removeItem(AUTH_KEY);
+                (window.TimehutStorage?.local || localStorage).removeItem(AUTH_EXPIRY_KEY);
                 window.location.href = 'index.html';
                 return;
             }
@@ -398,14 +400,15 @@
         })();
 
         function doLogout() {
-            localStorage.removeItem('timehut_authenticated');
-            localStorage.removeItem('timehut_auth_expiry');
-            localStorage.removeItem('timehut_current_member');
+            if(CONFIG.ACCOUNT_MODE){TimehutAccounts.signOut().finally(()=>location.replace('account.html'));return;}
+            (window.TimehutStorage?.local || localStorage).removeItem('timehut_authenticated');
+            (window.TimehutStorage?.local || localStorage).removeItem('timehut_auth_expiry');
+            (window.TimehutStorage?.local || localStorage).removeItem('timehut_current_member');
             window.location.href = 'index.html';
         }
 
         // Initialize timeline on page load
-        document.addEventListener('DOMContentLoaded', function () {
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( function () {
             // timeline.js owns timeline initialization; avoid duplicate handlers.
 
             // 點擊外部區域關閉移動相集 Modal
