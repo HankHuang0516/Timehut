@@ -114,12 +114,18 @@
             chips.tabIndex = 0; chips.setAttribute('role', 'region');
             viewer.querySelector('.modal-tags-edit')?.before(chips);
             const decoration = document.createElement('img'); decoration.src = 'assets/storybook-family.png'; decoration.className = 'viewer-decoration'; decoration.alt = ''; viewer.append(decoration);
+            const details = document.createElement('div'); details.className = 'viewer-details';
+            details.tabIndex = 0; details.setAttribute('role', 'region'); details.setAttribute('aria-label', '照片資訊');
+            for (const child of [...viewer.children]) {
+                if (!child.matches('.modal-tags-edit,.modal-actions,.modal-download-btn,.viewer-decoration,.toast-container')) details.append(child);
+            }
+            viewer.prepend(details);
             const renderTags = () => {
                 chips.replaceChildren(); (document.getElementById('editTagsInput')?.value || '').split(/\s+/).filter(Boolean).forEach(tag => {
                     const chip = document.createElement('span'); chip.className = 'viewer-tag'; chip.textContent = tag; chips.append(chip);
                 });
             };
-            const title = document.getElementById('modalTitle'); if (title) new MutationObserver(()=>{renderTags();modal?.setAttribute('aria-label',title.textContent || '照片檢視');}).observe(title, {childList:true});
+            const title = document.getElementById('modalTitle'); if (title) new MutationObserver(()=>{renderTags();details.scrollTop=0;chips.scrollTop=0;modal?.setAttribute('aria-label',title.textContent || '照片檢視');}).observe(title, {childList:true});
             document.getElementById('editTagsInput')?.addEventListener('input', renderTags);
         }
         document.addEventListener('keydown', event => {
