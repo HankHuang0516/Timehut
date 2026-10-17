@@ -1,5 +1,6 @@
 import Foundation
 import CoreFoundation
+import Security
 
 enum NativeAccountHTTPError: Error { case status(Int), invalidResponse, tooLarge, timeout, invalidRequest, busy }
 
@@ -75,7 +76,7 @@ final class NativeAccountClient {
               !value.contains("\\") else { return false }
         let report="[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}"
         let additions = [
-            "GET":"/api/accounts/(albums/archived|feedback(/inbox|/\(report)(/image/[0-9]{1,3})?)?|notifications|notification-settings)",
+            "GET":"/api/accounts/(albums/archived|feedback(/inbox|/\(report)(/image/[0-9]{1,3})?)?|notifications|notification-settings|photo-deletions)",
             "POST":"/api/accounts/(albums/[A-Za-z0-9_-]{1,128}/(archive|restore)|feedback(/\(report)/(chunks/[0-9]{1,3}|complete|cancel))?|notifications/\(report)/read)",
             "PUT":"/api/accounts/(albums/[A-Za-z0-9_-]{1,128}/title|notification-settings)"]
         if let extra=additions[method], url.path.range(of:"\\A"+extra+"\\z",options:.regularExpression) != nil { return true }
@@ -102,10 +103,24 @@ final class NativeAccountClient {
         if let expectedOwner, let actor = response.0.value(forHTTPHeaderField: "X-Timehut-Account"), actor != expectedOwner { throw NativeAccountHTTPError.invalidResponse }
         return response.1
     }
+    private static func cancellationSecret() throws -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw NativeAccountError.unavailable }
+        return Data(bytes).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+    private static func protocolOne(_ value: Any?) -> Bool {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              ["q", "i", "l"].contains(String(cString: number.objCType)) else { return false }
+        return number.int64Value == 1
+    }
+    private static func trueBoolean(_ value: Any?) -> Bool {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
+    }
     private func rejectSecrets(_ value: Any, bearer: String? = nil) throws {
         if let object = value as? [String: Any] {
             for (key, value) in object {
-                guard !["token", "password", "passwordHash"].contains(key) else { throw NativeAccountHTTPError.invalidResponse }
+                guard !["token", "password", "passwordHash", "cancelSecret"].contains(key) else { throw NativeAccountHTTPError.invalidResponse }
                 try rejectSecrets(value, bearer: bearer)
             }
         } else if let array = value as? [Any] { for value in array { try rejectSecrets(value, bearer: bearer) } }
@@ -134,28 +149,30 @@ final class NativeAccountClient {
         guard username.range(of: "\\A[A-Za-z0-9_.-]{3,32}\\z", options: .regularExpression) != nil,
               (12...128).contains(password.count), displayName.utf8.count <= 512 else { throw NativeAccountHTTPError.invalidRequest }
         guard loginLock.try() else { throw NativeAccountHTTPError.busy }; defer { loginLock.unlock() }
+        let secret = try Self.cancellationSecret()
         NativeAccountStore.boundary.lock()
         let attempt: String
         do {
             if let expectedGeneration {
                 guard NativeAccountOrigin.uuid(expectedGeneration), try store.status()["generation"] as? String == expectedGeneration else { throw NativeAccountError.changed }
             }
-            attempt = try store.beginLogin(issuer: backend); NativeAccountStore.boundary.unlock()
+            attempt = try store.beginLogin(issuer: backend, cancelSecret: secret); NativeAccountStore.boundary.unlock()
         } catch { NativeAccountStore.boundary.unlock(); throw error }
         var loginDispatched = false
         do {
             if register { _ = try json(backend, "POST", "/api/accounts/register", body: ["username": username, "password": password, "displayName": displayName]) }
             loginDispatched = true
-            let result = try json(backend, "POST", "/api/accounts/login", body: ["username": username, "password": password])
+            let result = try json(backend, "POST", "/api/accounts/native-login", body: ["username": username, "password": password, "attemptId": attempt, "cancelSecret": secret])
             guard let token = result["token"] as? String, NativeAccountOrigin.token(token) else { throw NativeAccountHTTPError.invalidResponse }
             try store.captureLoginToken(token, attempt: attempt)
+            guard Self.protocolOne(result["protocol"]), result["attemptId"] as? String == attempt else { throw NativeAccountHTTPError.invalidResponse }
             let verified = try profile(json(backend, "GET", "/api/accounts/me", token: token), token: token, issuer: backend)
             let current = try store.completeLogin(verified.0, attempt: attempt); changed()
             return try publish(verified.1, for: current, delivery: delivery)
         } catch {
-            let definitive: Bool
-            if case NativeAccountHTTPError.status(401) = error { definitive = true } else { definitive = !loginDispatched }
-            try? store.abortLogin(attempt, definitiveNoToken: definitive)
+            // Every dispatched attempt retains cancellation proof, including
+            // malformed replies and401. No bearer uncertainty is guessed away.
+            try? store.abortLogin(attempt, definitiveNoToken: !loginDispatched)
             throw error
         }
     }
@@ -183,6 +200,15 @@ final class NativeAccountClient {
             throw error
         }
     }
+    @discardableResult func retryNativeCancellation(_ row: NativeAccountCancellation) throws -> Bool {
+        guard try store.nativeCancellations().contains(row) else { return true }
+        do {
+            let ack = try json(row.issuer, "POST", "/api/accounts/native-login/cancel", body: ["attemptId": row.attemptId, "cancelSecret": row.secret], seconds: 6)
+            guard Self.trueBoolean(ack["ok"]), Self.trueBoolean(ack["cancelled"]), Self.protocolOne(ack["protocol"]),
+                  ack["attemptId"] as? String == row.attemptId else { return false }
+            try store.confirmNativeCancellation(row); return true
+        } catch { return false }
+    }
     @discardableResult func retryRevocation(_ row: NativeAccountRevocation) throws -> Bool {
         guard try store.allRevocations().contains(row) else { return true }
         var confirmed = false
@@ -208,9 +234,10 @@ final class NativeAccountClient {
             closedGeneration = generation; NativeAccountStore.boundary.unlock()
         } catch { NativeAccountStore.boundary.unlock(); throw error }
         var confirmed = true
+        if let row = try store.nativeCancellations().first { confirmed = try retryNativeCancellation(row) }
         // One bounded pass. An OS/persistent retry scheduler is still separate.
         let pending = try store.allRevocations()
-        if let row = pending.first { confirmed = try retryRevocation(row) }
+        if let row = pending.first { confirmed = try retryRevocation(row) && confirmed }
         NativeAccountStore.boundary.lock(); defer { NativeAccountStore.boundary.unlock() }
         let left = try store.allRevocations().count
         let status = try store.status(), unknown = status["unknownLoginResults"] as? Int ?? 0, loginPending = status["loginPending"] as? Bool ?? true

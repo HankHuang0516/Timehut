@@ -20,8 +20,8 @@ const { setUserPhotoTags } = require('./photo-tags');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BACKEND_VERSION = '1.0.69';
-const BACKEND_BUILD = '2026.10.16.3';
+const BACKEND_VERSION = '1.0.71';
+const BACKEND_BUILD = '2026.10.17.1';
 
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 console.log("!!!!!!!! SERVER UNIFIED FIX STARTING - TIMESTAMP: " + Date.now() + " !!!!!!!");
@@ -600,7 +600,7 @@ if (process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true') {
     // Fail closed if an earlier scoped queue has not been explicitly migrated.
     readQueue();
     accountErasure=new AccountErasure(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,legacyOwnerId,readQueue,isActive:id=>activeAccountUploads.has(id),...flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID)});
-    const accounts = accountRouter(express, accountStore, { enabled: true, registrationEnabled: process.env.TIMEHUT_ACCEPT_SIGNUPS !== 'false', legacyOwnerId,
+    const accounts = accountRouter(express, accountStore, { enabled: true, registrationEnabled: process.env.TIMEHUT_ACCEPT_SIGNUPS !== 'false', legacyOwnerId, photoDeletionStatus:(user,query)=>accountPhotoDeletion.listStatus(user,query),
         allowedOrigins: ['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'],onDeletion:()=>setImmediate(()=>accountErasure.run().catch(console.error)),photoView:(row,req)=>scopedAccountMedia.photoView(row,req),familyContext:id=>ownerBootstrap.familyContext(accountStore,id),familyPhotos:(req,res)=>originalFamilyMedia.photos(req,res),feedback:new (require('./account-feedback').AccountFeedback)(accountStore,UPLOADS_DIR) });
     const tickets = mediaTickets(accountStore,{legacyPhotoOwner:(userId,id)=>originalFamilyMedia?.eligible(userId,id)===true});
     scopedAccountMedia = accountMedia(accountStore, tickets, { readQueue, uploadsDirectory: UPLOADS_DIR,

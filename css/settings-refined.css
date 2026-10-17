@@ -147,6 +147,7 @@ body.settings-refined, body.account-refined {
 .settings-refined.settings-page .settings-story-closing { display:flex; align-items:center; gap:16px; margin:0 0 24px; padding:16px; border:1px solid #ece5ce; border-radius:var(--ui-card-radius); background:#fff9e9; }
 .settings-refined.settings-page .settings-story-closing img { flex:0 0 128px; width:128px; height:112px; max-width:45%; object-fit:contain; }
 .settings-refined.settings-page .settings-story-closing p { min-width:0; margin:0; color:#59634e; font-size:var(--ui-meta); line-height:1.5; }
+.settings-refined.settings-page :is(.settings-story-closing p,.settings-header > p) { text-wrap:pretty; }
 @media(min-width:761px) {
  .settings-refined.settings-page #childrenList { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; align-items:stretch; }
  .settings-refined.settings-page .child-card,

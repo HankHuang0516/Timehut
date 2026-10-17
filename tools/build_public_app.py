@@ -8,7 +8,7 @@ parser=argparse.ArgumentParser();parser.add_argument('destination');parser.add_a
 destination=Path(args.destination).resolve()
 assert destination.name in ['public-app','site'],'Unexpected artifact directory'
 assert not destination.exists(),'Preserve existing artifact; use a new build directory'
-selected=['index.html','timeline.html','album.html','search.html','settings.html','transfer.html','account.html','privacy.html','support.html','delete-account.html','offline.html','install.html','favicon.png','favicon.ico','public-service-worker.js']
+selected=['index.html','timeline.html','album.html','search.html','settings.html','transfer.html','account.html','privacy.html','support.html','delete-account.html','offline.html','install.html','favicon.png','favicon.ico','public-service-worker.js','releases.json']
 selected += [str(path.relative_to(root)) for path in (root/'js').rglob('*.js') if path.name!='config.js']
 selected += ['js/vendor/noble-hashes-2.4.0/LICENSE','js/vendor/noble-hashes-2.4.0/provenance.json']
 selected += [str(path.relative_to(root)) for path in (root/'css').glob('*.css')]
@@ -27,7 +27,7 @@ if args.release_manifest:
  target=destination/'install.html';target.write_text(render_installer(target.read_text(),release,remote=True))
  manifest['files']['install.html']={'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'generatedPublicOnly':True,'templateSHA256':hashlib.sha256((root/'install.html').read_bytes()).hexdigest()}
  manifest['installer']=release
-webmanifest={'id':'./','name':'黃家小屋','short_name':'黃家小屋','start_url':'index.html','scope':'./','display':'standalone','background_color':'#f9f6f0','theme_color':'#486d55','icons':[{'src':'assets/app-icon-192.png','sizes':'192x192','type':'image/png'},{'src':'assets/app-icon-512.png','sizes':'512x512','type':'image/png','purpose':'any maskable'}]}
+webmanifest={'id':'./','name':'時光相簿','short_name':'時光相簿','start_url':'index.html','scope':'./','display':'standalone','background_color':'#f9f6f0','theme_color':'#486d55','icons':[{'src':'assets/app-icon-192.png','sizes':'192x192','type':'image/png'},{'src':'assets/app-icon-512.png','sizes':'512x512','type':'image/png','purpose':'any maskable'}]}
 generated={'manifest.webmanifest':json.dumps(webmanifest,ensure_ascii=False,indent=2)+'\n'}
 for name,content in generated.items():
  target=destination/name;target.write_text(content);manifest['files'][name]={'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'generatedPublicOnly':True}

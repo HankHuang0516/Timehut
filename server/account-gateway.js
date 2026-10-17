@@ -7,6 +7,7 @@ function accountGateway(store,authenticate,{legacyOwnerId,readQueue,callbackAllo
  if(typeof legacyOwnerId!=='string'||!Object.hasOwn(store.state.users,legacyOwnerId)||store.state.users[legacyOwnerId].disabled)throw new Error('Legacy owner must be explicitly configured before registration activation');
  const deny=res=>res.status(404).json({error:'Resource unavailable'});
  const receiptOwned=(userId,id)=>store.owns(userId,'receipt',id)&&readQueue().some(row=>row.localId===id&&row.ownerUserId===userId);
+ const originalOwned=(userId,id)=>receiptOwned(userId,id)&&readQueue().some(row=>{const media=row.flickrPhotoId&&store.state.media[row.flickrPhotoId];return row.localId===id&&row.ownerUserId===userId&&row.photoDeletedAt===undefined&&(!media||media.deletionRequestedAt===undefined&&media.deletedAt===undefined);});
  const photoOwned=(userId,id)=>store.owns(userId,'photo',id);
  const deletionOwned=(userId,id)=>Object.hasOwn(store.state.media,id)&&store.state.media[id].userId===userId;
  const all=(kind,userId,ids)=>Array.isArray(ids)&&ids.length>0&&ids.length<=100&&ids.every(id=>typeof id==='string'&&(kind==='receipt'?receiptOwned(userId,id):photoOwned(userId,id)));
@@ -65,7 +66,7 @@ function accountGateway(store,authenticate,{legacyOwnerId,readQueue,callbackAllo
     return res.json({stat:'ok',photoset:{photo:rows.slice((page-1)*per,page*per).map(r=>photoView(r,req)),total:rows.length,pages:Math.max(1,Math.ceil(rows.length/per)),page}});
    }
    if(delivery&&parts.length===4&&['GET','HEAD'].includes(req.method)&&
-       ((parts[1]==='photo'&&parts[3]==='image'&&photoOwned(userId,parts[2]))||(parts[1]==='uploads'&&parts[2]==='file'&&receiptOwned(userId,parts[3]))))return delivery(req,res);
+       ((parts[1]==='photo'&&parts[3]==='image'&&photoOwned(userId,parts[2]))||(parts[1]==='uploads'&&parts[2]==='file'&&originalOwned(userId,parts[3]))))return delivery(req,res);
    if(parts[1]==='photo'&&parts.length===4&&parts[3]==='sizes'&&req.method==='GET')return photoOwned(userId,parts[2])&&sizesView?sizesView(req,res):deny(res);
    if(pathname==='/api/uploads/status'&&req.method==='GET'){
     const rows=readQueue().filter(row=>(row.ownerUserId===userId&&store.owns(userId,'receipt',row.localId))||(userId===legacyOwnerId&&!row.ownerUserId));

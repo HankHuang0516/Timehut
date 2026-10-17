@@ -1,0 +1,61 @@
+--- a/internal/preflight/manifest.go
++++ b/internal/preflight/manifest.go
+@@ -210,12 +210,8 @@
+ 		}
+ 	}
+ 
+-	if raw := androidString(c, "foregroundServiceType"); raw != "" {
+-		for _, t := range strings.Split(raw, "|") {
+-			if t = strings.TrimSpace(t); t != "" {
+-				comp.ForegroundServiceTypes = append(comp.ForegroundServiceTypes, t)
+-			}
+-		}
++	if a, ok := c.Android("foregroundServiceType"); ok {
++		comp.ForegroundServiceTypes = decodeForegroundServiceTypes(a)
+ 	}
+ 	return comp
+ }
+@@ -255,3 +251,43 @@
+ 	}
+ 	return "", false
+ }
++
++// decodeForegroundServiceTypes projects compiled flags onto the public Android
++// SDK 36 names. AXML and protobuf primitives carry integer bitmasks, not enum
++// strings. Keep unknown bits (including the reserved 0x1000) as error-producing
++// tokens so new or unsupported types never silently bypass permission checks.
++func decodeForegroundServiceTypes(a Attr) []string {
++	if a.Type == AttrInt {
++		bits := uint32(a.Int) // #nosec G115 -- Android flags are 32-bit, including signed AXML int32.
++		if bits != 0 {
++			known := []struct {
++				bit  uint32
++				name string
++			}{
++				{0x1, "dataSync"}, {0x2, "mediaPlayback"}, {0x4, "phoneCall"},
++				{0x8, "location"}, {0x10, "connectedDevice"}, {0x20, "mediaProjection"},
++				{0x40, "camera"}, {0x80, "microphone"}, {0x100, "health"},
++				{0x200, "remoteMessaging"}, {0x400, "systemExempted"}, {0x800, "shortService"},
++				{0x2000, "mediaProcessing"}, {0x40000000, "specialUse"},
++			}
++			var out []string
++			for _, flag := range known {
++				if bits&flag.bit != 0 {
++					out = append(out, flag.name)
++					bits &^= flag.bit
++				}
++			}
++			if bits != 0 {
++				out = append(out, fmt.Sprintf("0x%x", bits))
++			}
++			return out
++		}
++	}
++	var out []string
++	for _, value := range strings.Split(a.Value, "|") {
++		if value = strings.TrimSpace(value); value != "" {
++			out = append(out, value)
++		}
++	}
++	return out
++}

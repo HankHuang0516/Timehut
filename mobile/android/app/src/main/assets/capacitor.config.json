@@ -1,14 +1,9 @@
 {
 	"appId": "tw.aihankapps.timehut",
-	"appName": "時光相簿",
+	"appName": "黃家小屋",
 	"webDir": "www",
 	"android": {
 		"allowMixedContent": false
-	},
-	"plugins": {
-		"SystemBars": {
-			"insetsHandling": "disable"
-		}
 	},
 	"ios": {
 		"contentInset": "automatic"

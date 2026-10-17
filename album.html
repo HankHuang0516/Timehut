@@ -443,6 +443,7 @@
     <script src="js/flickr.js?v=20261016.5"></script>
     <script src="js/uploader.js?v=20261016.3"></script>
     <script src="js/timeline.js?v=20261016.5"></script>
+    <script src="js/deletion-status.js?v=20261017.1"></script>
     <script>
         // AlbumState updated to be more robust
         const AlbumState = {
@@ -481,7 +482,7 @@
                     }
                     try {
                         const requested = urlParams.get('photos');
-                        const photoIds = requested === null ? null : requested.split(',');
+                        const photoIds = requested === null ? null : requested === '' ? [] : requested.split(',');
                         if (photoIds && (photoIds.length > 200 || photoIds.some(id => !/^[0-9]{1,32}$/.test(id))
                             || new Set(photoIds).size !== photoIds.length)) throw new Error('請從時間軸重新進入此相集');
                         const loadedPhotos = await FlickrAPI.getAlbumDayPhotos(album, date, (photos, progress) => {
@@ -500,6 +501,23 @@
                         renderPhotos();
                     } catch (error) {
                         const info = document.getElementById('momentInfo');
+                        const requested = urlParams.get('photos');
+                        const deletion = requested && await window.TimehutDeletionStatus?.inspectAlbum(album, requested.split(','));
+                        const completed = new Set((deletion?.items || []).filter(row => row.status === 'complete').map(row => row.photoId));
+                        if (completed.size) {
+                            const next = new URL(location.href), remaining = requested.split(',').filter(id => !completed.has(id));
+                            next.searchParams.set('photos', remaining.join(','));
+                            if (remaining.length) { AlbumState.momentId = 'moment_' + remaining[0]; next.searchParams.set('id', AlbumState.momentId); }
+                            history.replaceState(null, '', next.pathname + next.search + next.hash);
+                            if (remaining.every(id => AlbumState.photos.some(photo => String(photo.id) === id))) { renderPhotos(); return; }
+                        }
+                        const pending = (deletion?.items || []).filter(row => row.status !== 'complete').length;
+                        if (pending > 0) {
+                            info.textContent = `目前顯示 ${AlbumState.photos.length} 張，${pending} 項刪除尚未確認。`;
+                            const link = document.createElement('a'); link.className = 'btn-secondary';
+                            link.href = 'transfer.html#photo-deletions'; link.textContent = '接續確認刪除';
+                            info.append(' ', link); return;
+                        }
                         info.textContent = AlbumState.photos.length
                             ? `目前顯示 ${AlbumState.photos.length} 張，其他照片尚未讀取完成。`
                             : '相集載入失敗，請再試一次。';
@@ -742,6 +760,38 @@
             }
         });
 
+        function syncMomentSourceUrl() {
+            const url = new URL(location.href);
+            if (!AlbumState.momentId?.startsWith('moment_') || !url.searchParams.has('date')) return null;
+            const album = url.searchParams.get('album');
+            if (!CONFIG.CHILDREN.some(child => String(child.albumId) === album)) return null;
+            const ids = AlbumState.photos.map(photo => String(photo.id));
+            if (ids.some(id => !/^[0-9]{1,32}$/.test(id))) return null;
+            if (ids.length <= 200) url.searchParams.set('photos', ids.join(','));
+            else url.searchParams.delete('photos');
+            if (ids.length) {
+                AlbumState.momentId = 'moment_' + ids[0];
+                url.searchParams.set('id', AlbumState.momentId);
+            }
+            history.replaceState(history.state, '', url);
+            if (ids.length) return null;
+            const timeline = new URL('timeline.html', location.href);
+            timeline.searchParams.set('album', album);
+            return timeline.href;
+        }
+
+        function leaveEmptyMoment(url) {
+            const uploading = typeof BackgroundUploader !== 'undefined' && BackgroundUploader.isUploading;
+            const working = typeof BackgroundWorker !== 'undefined' && BackgroundWorker.isBusy;
+            if (!url || uploading || working) return;
+            const album = new URL(url).searchParams.get('album');
+            const index = CONFIG.CHILDREN.findIndex(child => String(child.albumId) === album);
+            if (index < 0) return;
+            try { (window.TimehutStorage?.local || localStorage).setItem('timehut_current_child', String(index)); }
+            catch (_) { return; }
+            location.replace(url);
+        }
+
         // Batch download selected photos as ZIP
         async function downloadSelected() {
             if(AlbumState.downloadBusy)return;
@@ -851,17 +901,20 @@
             if (typeof BackgroundWorker !== 'undefined') {
                 const deletion = await BackgroundWorker.startDelete(photoIds);
                 if (!deletion.accepted) { alert('目前已有作業進行中，選取已保留'); return; }
+                let emptySourceUrl = null;
                 if (deletion.succeeded.length) {
                     const deleted = new Set(deletion.succeeded.map(String));
                     deletion.succeeded.forEach(id => AlbumState.selectedPhotos.delete(String(id)));
                     AlbumState.photos = AlbumState.photos.filter(photo => !deleted.has(String(photo.id)));
                     TimehutResults.invalidateAlbumCache();
+                    emptySourceUrl = syncMomentSourceUrl();
                     renderPhotos(); updateSelectionUI();
                 }
                 if (deletion.failed.length) { alert(`已確認刪除 ${deletion.succeeded.length} 張；${deletion.failed.length} 張未完成，僅保留未完成項目供重試`); return; }
 
                 if (AlbumState.selectedPhotos.size === 0) cancelSelection();
                 showToast(`已確認刪除 ${deletion.succeeded.length} 張照片`, 'success');
+                leaveEmptyMoment(emptySourceUrl);
             } else {
                 // Fallback to old blocking method
                 console.warn('BackgroundWorker not available, using blocking delete');
@@ -888,9 +941,11 @@
 
                         AlbumState.selectedPhotos = new Set(receipt.failed);
                         TimehutResults.invalidateAlbumCache();
+                        const emptySourceUrl = receipt.succeeded.length ? syncMomentSourceUrl() : null;
                         renderPhotos(); updateSelectionUI();
                         if (!receipt.failed.length) cancelSelection();
                         alert(`確認刪除 ${receipt.succeeded.length} 張；未完成 ${receipt.failed.length} 張，選取已保留`);
+                        if (!receipt.failed.length) leaveEmptyMoment(emptySourceUrl);
                     } else {
                         alert(`刪除失敗: ${result.error || result.message}`);
                     }
@@ -981,8 +1036,11 @@
 
             try {
                 // 獲取當前孩子的所有照片並分組
-                const currentChildIndex = parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0');
-                const child = CONFIG.CHILDREN[currentChildIndex];
+                const sourceAlbum = new URLSearchParams(location.search).get('album');
+                const storedIndex = parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0');
+                const child = sourceAlbum !== null
+                    ? CONFIG.CHILDREN.find(child => String(child.albumId) === sourceAlbum)
+                    : CONFIG.CHILDREN.find(child => String(child.albumId) === AlbumState.momentId) || CONFIG.CHILDREN[storedIndex];
 
                 if (!child || !child.albumId) {
                     throw new Error('無法獲取當前相簿');
@@ -1132,6 +1190,7 @@
                         AlbumState.photos = AlbumState.photos.filter(photo => photo.datetaken?.split(' ')[0] === originalDate);
                     }
                     TimehutResults.invalidateAlbumCache();
+                    const emptySourceUrl = succeeded.length ? syncMomentSourceUrl() : null;
                     renderPhotos(); updateSelectionUI();
                     document.getElementById('moveCollectionCount').textContent = failed.length;
                     if (failed.length) {
@@ -1142,8 +1201,7 @@
                     alert(result.message || '移動成功');
                     closeMoveCollectionModal();
                     cancelSelection();
-                    // 刷新頁面以顯示變化
-                    location.reload();
+                    leaveEmptyMoment(emptySourceUrl);
                 } else {
                     alert('移動失敗: ' + (result.error || result.message));
                 }

@@ -2050,7 +2050,11 @@ window.switchAlbum = switchAlbum;
 
 // Save scroll position when leaving the page
 window.addEventListener('beforeunload', () => {
-    (window.TimehutStorage?.session || sessionStorage).setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
+    // Account redirects may leave before context is ready; scroll restoration is optional.
+    if (typeof window.TimehutPage?.owner === 'function' && !window.TimehutPage.owner()) return;
+    try {
+        (window.TimehutStorage?.session || sessionStorage).setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
+    } catch (_) { /* An unavailable scroll cache must not interrupt navigation. */ }
 });
 
 // =====================================================

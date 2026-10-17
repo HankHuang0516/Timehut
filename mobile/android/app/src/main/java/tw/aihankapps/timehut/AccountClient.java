@@ -51,7 +51,7 @@ final class AccountClient {
     static boolean allowedPath(String method,String path){
         try{URI uri=new URI(path);if(uri.isAbsolute()||uri.getRawAuthority()!=null||uri.getRawFragment()!=null||!uri.getRawPath().equals(uri.getPath()))return false;String p=uri.getPath();
             String report="[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}";
-            if(method.equals("GET")&&p.matches("/api/accounts/(albums/archived|feedback(/inbox|/"+report+"(/image/[0-9]{1,3})?)?|notifications|notification-settings)"))return true;
+            if(method.equals("GET")&&p.matches("/api/accounts/(albums/archived|feedback(/inbox|/"+report+"(/image/[0-9]{1,3})?)?|notifications|notification-settings|photo-deletions)"))return true;
             if(method.equals("POST")&&p.matches("/api/accounts/(albums/[A-Za-z0-9_-]{1,128}/(archive|restore)|feedback(/"+report+"/(chunks/[0-9]{1,3}|complete|cancel))?|notifications/"+report+"/read)"))return true;
             if(method.equals("PUT")&&p.matches("/api/accounts/(albums/[A-Za-z0-9_-]{1,128}/title|notification-settings)"))return true;
             if(method.equals("GET"))return p.matches("/api/(accounts/(me|albums|context|photos)|albums|auth/status|uploads/(status(/[A-Za-z0-9_-]{1,128})?|admission/[A-Za-z0-9_-]{16,80})|album/[A-Za-z0-9_-]{1,128}/photos|photo/[0-9]+/sizes)");

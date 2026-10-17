@@ -1,7 +1,7 @@
 {
   "name": "timehut-flickr-server",
-  "version": "1.0.69",
-  "description": "\u9ec3\u5bb6\u5c0f\u5c4b - Flickr \u4e0a\u50b3\u5f8c\u7aef\u670d\u52d9",
+  "version": "1.0.71",
+  "description": "黃家小屋 - Flickr 上傳後端服務",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

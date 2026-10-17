@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "platform": "android",
+      "channel": "android-private-test",
+      "version": "2026.10.16-test.94",
+      "versionCode": 94,
+      "available": true,
+      "url": "https://github.com/HankHuang0516/Timehut/releases/download/android-test-2026.10.16-94/HuangJiaXiaoWu-2026.10.16-test94.apk",
+      "sha256": "bcc4f7cd499f1e524a98736f9ad49706bd2ecda157e9cbe707d94a8e526d6108",
+      "notes": "調整設定頁排版，保留相集載入及頂部按鈕修正，改善上傳相簿選項與傳輸名稱。",
+      "verifiedAt": "2026-10-17T04:47:35.889934+00:00"
+    },
+    {
+      "platform": "web",
+      "channel": "web",
+      "version": "2026.10.16-web.4",
+      "versionCode": 4,
+      "available": true,
+      "url": "https://just-healing-production.up.railway.app/app/index.html",
+      "notes": "改善相集載入、私密照片顯示與失敗後重新載入。",
+      "verifiedAt": "2026-10-17T04:58:46.872763+00:00"
+    }
+  ]
+}

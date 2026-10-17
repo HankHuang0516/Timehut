@@ -1,0 +1,692 @@
+{
+  "version": 1,
+  "frozen_date": "2026-10-11",
+  "goal": "True E2E reviewed PASS and both visual/function >=80%",
+  "per_board_minimum": 80,
+  "overall_minimum": 80,
+  "unverified_counts_as_zero": true,
+  "author_self_score_is_not_acceptance": true,
+  "source_repo": "/Volumes/codex_2T/codex_project/AiHankApps/Timehut",
+  "boards": [
+    {
+      "board": "02",
+      "reference": ".codex-local/design/20261011-cute-kids/02-timeline.png",
+      "sha256": "68969180314bfe6812a066423722e2141a0cebf224e7607e8a2472ae5dd3e640",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "visual": [
+        {
+          "criterion": "layout_hierarchy",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "colors_typography_controls",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "storybook_illustration_placement",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "content_legibility",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "desktop_mobile_layout",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ],
+      "functional": [
+        {
+          "criterion": "相簿切換與年齡顯示",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "按年齡／日期分組且相集可進入",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "搜尋導向並保留查詢",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "時光定位與照片數",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "相集多選各項操作與取消",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "載入／空／失敗重試",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "board": "03",
+      "reference": ".codex-local/design/20261011-cute-kids/03-album-detail.png",
+      "sha256": "5980bcb208f7efe9efc98cbd028426043650f7c60f6045c3450e78cd435f5e37",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "visual": [
+        {
+          "criterion": "layout_hierarchy",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "colors_typography_controls",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "storybook_illustration_placement",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "content_legibility",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "desktop_mobile_layout",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ],
+      "functional": [
+        {
+          "criterion": "相集日期／年齡／照片影片數",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "照片影片網格及檢視",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "多選／取消／選取數",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "加入相簿與移動相集",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "下載與批次標籤",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "刪除確認及成功／失敗",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "board": "05",
+      "reference": ".codex-local/design/20261011-cute-kids/05-settings.png",
+      "sha256": "cd5ae722359af7076fb61abc1723022bace1f66acccde0948b49766b306d40f2",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "visual": [
+        {
+          "criterion": "layout_hierarchy",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "colors_typography_controls",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "storybook_illustration_placement",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "content_legibility",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "desktop_mobile_layout",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ],
+      "functional": [
+        {
+          "criterion": "固定姓名及生日輸入",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "即時計算合法生日年齡",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "儲存並重新載入保留",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "成功／錯誤提示",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "前後端版本",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "返回時間軸",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "board": "06",
+      "reference": ".codex-local/design/20261011-cute-kids/06-upload.png",
+      "sha256": "75e604785f1c4f73e40fd9c9be81e7de74ffec26ad8f62e9e97d374bb40da1d1",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "visual": [
+        {
+          "criterion": "layout_hierarchy",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "colors_typography_controls",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "storybook_illustration_placement",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "content_legibility",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "desktop_mobile_layout",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ],
+      "functional": [
+        {
+          "criterion": "選檔／拖放／照片影片",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "相簿／固定上傳者／授權入口",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "批量與單檔標籤",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "佇列移除及格式警告",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "實際檔案上傳及metadata",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "進度／完成／部分失敗／取消",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "board": "07",
+      "reference": ".codex-local/design/20261011-cute-kids/07-photo-video-viewer.png",
+      "sha256": "dfb7d74425d19014357e81cae073ac857a13b8e823b09fbd347cbe24dcc3089d",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "visual": [
+        {
+          "criterion": "layout_hierarchy",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "colors_typography_controls",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "storybook_illustration_placement",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "content_legibility",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "desktop_mobile_layout",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ],
+      "functional": [
+        {
+          "criterion": "大圖及影片或Flickr入口",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "左右切換／頁碼",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "關閉與鍵盤操作",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "拍攝日期／年齡／標題",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "時間軸標籤編輯與成功／失敗",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "原圖／影片下載實際檔案",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "board": "08",
+      "reference": ".codex-local/design/20261011-cute-kids/08-batch-management.png",
+      "sha256": "92a9200857e1c55dc84ce46560c18d245f485fb82ea56e25c13e32db323e77c3",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "visual": [
+        {
+          "criterion": "layout_hierarchy",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "colors_typography_controls",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "storybook_illustration_placement",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "content_legibility",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "desktop_mobile_layout",
+          "weight": 20,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ],
+      "functional": [
+        {
+          "criterion": "照片／相集不同選取模式",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "加標籤完整閉環",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "加入／移動相簿完整閉環",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "移動相集更新拍攝日",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "刪除確認／取消／實際刪除",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        },
+        {
+          "criterion": "背景結果／失敗／選取重置",
+          "weight": 16.666666666666668,
+          "status": "NOT_VERIFIED",
+          "score": 0,
+          "evidence": []
+        }
+      ]
+    }
+  ],
+  "mandatory_gates": {
+    "real_e2e_review": "NOT_VERIFIED",
+    "install_web_app_not_shortcut": "NOT_VERIFIED",
+    "ios_android_native_background_transfer": "NOT_VERIFIED",
+    "updated_install_transfer_mockups": "ORIGINAL_6_ADDITIVE_DESIGN_INDEPENDENT_PASS; 09_LOCAL_STRUCTURE_LIFECYCLE_SCOPED_REVIEW_PASS; 10_PARTIAL; FULL_NATIVE_NOT_VERIFIED",
+    "release_icon_H_review": "NOT_VERIFIED",
+    "deployment_authorization": "NOT_GRANTED"
+  },
+  "status": "IN_PROGRESS_NOT_ACCEPTED",
+  "local_implementation_evidence": {
+    "status": "ISOLATED_FRONTEND_PASS_NOT_ACCEPTANCE",
+    "path": ".codex-local/qa/20261011-ui-m1/evidence.json",
+    "report": ".codex-local/qa/20261011-ui-m1/report.json",
+    "screenshots": ".codex-local/qa/20261011-ui-m1/",
+    "author_scored": false,
+    "install_guide_20261013": {
+      "scope": "09 installation guide local structure and lifecycle; not real OS install or full proposal pixel equivalence",
+      "report": ".codex-local/qa/20261013-install-guide/result.md",
+      "mainReport": ".codex-local/qa/20261013-install-guide/main-timehut-install-main-0YdQew/report.json",
+      "mainChecks": 18,
+      "mainScreenshots": 17,
+      "legacyReport": ".codex-local/qa/20261013-install-guide/legacy-mobile-entry-header-final/report.json",
+      "legacyChecks": 10,
+      "legacyScreenshots": 6,
+      "runtimeErrors": 0,
+      "priorIndependentReview": ".codex-local/qa/20261013-install-guide/review/review.md",
+      "finalIndependentDelta": ".codex-local/qa/20261013-install-guide/review/final-delta.md",
+      "narrowHeaderFinding": "QA43 garden background overlapped subtitle at320; final padding reserves image height plus14.67px; originalasset unchanged",
+      "cache": "timehut-public-shell-20261013-install-v3",
+      "formalAdded": 0,
+      "nativeOSVerified": false,
+      "actualInstallVerified": false,
+      "qa44": true,
+      "preservedHistoricalQA43": true
+    },
+    "transfer_thumbnails_20261013": {
+      "report": ".codex-local/qa/20261013-transfer-thumbnails/result.md",
+      "checkpoint": ".codex-local/qa/20261013-transfer-thumbnails/checkpoint.json",
+      "hostReport": ".codex-local/qa/20261013-transfer-thumbnails/host/after-reference-restriction/host-report.json",
+      "hostChecks": 34,
+      "uiReport": ".codex-local/qa/20261013-transfer-thumbnails/ui/report.json",
+      "uiChecks": 9,
+      "legacyReport": ".codex-local/qa/20261013-transfer-thumbnails/legacy/report.json",
+      "legacyChecks": 10,
+      "runtimeErrors": 0,
+      "externalRequests": 0,
+      "tested": true,
+      "nativeOSVerified": false,
+      "formalAdded": 0,
+      "independentReview": "PASS_BOUNDED_SOURCE_AND_VISUAL_DELTA",
+      "originalP2": "iOS container outside-reference restriction added; original HOLD review retained",
+      "cache": "timehut-public-shell-20261013-transfer-v1",
+      "sourceDelta": ".codex-local/qa/20261013-transfer-thumbnails/review/reference-restriction-delta.md",
+      "visualDelta": ".codex-local/qa/20261013-transfer-thumbnails/review/visual-delta.md"
+    },
+    "completion_notifications_20261013": {
+      "report": ".codex-local/qa/20261013-completion-notifications/result.md",
+      "checkpoint": ".codex-local/qa/20261013-completion-notifications/checkpoint.json",
+      "hostReport": ".codex-local/qa/20261013-completion-notifications/host/after-epoch/host-report.json",
+      "hostChecks": 57,
+      "javaPolicyReport": ".codex-local/qa/20261013-completion-notifications/host/java-report.json",
+      "javaPolicyChecks": 38,
+      "atomicReport": ".codex-local/qa/20261013-completion-notifications/atomic-host/report.json",
+      "atomicChecks": 33,
+      "uiReport": ".codex-local/qa/20261013-completion-notifications/ui-final/report.json",
+      "uiChecks": 13,
+      "legacyReport": ".codex-local/qa/20261013-completion-notifications/legacy-final/report.json",
+      "legacyChecks": 10,
+      "reviewStatus": "PASS_BOUNDED_SOURCE_AND_VISUAL_DELTAS",
+      "nativeOSVerified": false,
+      "formalAdded": 0,
+      "wifiOnlyStillPending": true,
+      "remoteMediaRequests": 0,
+      "cache": "timehut-public-shell-20261013-notifications-v3",
+      "sourceReview": ".codex-local/qa/20261013-completion-notifications/review/atomic-recovery-delta.md",
+      "epochReview": ".codex-local/qa/20261013-completion-notifications/review/epoch-delta.md",
+      "visualReview": ".codex-local/qa/20261013-completion-notifications/review/visual-delta.md",
+      "actualPackageCheck": ".codex-local/qa/20261013-completion-notifications/qa49-notification-package-check.json"
+    },
+    "wifi_settings_20261014": {
+      "report": ".codex-local/qa/20261013-wifi-settings/result.md",
+      "build": 51,
+      "review": ".codex-local/qa/20261013-wifi-settings/review/delta.json",
+      "nativeOSVerified": false,
+      "formalCriteriaAdded": 0
+    },
+    "device_settings_20261014": {
+      "report": ".codex-local/qa/20261014-device-settings/result.md",
+      "checkpoint": ".codex-local/qa/20261014-device-settings/checkpoint.json",
+      "uiReport": ".codex-local/qa/20261014-device-settings/ui-final/report.json",
+      "uiGroups": 24,
+      "coreRegressionGroups": 20,
+      "photoMomentRegressionGroups": 12,
+      "negativeControl": ".codex-local/qa/20261014-device-settings/birthday-negative-control/report.json",
+      "nativeOSVerified": false,
+      "formalCriteriaAdded": 0,
+      "qaBuild": 53,
+      "review": "PASS_BOUNDED_SOURCE_AND_CAPTURED_VISUAL_REVIEW",
+      "scope": "Board05 read-only app/open mode, notification and add-only/own-media photo permission guidance; narrow date clipping fixed",
+      "reviewReport": ".codex-local/qa/20261014-device-settings/review/final.json",
+      "board05Visual": 84
+    },
+    "transfer_entry_download_20261014": {
+      "report": ".codex-local/qa/20261014-transfer-entry-download/result.md",
+      "checkpoint": ".codex-local/qa/20261014-transfer-entry-download/checkpoint.json",
+      "uiGroups": 29,
+      "coreGroups": 20,
+      "photoMomentGroups": 12,
+      "downloadsPWAGroups": 8,
+      "review": "PASS_BOUNDED_SOURCE_AND_SEVEN_IMAGE_DELTA",
+      "qaBuild": 54,
+      "formalAdded": 0,
+      "nativeOS": false,
+      "remoteCalls": 0,
+      "actualTotalCapacityVerified": false,
+      "storageCopyReceipt": ".codex-local/qa/20261013-candidate-build/current-v54/copy-receipt.json",
+      "reviewReport": ".codex-local/qa/20261014-transfer-entry-download/review/final.json"
+    }
+  },
+  "independent_review_evidence": {
+    "visual_v10": ".codex-local/qa/20261012-visual-review-v10.md",
+    "functional_v4": ".codex-local/qa/20261012-functional-review-v4.md",
+    "formal_acceptance": false,
+    "current_evidence_index": ".codex-local/qa/20261013-status.json",
+    "visual_v12": ".codex-local/qa/20261012-visual-review-v12.md",
+    "functional_v5": ".codex-local/qa/20261012-functional-review-v5.md",
+    "functional_v6": ".codex-local/qa/20261012-functional-review-v6.md",
+    "functional_video": ".codex-local/qa/20261012-acceptance-video-review.json",
+    "formal_visual_video": ".codex-local/qa/20261012-formal-visual-video-review.json",
+    "source_video_final": ".codex-local/qa/20261012-video-source-review-final.md",
+    "original_six_mobile_additions": ".codex-local/design/20261013-mobile-additions/review/independent-six-final.json",
+    "install_guide_final_delta_20261013": ".codex-local/qa/20261013-install-guide/review/final-delta.md",
+    "transfer_thumbnails_source_20261013": ".codex-local/qa/20261013-transfer-thumbnails/review/reference-restriction-delta.md",
+    "transfer_thumbnails_visual_20261013": ".codex-local/qa/20261013-transfer-thumbnails/review/visual-delta.md",
+    "completion_notifications_atomic_20261013": ".codex-local/qa/20261013-completion-notifications/review/atomic-recovery-delta.md",
+    "completion_notifications_visual_20261013": ".codex-local/qa/20261013-completion-notifications/review/visual-delta.md",
+    "board05_device_settings_20261014": ".codex-local/qa/20261014-device-settings/review/final.json",
+    "transfer_entry_download_20261014": ".codex-local/qa/20261014-transfer-entry-download/review/final.json"
+  },
+  "current_source_repo": "/Volumes/AiHankAppsData/Timehut"
+}

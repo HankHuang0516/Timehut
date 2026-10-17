@@ -21,12 +21,58 @@ public class CandidateUpgrade73Test {
     private static File snapshot(int target){return new File(context().getFilesDir(),"installer"+target+"-retained-owned-data-snapshot.json");}
     private static void report(JSONObject value)throws Exception{Bundle b=new Bundle();b.putString("timehutReport",value.toString());InstrumentationRegistry.getInstrumentation().sendStatus(0,b);}
     private static void collect(File root,File file,JSONObject values,long[] bytes)throws Exception{if(!file.exists())return;if(file.isDirectory()){File[] children=file.listFiles();assertNotNull(children);for(File child:children)collect(root,child,values,bytes);}else{assertTrue(file.getCanonicalPath().startsWith(root.getCanonicalPath()+File.separator));bytes[0]+=file.length();assertTrue(bytes[0]<=256L*1024*1024);values.put(file.getAbsolutePath().substring(root.getAbsolutePath().length()+1),hash(file));}}
-    private static JSONObject inventory(long[] bytes)throws Exception{File root=context().getNoBackupFilesDir();JSONObject values=new JSONObject();for(String name:new String[]{"transfers","accounts","upgrade71-fixture","upgrade73-fixture","upgrade75-fixture","upgrade77-fixture","upgrade79-fixture","upgrade81-fixture","upgrade83-fixture","upgrade8301-fixture","upgrade85-fixture"})collect(root,new File(root,name),values,bytes);return values;}
+    private static JSONObject inventory(long[] bytes)throws Exception{File root=context().getNoBackupFilesDir();JSONObject values=new JSONObject();for(String name:new String[]{"transfers","accounts","upgrade71-fixture","upgrade73-fixture","upgrade75-fixture","upgrade77-fixture","upgrade79-fixture","upgrade81-fixture","upgrade83-fixture","upgrade8301-fixture","upgrade85-fixture","upgrade86-fixture","upgrade87-fixture","upgrade88-fixture","upgrade89-fixture","upgrade90-fixture","upgrade91-fixture","upgrade92-fixture","upgrade93-fixture","upgrade94-fixture","upgrade95-fixture"})collect(root,new File(root,name),values,bytes);return values;}
     @Test public void captureKnown71DataBefore73()throws Exception{capture(71,73);}
     @Test public void captureKnown73DataBefore75()throws Exception{capture(73,75);}
     @Test public void captureKnown75DataBefore77()throws Exception{capture(75,77);}
     @Test public void captureKnown77DataBefore79()throws Exception{capture(77,79);}
     @Test public void captureKnown83DataBefore85()throws Exception{capture(83,85);}
+    @Test public void captureKnown85DataBefore87()throws Exception{capture(85,87);}
+    @Test public void captureKnown85DataBefore92()throws Exception{capture(85,92);}
+    @Test public void captureKnown86DataBefore92()throws Exception{capture(86,92);}
+    @Test public void captureKnown87DataBefore92()throws Exception{capture(87,92);}
+    @Test public void captureKnown88DataBefore92()throws Exception{capture(88,92);}
+    @Test public void captureKnown89DataBefore92()throws Exception{capture(89,92);}
+    @Test public void captureKnown90DataBefore92()throws Exception{capture(90,92);}
+    @Test public void captureKnown94DataBefore95()throws Exception{capture(94,95);}
+    @Test public void captureKnown85DataBefore94()throws Exception{capture(85,94);}
+    @Test public void captureKnown86DataBefore94()throws Exception{capture(86,94);}
+    @Test public void captureKnown87DataBefore94()throws Exception{capture(87,94);}
+    @Test public void captureKnown88DataBefore94()throws Exception{capture(88,94);}
+    @Test public void captureKnown89DataBefore94()throws Exception{capture(89,94);}
+    @Test public void captureKnown90DataBefore94()throws Exception{capture(90,94);}
+    @Test public void captureKnown91DataBefore94()throws Exception{capture(91,94);}
+    @Test public void captureKnown92DataBefore94()throws Exception{capture(92,94);}
+    @Test public void captureKnown93DataBefore94()throws Exception{capture(93,94);}
+    @Test public void captureKnown85DataBefore93()throws Exception{capture(85,93);}
+    @Test public void captureKnown86DataBefore93()throws Exception{capture(86,93);}
+    @Test public void captureKnown87DataBefore93()throws Exception{capture(87,93);}
+    @Test public void captureKnown88DataBefore93()throws Exception{capture(88,93);}
+    @Test public void captureKnown89DataBefore93()throws Exception{capture(89,93);}
+    @Test public void captureKnown90DataBefore93()throws Exception{capture(90,93);}
+    @Test public void captureKnown91DataBefore93()throws Exception{capture(91,93);}
+    @Test public void captureKnown92DataBefore93()throws Exception{capture(92,93);}
+    @Test public void captureKnown91DataBefore92()throws Exception{capture(91,92);}
+    @Test public void captureKnown85DataBefore91()throws Exception{capture(85,91);}
+    @Test public void captureKnown86DataBefore91()throws Exception{capture(86,91);}
+    @Test public void captureKnown87DataBefore91()throws Exception{capture(87,91);}
+    @Test public void captureKnown88DataBefore91()throws Exception{capture(88,91);}
+    @Test public void captureKnown89DataBefore91()throws Exception{capture(89,91);}
+    @Test public void captureKnown90DataBefore91()throws Exception{capture(90,91);}
+    @Test public void captureKnown85DataBefore90()throws Exception{capture(85,90);}
+    @Test public void captureKnown86DataBefore90()throws Exception{capture(86,90);}
+    @Test public void captureKnown87DataBefore90()throws Exception{capture(87,90);}
+    @Test public void captureKnown88DataBefore90()throws Exception{capture(88,90);}
+    @Test public void captureKnown89DataBefore90()throws Exception{capture(89,90);}
+    @Test public void captureKnown85DataBefore89()throws Exception{capture(85,89);}
+    @Test public void captureKnown86DataBefore89()throws Exception{capture(86,89);}
+    @Test public void captureKnown87DataBefore89()throws Exception{capture(87,89);}
+    @Test public void captureKnown88DataBefore89()throws Exception{capture(88,89);}
+    @Test public void captureKnown85DataBefore88()throws Exception{capture(85,88);}
+    @Test public void captureKnown86DataBefore88()throws Exception{capture(86,88);}
+    @Test public void captureKnown87DataBefore88()throws Exception{capture(87,88);}
+    @Test public void captureKnown86DataBefore87()throws Exception{capture(86,87);}
+    @Test public void captureKnown85DataBefore86()throws Exception{capture(85,86);}
     @Test public void captureKnown83DataBefore83Revision()throws Exception{capture(83,8301);}
     @Test public void captureKnown81DataBefore83()throws Exception{capture(81,83);}
     @Test public void captureKnown79DataBefore83()throws Exception{capture(79,83);}
@@ -45,6 +91,16 @@ public class CandidateUpgrade73Test {
     @Test public void upgraded77PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(77);}
     @Test public void upgraded79PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(79);}
     @Test public void upgraded85PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(85);}
+    @Test public void upgraded87PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(87);}
+    @Test public void upgraded94PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(94);}
+    @Test public void upgraded95PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(95);}
+    @Test public void upgraded93PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(93);}
+    @Test public void upgraded92PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(92);}
+    @Test public void upgraded91PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(91);}
+    @Test public void upgraded90PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(90);}
+    @Test public void upgraded89PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(89);}
+    @Test public void upgraded88PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(88);}
+    @Test public void upgraded86PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(86);}
     @Test public void upgraded83PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(83);}
     @Test public void upgraded81PreservesBytesAndPendingReceipts()throws Exception{verifyUpgrade(81);}
     private void verifyUpgrade(int targetVersion)throws Exception{verifyUpgrade(targetVersion,targetVersion);}
@@ -59,6 +115,100 @@ public class CandidateUpgrade73Test {
     @Test public void nonDebug77RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(77);}
     @Test public void nonDebug79RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(79);}
     @Test public void nonDebug85RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(85);}
+    @Test public void nonDebug87RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(87);}
+    @Test public void nonDebug94RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(94);}
+    @Test public void nonDebug95RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(95);}
+    @Test public void nonDebug93RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(93);}
+    @Test public void nonDebug92RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(92);}
+    @Test public void nonDebug91RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(91);}
+    @Test public void nonDebug90RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(90);}
+    @Test public void nonDebug89RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(89);}
+    @Test public void nonDebug88RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(88);}
+    @Test public void exact88DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(88,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT88_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",88).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void exact89DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(89,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT89_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",89).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void exact90DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(90,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT90_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",90).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void exact91DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(91,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT91_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",91).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void exact95DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        assertEquals("tw.aihankapps.timehut.testing",info.packageName);assertEquals(95,version());
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));assertEquals("時光相簿測試版",label);
+        report(new JSONObject().put("status","PASS_EXACT95_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",95).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0));
+    }
+    @Test public void exact94DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(94,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT94_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",94).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void exact93DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(93,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT93_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",93).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void exact92DisplayLabelAndIdentity()throws Exception{
+        android.content.pm.PackageManager pm=context().getPackageManager();
+        android.content.pm.PackageInfo info=pm.getPackageInfo(context().getPackageName(),0);
+        org.junit.Assert.assertEquals("tw.aihankapps.timehut.testing",info.packageName);
+        org.junit.Assert.assertEquals(92,info.versionCode);
+        String label=String.valueOf(pm.getApplicationLabel(info.applicationInfo));
+        org.junit.Assert.assertEquals("時光相簿測試版",label);
+        android.os.Bundle data=new android.os.Bundle();
+        data.putString("timehutReport",new org.json.JSONObject().put("status","PASS_EXACT92_DISPLAY_LABEL_AND_IDENTITY").put("versionCode",92).put("applicationId",info.packageName).put("applicationLabel",label).put("providerRequests",0).toString());
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendStatus(0,data);
+    }
+    @Test public void nonDebug86RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(86);}
     @Test public void nonDebug83RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(83);}
     @Test public void nonDebug81RejectsLegacyCredentialSetters()throws Exception{verifyNonDebug(81);}
     private void verifyNonDebug(int targetVersion)throws Exception{
