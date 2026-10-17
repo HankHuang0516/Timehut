@@ -439,10 +439,10 @@
     <!-- Scripts -->
     
     <script src="js/results.js?v=20261016.1"></script>
-    <script src="js/utils.js?v=20261016.1"></script>
-    <script src="js/flickr.js?v=20261016.5"></script>
+    <script src="js/utils.js?v=20261017.10"></script>
+    <script src="js/flickr.js?v=20261017.10"></script>
     <script src="js/uploader.js?v=20261016.3"></script>
-    <script src="js/timeline.js?v=20261016.5"></script>
+    <script src="js/timeline.js?v=20261017.10"></script>
     <script src="js/deletion-status.js?v=20261017.1"></script>
     <script>
         // AlbumState updated to be more robust
@@ -553,7 +553,7 @@
             const photoCount = AlbumState.photos.filter(photo => photo.media !== 'video').length;
             document.getElementById('momentInfo').textContent = `▧ ${photoCount} 張照片 · ${AlbumState.photos.length - photoCount} 部影片`;
             if (first) {
-                const date = first.datetaken?.split(' ')[0] || new Date(Number(first.dateupload) * 1000).toISOString().slice(0, 10);
+                const date = photoCalendarDay(first);
                 document.getElementById('momentDate').textContent = '▦ ' + new Date(date + 'T12:00:00').toLocaleDateString('zh-TW', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
                 const index = Math.max(0, CONFIG.CHILDREN.findIndex(child => String(child.albumId) === new URLSearchParams(location.search).get('album')));
                 const birthday = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`) || CONFIG.CHILDREN[index].birthDate;
@@ -1069,15 +1069,7 @@
 
             photos.forEach(photo => {
                 // 使用 datetaken 或 dateupload
-                let dateKey;
-                if (photo.datetaken) {
-                    dateKey = photo.datetaken.split(' ')[0]; // YYYY-MM-DD
-                } else if (photo.dateupload) {
-                    const d = new Date(parseInt(photo.dateupload) * 1000);
-                    dateKey = d.toISOString().split('T')[0];
-                } else {
-                    dateKey = 'unknown';
-                }
+                const dateKey = photoCalendarDay(photo);
 
                 if (!groups.has(dateKey)) {
                     groups.set(dateKey, {

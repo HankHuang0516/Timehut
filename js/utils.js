@@ -89,6 +89,33 @@ function getAgeSortKey(years, months) {
     return years * 100 + months;
 }
 
+// A capture date without a zone is a calendar date; a zoned timestamp is an
+// instant displayed in the device's local calendar. Use the same day for album
+// links, filtering and collection moves, including server ISO upload fallbacks.
+function photoCalendarDay(photo) {
+    const localDay = date => {
+        if (!Number.isFinite(date.getTime()) || date.getFullYear() < 0 || date.getFullYear() > 9999) return 'unknown';
+        return `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+    const taken = typeof photo?.datetaken === 'string' ? photo.datetaken : '';
+    const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})?)?$/.exec(taken);
+    if (match) {
+        const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+        const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+        const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]
+            && Number(match[4] || 0) < 24 && Number(match[5] || 0) < 60 && Number(match[6] || 0) < 60) {
+            if (!match[7]) return taken.slice(0, 10);
+            const date = new Date(taken.replace(' ', 'T'));
+            if (Number.isFinite(date.getTime())) return localDay(date);
+        }
+    }
+    const uploaded = photo?.dateupload;
+    if ((typeof uploaded === 'number' || typeof uploaded === 'string' && /^\d+(?:\.\d+)?$/.test(uploaded))
+        && Number.isFinite(Number(uploaded)) && Number(uploaded) >= 0) return localDay(new Date(Number(uploaded) * 1000));
+    return 'unknown';
+}
+
 /**
  * 將照片按年齡分組
  * @param {Array} photos - 照片陣列

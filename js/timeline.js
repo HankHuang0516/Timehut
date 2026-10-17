@@ -55,7 +55,7 @@ function navigateToAlbum(momentId) {
         (window.TimehutStorage?.session || sessionStorage).setItem('albumDate', momentData.dateStr);
         (window.TimehutStorage?.session || sessionStorage).setItem('albumMomentId', momentId);
         const album = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
-        const date = momentData.photos[0].datetaken?.split(' ')[0] || new Date(momentData.timestamp).toISOString().slice(0, 10);
+        const date = photoCalendarDay(momentData.photos[0]);
         const query = new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex });
         const photoIds = momentData.photos.map(photo => String(photo.id));
         // Carry only bounded identifiers, never private media URLs or credentials.
@@ -554,18 +554,12 @@ function groupPhotosToMoments(photos) {
         const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : '未知';
 
         // Use datetaken for grouping, fallback to dateupload
-        let dateKey;
-        if (photo.datetaken) {
-            dateKey = photo.datetaken.split(' ')[0]; // YYYY-MM-DD
-        } else {
-            const uploadTime = parseInt(photo.dateupload) * 1000;
-            dateKey = new Date(uploadTime).toISOString().split('T')[0];
-        }
+        const dateKey = photoCalendarDay(photo);
 
         if (!momentsByDate.has(dateKey)) {
-            const photoTime = photo.datetaken
-                ? new Date(photo.datetaken).getTime()
-                : parseInt(photo.dateupload) * 1000;
+            const photoTime = dateKey === 'unknown'
+                ? new Date(photo.datetaken || Number(photo.dateupload) * 1000).getTime()
+                : new Date(dateKey + 'T12:00:00').getTime();
 
             momentsByDate.set(dateKey, {
                 uploader: uploader,
@@ -600,7 +594,7 @@ function createMomentCard(moment, birthDate) {
     const monthStr = months[month - 1];
 
     // Calculate precise age
-    const ageObj = calculateAge(birthDate, moment.date.split(' ')[0]);
+    const ageObj = calculateAge(birthDate, moment.dateKey);
     const age = formatAgeString(ageObj.years, ageObj.months, ageObj.days);
 
     // Store moment data for album navigation
@@ -2424,8 +2418,7 @@ function refreshMoveCollectionDateCounts(succeeded, targetDate) {
     const groups = new Map();
     for (const [id, photo] of photos) {
         if (done.has(id)) photo.datetaken = targetDate;
-        const uploadedAt = new Date(Number(photo.dateupload) * 1000);
-        const date = photo.datetaken?.split(' ')[0] || (Number.isNaN(uploadedAt.valueOf()) ? 'unknown' : uploadedAt.toISOString().slice(0, 10));
+        const date = photoCalendarDay(photo);
         if (!groups.has(date)) groups.set(date, {...previous.get(date), date, photos: []});
         groups.get(date).photos.push(photo);
     }
@@ -2471,7 +2464,7 @@ async function showMoveCollectionModal(count, photoIds) {
     // Build collections list from momentData
     const collections = moments.map(([id, data]) => ({
         id: id,
-        date: data.photos[0]?.datetaken?.split(' ')[0] || 'unknown',
+        date: photoCalendarDay(data.photos[0]),
         label: data.dateStr,
         photos: data.photos,
         timestamp: data.timestamp

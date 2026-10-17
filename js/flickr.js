@@ -10,8 +10,7 @@ const FlickrAPI = {
         const perPage = 30, results = new Map(), ids = new Set();
         const wanted = requestedIds ? new Set(requestedIds) : null;
         let pages = 1, next = 2, completed = 0, stopped = false;
-        const photoDate = photo => photo.datetaken?.split(' ')[0]
-            || new Date(Number(photo.dateupload) * 1000).toISOString().slice(0, 10);
+        const photoDate = photoCalendarDay;
         const accept = (data, page) => {
             if (!Array.isArray(data.photos) || !Number.isSafeInteger(data.pages)
                 || data.pages < 0 || data.pages > 10000 || data.page !== page)
