@@ -11,7 +11,16 @@ Hank直接核准 exact94 單一 gplay dataSync0x1 誤報的內測例外；raw ex
 
 新增使用者要求的「所有用戶設定內更新通知」已完成來源候選及隔離卡片測試／59檔打包核對；分平台／安裝管道、已讀去重、未知／失敗不假報。目錄僅列已核對94與web.4，發布目錄工具拒絕未發佈、錯檔與倒退。**尚未部署或包入已發布94**，不繼承凍結95.4全頁畫面驗收；來源獨立複查已PASS（仍只候選），整合/發布次序見 `.codex-local/qa/20261017-all-users-update-notice/integration-plan.json`，不碰私人回饋收件匣。
 
-iOS protocol3 host／HTTP／無簽章編譯為有界證據；最新實際Keychain冷程序仍因兩次管理器admission失敗未開始，待真實健康狀態改變，不盲重試或繞過。沒有IPA分發／商店提交。全域simplify已取消強制，本輪未執行不冒稱通過；其餘H／功能／權限／UI／安全／複查與發布批准保持。完整機器可讀狀態見 `.codex-local/qa/20261016-formal-six-page/formal-acceptance-current.json`，下方歷史文字不覆蓋本節。
+iOS 最新95.9網頁與原生client（含本人刪除狀態GET）已完成Xcode27.1 Debug／generic Simulator及未簽章Release／generic iOS編譯。問題回饋既有收集補列CustomerSupport用途，修正後兩包均包含七類清單；63個公開資源、三份隱私宣告、私有檔排除與當版實際PNG／H範圍已核對。來源圖示原本已正確，本輪未換圖；沒有安裝主畫面或商店圖示credit。獨立複查另以 `.codex-local/qa/20261017-ios-current95-9-preflight/independent-review.json` 為準。最新實際Keychain冷程序仍因先前兩次管理器admission失敗未開始，待真實健康狀態改變，不盲重試或繞過。沒有IPA分發／商店提交。全域simplify已取消強制，本輪未執行不冒稱通過；其餘H／功能／權限／UI／安全／複查與發布批准保持。完整機器可讀狀態見 `.codex-local/qa/20261016-formal-six-page/formal-acceptance-current.json`，下方歷史文字不覆蓋本節。
+
+### 下一階段發布與雙平台安排
+
+1. 最新候選為 Android test.95 R4、網站95.9、後端71，精確檔案／SHA／來源與本輪有界複查見 `.codex-local/qa/20261017-android-installer95-r4/HANDOFF.md`。R3歷史證據保留，不能當R4的實測；R4仍未發布。正式後端／網站依既有授權與唯一發布窗口處理，先重新確認當下上傳及持久資料，再部署精確包並讀回線上版號／下載內容。
+2. Android先收Hank實機切換App、鎖屏上下載回報，再處理原六頁兩軸及產品頁面／實際Flickr的未驗流程；原四份人工資料額度已消耗並清理，不重建既有十一個已刪ID。95的官方掃描原始錯誤與已複查本機修正版分開記錄，94單版例外不套到95或商店。
+3. Google Play先準備正式套件與簽章、測試軌道資料、安全／隱私回答、實際畫面截圖及測試者安排；內測APK不等於商店AAB已完成。完成當版適用檢查後，依明確的軌道與提交授權操作；目前不建立商店版本或上傳。
+4. iOS接著補真實Keychain／原生介面、Photos保存、背景／鎖屏與實體iPhone驗收，再準備簽章archive、隱私報告、審查帳戶及App Store／TestFlight資料。現在的1.0/build1未簽章包只供本機核對，不能提供給使用者安裝。
+5. 中央Flickr用途核准、家庭管理者及支援信箱沿用已確認設定；服務商日誌／備份／處理地區、完整正式驗收與未來分發當版H仍須核實。上架目前為準備計畫，尚未授權任一商店提交或商店正式發布。
+
 <!-- TIMEHUT_CURRENT_RELEASE_STATUS_END -->
 
 ## 2026-10-16：Railway 登入與指定 SSH 公鑰已完成
