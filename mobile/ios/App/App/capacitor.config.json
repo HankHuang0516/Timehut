@@ -1,0 +1,12 @@
+{
+	"appId": "tw.aihankapps.timehut",
+	"appName": "黃家小屋",
+	"webDir": "www",
+	"android": {
+		"allowMixedContent": false
+	},
+	"ios": {
+		"contentInset": "automatic"
+	},
+	"packageClassList": []
+}
