@@ -170,7 +170,7 @@ final class TransferEngine {
     static Notification notification(String id){JSONObject r=get(id);String filename=visible(r)?r.optString("filename"):"請登入原帳戶確認工作";
         Intent cancel=new Intent(context,TransferCancelReceiver.class).putExtra("taskId",id);PendingIntent stop=PendingIntent.getBroadcast(context,jobId(id),cancel,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,"timehut-transfers"):new Notification.Builder(context);
-        return b.setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle("黃家小屋 · 傳輸中").setContentText(filename).setOngoing(true).addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel,"停止手機傳輸",stop).build()).build();}
+        return b.setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle("時光相簿 · 傳輸中").setContentText(filename).setOngoing(true).addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel,"停止手機傳輸",stop).build()).build();}
     static void cancel(Context ctx,String id)throws Exception{JSONObject r=get(id);if(r==null)throw new IOException("找不到任務");if(Arrays.asList("server_processing","server_accepted","completed","photo_deleted","file_ready","saved").contains(r.optString("stage")))throw new IOException("已送達伺服器或已完成的工作無法取消");change(id,"stage","cancelled");change(id,"waitReason","已停止手機傳輸；伺服器若已收到仍可能完成");ctx.getSystemService(JobScheduler.class).cancel(jobId(id));HttpURLConnection connection=connections.remove(id);if(connection!=null)connection.disconnect();ctx.getSystemService(NotificationManager.class).cancel(jobId(id));}
     private static void checkCancelled(String id)throws InterruptedIOException{JSONObject r=get(id);TransferNetworkRoute route=jobRoute.get();if(Thread.currentThread().isInterrupted()||paused.contains(id)||route!=null&&route.stopped()||r==null||!visible(r)||Arrays.asList("cancelled","photo_deleted").contains(r.optString("stage")))throw new InterruptedIOException("傳輸已停止或等待原帳戶登入");}
     private static HttpURLConnection connect(String id,String value,String method)throws Exception{
@@ -461,7 +461,7 @@ final class TransferCompletionNotifications {
             Intent open=new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
             PendingIntent content=PendingIntent.getActivity(context,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
             Notification.Builder builder=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,CHANNEL):new Notification.Builder(context);
-            Notification notification=builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("黃家小屋 · 傳輸完成").setContentText(message).setStyle(new Notification.BigTextStyle().bigText(message)).setAutoCancel(true).setOnlyAlertOnce(true).setContentIntent(content).build();
+            Notification notification=builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("時光相簿 · 傳輸完成").setContentText(message).setStyle(new Notification.BigTextStyle().bigText(message)).setAutoCancel(true).setOnlyAlertOnce(true).setContentIntent(content).build();
             context.getSystemService(NotificationManager.class).notify("timehut-completion:"+key,0,notification);
         }}catch(Exception ignored){/* Task success stays authoritative when preferences or delivery fail. */}});
     }

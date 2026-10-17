@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head><script src="js/capacitor-core.js"></script>
+    <style>html[data-timehut-loading] body{visibility:hidden}</style>
+    <script src="js/accounts.js?v=20261016.5"></script>
+    <script src="js/web-upload.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.5"></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="時光相簿 - 記錄寶貝成長的每一刻">
+    <title>時光相簿 - 家庭相簿</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=20261014.2">
+    <link rel="stylesheet" href="css/storybook.css?v=20261016.5">
+    <script defer src="js/dialogs.js?v=20261016.5"></script>
+    <script defer src="js/storybook.js?v=20261016.3"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#fff3be">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script defer src="js/transfers.js?v=20261016.5"></script>
+<script defer src="js/pwa.js?v=20261016.1"></script>
+</head>
+
+<body class="storybook-page login-page">
+    <div class="login-container">
+        <!-- Logo Section -->
+        <div class="logo-section">
+            <div class="logo-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
+                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
+                    <circle cx="24" cy="14" r="4" fill="#333" />
+                </svg>
+            </div>
+            <h1 class="logo-text">時光相簿</h1>
+            <p class="logo-subtitle">記錄寶貝成長的每一刻</p>
+            <p><a class="btn-secondary" href="install.html">安裝 App</a></p>
+        </div>
+
+        <!-- Password Login Form (Step 1) -->
+        <div id="password-section" class="child-selection">
+            <h2 class="selection-title">🔐 請輸入家庭密碼</h2>
+
+            <form id="password-form" class="password-form">
+                <div class="form-group">
+                    <input type="password" id="password-input" class="password-input" placeholder="輸入密碼..."
+                        autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="submit-btn">
+                    <span class="btn-icon">🏠</span>
+                    <span class="btn-text">進入時光相簿</span>
+                </button>
+                <p id="password-error" class="error-message" style="display: none;">
+                    密碼錯誤，請再試一次
+                </p>
+            </form>
+
+            <label class="remember-checkbox">
+                <input type="checkbox" id="remember-me" checked>
+                <span class="checkbox-text">記住這台裝置</span>
+            </label>
+        </div>
+
+        <!-- Member Selection (Step 2) -->
+        <div id="member-section" class="child-selection" style="display: none;">
+            <h2 class="selection-title">👋 你是誰？</h2>
+            <p class="selection-subtitle">選擇你的身份（可選）</p>
+
+            <div id="member-cards" class="member-cards">
+                <!-- 動態生成 -->
+            </div>
+
+            <button id="skip-member" class="skip-btn">跳過，直接進入</button>
+        </div>
+
+        <!-- Child Selection (Step 3) -->
+        <div id="child-section" class="child-selection" style="display: none;">
+            <h2 class="selection-title">選擇寶貝的時光相簿</h2>
+
+            <div id="child-cards" class="child-cards">
+                <!-- 動態生成 -->
+            </div>
+        </div>
+
+        <!-- Photo Tags Section -->
+        <div class="features-section">
+            <h3 class="features-title">📸 照片標籤</h3>
+            <p class="features-subtitle">標記寶寶成長的重要瞬間</p>
+
+            <div class="feature-tags">
+                <div class="feature-tag">
+                    <span class="tag-icon">📅</span>
+                    <span class="tag-text">每日一拍</span>
+                </div>
+                <div class="feature-tag">
+                    <span class="tag-icon">📏</span>
+                    <span class="tag-text">身高體重</span>
+                </div>
+                <div class="feature-tag">
+                    <span class="tag-icon">🌟</span>
+                    <span class="tag-text">各種第一次</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current User Display -->
+        <div id="current-user-badge" class="current-user-badge" style="display: none;">
+            <span id="current-user-emoji">👤</span>
+            <span id="current-user-name">訪客</span>
+            <button id="logout-btn" class="logout-btn" title="登出">✕</button>
+        </div>
+
+        <!-- Footer -->
+        <footer class="login-footer">
+            <p>Powered by Flickr • © 2026 時光相簿</p>
+        </footer>
+    </div>
+
+    
+    <script src="js/results.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261016.1"></script>
+    <script>
+        // Auth keys for localStorage
+        const AUTH_KEY = 'timehut_authenticated';
+        const MEMBER_KEY = 'timehut_current_member';
+        const AUTH_EXPIRY_KEY = 'timehut_auth_expiry';
+        const CHILD_KEY = 'timehut_current_child'; // Remember selected child
+
+        // DOM Elements
+        const passwordSection = document.getElementById('password-section');
+        const memberSection = document.getElementById('member-section');
+        const childSection = document.getElementById('child-section');
+        const passwordForm = document.getElementById('password-form');
+        const passwordInput = document.getElementById('password-input');
+        const passwordError = document.getElementById('password-error');
+        const rememberMe = document.getElementById('remember-me');
+        const memberCards = document.getElementById('member-cards');
+        const childCards = document.getElementById('child-cards');
+        const skipMemberBtn = document.getElementById('skip-member');
+        const currentUserBadge = document.getElementById('current-user-badge');
+        const currentUserEmoji = document.getElementById('current-user-emoji');
+        const currentUserName = document.getElementById('current-user-name');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Check if already authenticated
+        function checkAuth() {
+            const isAuth = (window.TimehutStorage?.local || localStorage).getItem(AUTH_KEY);
+            const expiry = (window.TimehutStorage?.local || localStorage).getItem(AUTH_EXPIRY_KEY);
+
+            if (isAuth === 'true') {
+                // Check expiry (30 days)
+                if (expiry && Date.now() > parseInt(expiry)) {
+                    (window.TimehutStorage?.local || localStorage).removeItem(AUTH_KEY);
+                    (window.TimehutStorage?.local || localStorage).removeItem(AUTH_EXPIRY_KEY);
+                    return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        // Initialize page
+        function init() {
+            if(CONFIG.ACCOUNT_MODE){passwordSection.style.display="none";memberSection.style.display="none";childSection.style.display="block";currentUserBadge.style.display="flex";currentUserName.textContent=TimehutAccounts.status().user.displayName;generateChildCards();if(!CONFIG.CHILDREN.length){const link=document.createElement('a');link.href='account.html';link.textContent='建立第一本相簿';childCards.append(link);}return;}
+            if (checkAuth()) {
+                // Already logged in
+                const currentMember = (window.TimehutStorage?.local || localStorage).getItem(MEMBER_KEY);
+                const currentChild = (window.TimehutStorage?.local || localStorage).getItem(CHILD_KEY);
+
+                // AUTO-REDIRECT: If user has remembered child, go directly to timeline
+                if (currentChild !== null) {
+                    (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', currentChild);
+                    window.location.href = 'timeline.html';
+                    return; // Exit early
+                }
+
+                // Otherwise show member/child selection
+                if (currentMember) {
+                    showCurrentUser(currentMember);
+                    showChildSelection();
+                } else {
+                    passwordSection.style.display = 'none';
+                    showMemberSelection();
+                }
+            }
+
+            // Generate children cards
+            generateChildCards();
+            // Generate member cards
+            generateMemberCards();
+        }
+
+        // Generate member selection cards
+        function generateMemberCards() {
+            if (!CONFIG.FAMILY_MEMBERS || CONFIG.FAMILY_MEMBERS.length === 0) {
+                return;
+            }
+
+            memberCards.innerHTML = CONFIG.FAMILY_MEMBERS.map(member => `
+                <button class="member-card" data-member-id="${member.id}">
+                    <div class="member-avatar">
+                        <span class="avatar-emoji">${member.emoji}</span>
+                    </div>
+                    <span class="member-name">${escapeTimehutText(member.name)}</span>
+                </button>
+            `).join('');
+
+            // Add click handlers
+            memberCards.querySelectorAll('.member-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const memberId = card.dataset.memberId;
+                    selectMember(memberId);
+                });
+            });
+        }
+
+        // Generate child selection cards
+        function generateChildCards() {
+            childCards.innerHTML = CONFIG.CHILDREN.map((child, index) => {
+                const age = calculateAge(child.birthDate, new Date());
+                const ageStr = formatAgeString(age.years, age.months, age.days);
+                return `
+                    <button class="child-card" data-child-index="${index}">
+                        <div class="child-avatar">
+                            <span class="avatar-emoji">${child.emoji}</span>
+                        </div>
+                        <div class="child-info">
+                            <span class="child-name">${escapeTimehutText(child.name)}</span>
+                            <span class="child-age">${ageStr}</span>
+                        </div>
+                        <div class="card-arrow">→</div>
+                    </button>
+                `;
+            }).join('');
+
+            // Add click handlers
+            childCards.querySelectorAll('.child-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const childIndex = card.dataset.childIndex;
+                    selectChild(parseInt(childIndex));
+                });
+            });
+            if (CONFIG.ACCOUNT_MODE && CONFIG.ALBUM_TOTAL > CONFIG.CHILDREN.length) {
+                const more=document.createElement('a');more.href='account.html';more.className='btn-secondary';more.textContent=`更多相簿（共 ${CONFIG.ALBUM_TOTAL} 本）`;childCards.append(more);
+            }
+        }
+
+        // Handle password submit
+        passwordForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const password = passwordInput.value;
+
+            if (password === CONFIG.FAMILY_PASSWORD) {
+                // Correct password
+                (window.TimehutStorage?.local || localStorage).setItem(AUTH_KEY, 'true');
+
+                if (rememberMe.checked) {
+                    // Set 30 day expiry
+                    const expiry = Date.now() + (30 * 24 * 60 * 60 * 1000);
+                    (window.TimehutStorage?.local || localStorage).setItem(AUTH_EXPIRY_KEY, expiry.toString());
+                }
+
+                passwordError.style.display = 'none';
+                passwordSection.style.display = 'none';
+
+                // Show member selection
+                showMemberSelection();
+            } else {
+                // Wrong password
+                passwordError.style.display = 'block';
+                passwordInput.value = '';
+                passwordInput.focus();
+
+                // Shake animation
+                passwordInput.classList.add('shake');
+                setTimeout(() => passwordInput.classList.remove('shake'), 500);
+            }
+        });
+
+        // Show member selection
+        function showMemberSelection() {
+            // If no family members configured, skip to child selection
+            if (!CONFIG.FAMILY_MEMBERS || CONFIG.FAMILY_MEMBERS.length === 0) {
+                showChildSelection();
+                return;
+            }
+
+            memberSection.style.display = 'block';
+            childSection.style.display = 'none';
+        }
+
+        // Show child selection
+        function showChildSelection() {
+            memberSection.style.display = 'none';
+            childSection.style.display = 'block';
+        }
+
+        // Select member
+        function selectMember(memberId) {
+            const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
+            if (member) {
+                (window.TimehutStorage?.local || localStorage).setItem(MEMBER_KEY, memberId);
+                showCurrentUser(memberId);
+            }
+            showChildSelection();
+        }
+
+        // Skip member selection
+        skipMemberBtn.addEventListener('click', () => {
+            showChildSelection();
+        });
+
+        // Show current user badge
+        function showCurrentUser(memberId) {
+            const member = CONFIG.FAMILY_MEMBERS.find(m => m.id === memberId);
+            if (member) {
+                currentUserEmoji.textContent = member.emoji;
+                currentUserName.textContent = member.name;
+                currentUserBadge.style.display = 'flex';
+            }
+        }
+
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            if(CONFIG.ACCOUNT_MODE){TimehutAccounts.signOut().finally(()=>location.replace('account.html'));return;}
+            (window.TimehutStorage?.local || localStorage).removeItem(AUTH_KEY);
+            (window.TimehutStorage?.local || localStorage).removeItem(AUTH_EXPIRY_KEY);
+            (window.TimehutStorage?.local || localStorage).removeItem(MEMBER_KEY);
+            (window.TimehutStorage?.local || localStorage).removeItem(CHILD_KEY);
+            location.reload();
+        });
+
+        // Select child and navigate (save to localStorage for persistence)
+        function selectChild(childIndex) {
+            (window.TimehutStorage?.local || localStorage).setItem(CHILD_KEY, childIndex); // Remember child for auto-login
+            (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', childIndex);
+            window.location.href = 'timeline.html';
+        }
+
+        // Initialize
+        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( init);
+    </script>
+</body>
+
+</html>

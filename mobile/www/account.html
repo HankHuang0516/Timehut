@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><script src="js/capacitor-core.js"></script>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="referrer" content="no-referrer"><title>我的相簿 · 時光相簿</title>
+    <link rel="icon" href="favicon.png"><link rel="stylesheet" href="css/account.css?v=20261016.3">
+    <link rel="stylesheet" href="css/service-info.css"><script src="js/service-info.js?v=20261016.1" defer></script>
+    <script src="js/accounts.js?v=20261016.5" defer></script><script src="js/web-upload.js?v=20261016.1" defer></script><script src="js/account-page.js?v=20261016.5" defer></script>
+    <link rel="stylesheet" href="css/settings-refined.css?v=20261016.1">
+</head>
+<body class="account-refined">
+    <main class="account-shell">
+        <header class="account-header"><a class="back-btn brand" href="settings.html" aria-label="返回設定"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></a><div><span class="settings-kicker">時光相簿</span><h1 class="settings-title">帳戶</h1><p class="settings-subtitle">管理你的相簿與登入資料。</p></div></header>
+        <p id="account-message" role="status" aria-live="polite"></p>
+        <section id="account-auth" class="card" aria-labelledby="auth-title">
+            <img class="account-welcome-art" src="assets/storybook-family.png" alt=""><h2 id="auth-title">登入我的相簿</h2><p>每個帳戶擁有自己的相簿。新註冊帳戶從空白開始。</p>
+            <form id="account-form">
+                <label>帳號<input name="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{2,31}" autocomplete="username" autocapitalize="none" spellcheck="false"><small>3–32 個英文字母、數字、點、底線或短橫線</small></label>
+                <label id="display-name-label" hidden>顯示名稱<input name="displayName" maxlength="80" autocomplete="nickname"></label>
+                <label>密碼<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="current-password"><small>至少 12 個字元</small></label>
+                <label id="remember-device-label"><input name="rememberDevice" type="checkbox"> 記住此裝置<small>限這台瀏覽器：閒置 90 天或登入滿一年需重新登入；登出即可撤銷。共用裝置請勿勾選。</small></label>
+                <button type="submit" id="account-submit">登入</button>
+            </form>
+            <button type="button" id="account-toggle" class="secondary">還沒有帳戶？建立帳戶</button>
+            <p class="note">照片透過本服務的 Flickr 儲存帳戶保存；各使用者的存取權限由本服務管理。網頁版傳輸時請保持頁面開啟。</p>
+        </section>
+        <section id="account-home" hidden>
+            <div class="home-heading"><div class="account-identity"><h2 id="account-greeting">我的相簿</h2><details id="account-name-details" class="full-name-details" hidden><summary>查看完整名稱</summary><p id="account-full-name"></p></details></div><button id="account-logout" class="secondary" type="button">登出</button></div>
+            <div class="account-story-welcome"><img src="assets/storybook-family.png" alt=""><div><h2>收藏每一個小日常</h2><p>一張張照片，串起我們長大的回憶。</p><a class="account-story-link secondary" href="index.html">選擇相簿 →</a></div></div>
+            <section class="card"><h2>建立相簿</h2><form id="album-form" class="album-form"><label>相簿名稱<input name="title" maxlength="80" required></label><label>紀念起始日<input name="birthDate" type="date" required></label><button type="submit">建立相簿</button></form></section>
+            <a id="account-manage-albums" class="secondary" href="settings.html">管理相簿／已刪除相簿</a> <a id="account-open-timeline" class="secondary" href="timeline.html" hidden>查看這本相簿的時間軸</a>
+            <nav id="account-albums" aria-label="我的相簿"></nav>
+            <section class="card"><div class="home-heading"><h2 id="selected-album">選擇相簿</h2><button id="account-upload" type="button" hidden>加入照片／影片</button></div><p id="album-empty">建立第一本相簿，開始收藏回憶。</p><p id="account-upload-note" class="note" hidden>Android App 可選取原檔並加入背景上傳佇列。</p><div id="account-photos" class="photo-grid"></div><div class="pagination"><button id="photos-previous" type="button" class="secondary" hidden>上一頁</button><span id="photos-page"></span><button id="photos-next" type="button" class="secondary" hidden>下一頁</button></div></section>
+            <details id="account-deletion" class="card"><summary>刪除帳戶與資料</summary><p>若不再使用，可提出刪除帳戶及資料的申請。送出後即停止登入與新傳輸；遠端照片移除需要另外確認。<a href="delete-account.html">查看完整刪除說明</a></p><form id="delete-account-form"><label>再次輸入密碼<input type="password" name="password" minlength="12" maxlength="128" required autocomplete="current-password"></label><button class="danger" type="submit">提出刪除申請</button></form></details>
+        </section>
+        <details id="deletion-status-panel" class="card"><summary>查詢刪除進度</summary><p>送出刪除申請後，請保留查詢碼。若有結果尚未確認的上傳，會先核對原檔及照片編號。</p><form id="deletion-status-form"><label>刪除查詢碼<input name="receipt" required minlength="43" maxlength="43" pattern="[A-Za-z0-9_\-]{43}" autocomplete="off" autocapitalize="none" spellcheck="false"></label><button type="submit" class="secondary">查詢進度</button></form><p id="deletion-status-message" role="status" aria-live="polite"></p></details>
+        <footer><nav class="service-links" aria-label="服務資訊"><a href="privacy.html">隱私與資料使用</a><a href="support.html">使用與支援</a><a href="delete-account.html">刪除帳戶與資料</a><a href="install.html">安裝 Android App</a></nav><p class="service-notice" data-flickr-attribution></p></footer>
+    </main>
+</body>
+</html>

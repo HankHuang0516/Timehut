@@ -23,7 +23,7 @@
     const button = element('installButton');
     button.hidden = native || installed || (!deferredPrompt && !busy);
     button.disabled = busy;
-    button.textContent = busy ? '等待手機提示…' : '安裝黃家小屋';
+    button.textContent = busy ? '等待手機提示…' : '安裝時光相簿';
     element('installGuide').hidden = native || installed;
     element('iosInstallSteps').hidden = platform !== 'ios';
     element('androidInstallSteps').hidden = platform !== 'android';

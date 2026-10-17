@@ -9,8 +9,8 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="黃家小屋 - 寶貝成長時間軸">
-    <title>黃家小屋 - 時間軸</title>
+    <meta name="description" content="時光相簿 - 寶貝成長時間軸">
+    <title>時光相簿 - 時間軸</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="assets/app-icon-512.png">
@@ -76,8 +76,8 @@
                     <span class="hamburger-icon">☰</span>
                 </button>
                 <a href="index.html" class="header-logo header-logo-large">
-                    <img src="assets/app-icon-192.png" alt="黃家小屋" class="logo-img">
-                    <span class="header-title">黃家小屋</span>
+                    <img src="assets/app-icon-192.png" alt="時光相簿" class="logo-img">
+                    <span class="header-title">時光相簿</span>
                 </a>
             </div>
             <div class="header-right">
@@ -217,6 +217,7 @@
         <div class="modal-overlay" onclick="closeUploadModal()"></div>
         <div class="upload-modal-content">
             <button class="modal-close" onclick="closeUploadModal()">✕</button>
+            <div class="upload-sheet-scroll">
             <div class="upload-header">
                 <h2>📤 上傳新照片</h2>
                 <p>將照片上傳到 Flickr 相簿</p>
@@ -235,7 +236,7 @@
 
                 <!-- Album Selection (Optional) -->
                 <div class="upload-field">
-                    <label for="albumSelect">選擇相簿（可選）：</label>
+                    <label for="albumSelect">相簿（可選）</label>
                     <select id="albumSelect" class="upload-select" aria-describedby="albumLoadStatus">
                         <option value="">預設（自動加入當前小孩相簿）</option>
                     </select>
@@ -263,7 +264,7 @@
 
                 <!-- Tagging Mode Toggle -->
                 <div class="upload-field tagging-mode-field">
-                    <label>標籤模式：</label>
+                    <label>標籤模式</label>
                     <div class="tagging-mode-toggle">
                         <button type="button" class="mode-btn active" id="batchModeBtn"
                             onclick="setTaggingMode('batch')">
@@ -298,6 +299,7 @@
                 <button class="refresh-btn" onclick="location.reload()">
                     🔄 刷新頁面
                 </button>
+            </div>
             </div>
         </div>
     </div>

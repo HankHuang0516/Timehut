@@ -30,7 +30,7 @@
         CONFIG.CHILDREN.forEach((album,index)=>{
             const info=container.querySelectorAll('.child-info')[index];if(!info)return;
             info.closest('.child-card').id='settings-album-'+album.albumId;
-            const menu=document.createElement('details');menu.className='album-menu';const label=document.createElement('summary');label.textContent='管理相簿';menu.append(label);
+            const menu=document.createElement('details');menu.className='album-menu';const label=document.createElement('summary');label.textContent='⋯';label.setAttribute('aria-label','管理相簿');label.title='管理相簿';menu.append(label);const menuActions=document.createElement('div');menuActions.className='album-menu-actions';menu.append(menuActions);
             const rename=document.createElement('button');rename.type='button';rename.className='btn-secondary';rename.textContent='重新命名';rename.dataset.albumId=album.albumId;
             rename.addEventListener('click',async()=>{
                 if(!current()||busy.has(album.albumId))return;busy.add(album.albumId);rename.disabled=true;
@@ -44,7 +44,7 @@
                 finally{busy.delete(album.albumId);if(current())rename.disabled=false;}
             });
             const button=document.createElement('button');button.type='button';button.className='btn-secondary album-remove';button.textContent='刪除相簿';button.dataset.albumId=album.albumId;
-            button.addEventListener('click',()=>change({...album,id:album.albumId},'archive',button));menu.append(rename,button);info.append(menu);
+            button.addEventListener('click',()=>change({...album,id:album.albumId},'archive',button));menuActions.append(rename,button);info.after(menu);
         });
         summary.textContent=`已刪除相簿（${Number(result.total)||result.albums.length}）`;
         if(Number(CONFIG.ALBUM_TOTAL)>CONFIG.CHILDREN.length){const directory=document.createElement('a');directory.className='btn-secondary';directory.href='account.html';directory.textContent='查看與管理全部相簿';container.after(directory);}

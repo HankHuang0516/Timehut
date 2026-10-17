@@ -10,12 +10,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const busy = (form, enabled) => form.querySelectorAll('input,button').forEach(control => { control.disabled = enabled; });
     function registrationMode(enabled) { enabled = enabled && !deletionIntent; registering = enabled; $('display-name-label').hidden = !enabled; $('account-form').elements.displayName.required = enabled; $('account-form').elements.password.autocomplete = enabled ? 'new-password' : 'current-password'; $('auth-title').textContent = enabled ? '建立我的帳戶' : deletionIntent ? '登入以刪除帳戶' : '登入我的相簿'; $('account-submit').textContent = enabled ? '建立帳戶' : '登入'; $('account-toggle').textContent = enabled ? '已有帳戶？前往登入' : '還沒有帳戶？建立帳戶'; $('account-toggle').hidden = deletionIntent; }
+    function updateNameDisclosure() {
+        const greeting = $('account-greeting'), details = $('account-name-details');
+        details.hidden = $('account-home').hidden || greeting.scrollHeight <= greeting.clientHeight + 1;
+        if (details.hidden) details.open = false;
+    }
+    if (window.ResizeObserver) new ResizeObserver(updateNameDisclosure).observe($('account-greeting'));
+    window.addEventListener('resize', updateNameDisclosure);
+    document.fonts?.ready.then(updateNameDisclosure);
     function refreshIdentity() {
         viewGeneration++;selected=null;albumListPage=1;albumListPages=1;moreAlbums.hidden=true;if($('account-open-timeline'))$('account-open-timeline').hidden=true;if($('account-manage-albums'))$('account-manage-albums').href='settings.html'; $('account-photos').replaceChildren(); $('account-albums').replaceChildren();
         $('selected-album').textContent = '選擇相簿'; $('photos-page').textContent = ''; $('photos-previous').hidden = true; $('photos-next').hidden = true; $('account-upload').hidden = true; $('account-upload-note').hidden = true;
         const state = accounts.status(); $('account-auth').hidden = state.authenticated; $('account-home').hidden = !state.authenticated;
         if (!state.authenticated) registrationMode(false);
-        $('account-greeting').textContent = state.user ? `${state.user.displayName}的相簿` : '我的相簿';
+        $('account-greeting').textContent = state.user ? `${state.user.displayName}的相簿` : '我的相簿'; $('account-greeting').title=$('account-greeting').textContent;
+        $('account-full-name').textContent = state.authenticated ? $('account-greeting').textContent : '';
+        $('account-name-details').open = false;
+        requestAnimationFrame(updateNameDisclosure);
         if (deletionIntent && state.authenticated) { const panel = $('account-deletion'); panel.open = true; requestAnimationFrame(() => panel.scrollIntoView({block:'start'})); }
     }
     async function albums(requestedPage=1) {

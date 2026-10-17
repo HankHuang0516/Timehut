@@ -64,12 +64,39 @@ const Uploader = {
     },
 
     async getAlbums(options = {}) {
-        const data = await this.readJSON('/api/albums', options);
-        if (!Array.isArray(data.albums) || data.albums.some(album =>
-            !album || typeof album.id !== 'string' || !album.id || typeof album.title !== 'string')) {
-            throw new Error('相簿清單格式不完整');
+        const validate = data => {
+            if (!data || !Array.isArray(data.albums) || data.albums.some(album =>
+                !album || typeof album.id !== 'string' || !album.id || typeof album.title !== 'string')) {
+                throw new Error('相簿清單格式不完整');
+            }
+        };
+        if (!CONFIG.ACCOUNT_MODE) {
+            const data = await this.readJSON('/api/albums', options);
+            validate(data);
+            return data.albums;
         }
-        return data.albums;
+        const albums = [], seen = new Set();
+        let page = 1, pages = 1, total = null;
+        do {
+            if (options.signal?.aborted) throw new DOMException('相簿讀取已停止', 'AbortError');
+            const data = await this.readJSON(`/api/accounts/albums?page=${page}&per_page=30`, options);
+            validate(data);
+            if (data.page !== page || !Number.isSafeInteger(data.total) || data.total < 0 ||
+                !Number.isSafeInteger(data.pages) || data.pages < 1 || data.pages > 100000 ||
+                data.pages !== Math.max(1, Math.ceil(data.total / 30)) ||
+                (total !== null && (data.total !== total || data.pages !== pages)) ||
+                data.albums.length !== Math.min(30, Math.max(0, data.total - (page - 1) * 30))) {
+                throw new Error('相簿分頁尚未確認');
+            }
+            total = data.total; pages = data.pages;
+            for (const album of data.albums) {
+                if (seen.has(album.id)) throw new Error('相簿分頁有重複項目，請重試');
+                seen.add(album.id); albums.push(album);
+            }
+            page++;
+        } while (page <= pages);
+        if (albums.length !== total) throw new Error('相簿總數尚未確認');
+        return albums;
     },
 
     // 上傳檔案 (Modified to use XHR for progress)

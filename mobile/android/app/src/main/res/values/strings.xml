@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">黃家小屋</string>
-    <string name="title_activity_main">黃家小屋</string>
+    <string name="app_name">時光相簿測試版</string>
+    <string name="title_activity_main">時光相簿測試版</string>
     <string name="package_name">tw.aihankapps.timehut</string>
     <string name="custom_url_scheme">tw.aihankapps.timehut</string>
 </resources>

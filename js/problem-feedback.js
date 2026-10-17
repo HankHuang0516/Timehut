@@ -85,11 +85,11 @@
     $('feedback-inbox-more').addEventListener('click',()=>loadReports(inboxPage+1,true).catch(error=>message(error.message)));
     async function refresh(){
         const setting=await accounts.request('/api/accounts/notification-settings');if(!current())return;if(typeof setting.enabled!=='boolean'||setting.channel!=='in-app')throw Error('通知設定尚未確認');preference=setting.enabled;$('bug-notifications-enabled').checked=preference;$('bug-notifications-enabled').disabled=false;
-        const result=await accounts.request('/api/accounts/notifications?'+new URLSearchParams({platform,channel}));if(!current())return;const holder=$('bug-notifications');holder.replaceChildren();
+        const result=await accounts.request('/api/accounts/notifications?'+new URLSearchParams({platform,channel,includeTests:'true'}));if(!current())return;const holder=$('bug-notifications');holder.replaceChildren();
         for(const item of result.notifications){
             const card=document.createElement('article');card.className='feedback-notification';card.dataset.notificationId=item.id;const text=document.createElement('p');
             const included=item.kind==='app-update'&&versionCode>0&&versionCode>=item.versionCode;
-            text.textContent=(item.readAt?'已讀 · ':'未讀 · ')+(item.kind==='service-fix'?'回報問題已由服務修復，可重新操作。':item.kind==='web-refresh'?'回報問題已修復，重新開啟網站即可。':included?'回報問題已處理，目前版本已包含修正。':`回報問題已修復，${item.version} 已可取得。`);card.append(text);
+            text.textContent=(item.test===true?'測試通知 · ':'')+(item.readAt?'已讀 · ':'未讀 · ')+(item.kind==='service-fix'?'回報問題已由服務修復，可重新操作。':item.kind==='web-refresh'?'回報問題已修復，重新開啟網站即可。':included?'回報問題已處理，目前版本已包含修正。':`回報問題已修復，${item.version} 已可取得。`);card.append(text);
             if(!included&&item.kind!=='service-fix'){const url=new URL(item.url);if(url.protocol!=='https:'||!['github.com','play.google.com','apps.apple.com','testflight.apple.com','just-healing-production.up.railway.app'].includes(url.hostname))throw Error('更新入口尚未確認');const link=document.createElement('a');link.className='btn-secondary';link.href=url.href;link.textContent=item.kind==='web-refresh'?'重新開啟網站':versionCode>0?'請更新至修正版':'查看可用版本';card.append(link);}
             if(!item.readAt){const read=document.createElement('button');read.type='button';read.className='btn-secondary';read.textContent='標為已讀';read.addEventListener('click',async()=>{read.disabled=true;try{const ack=await accounts.request('/api/accounts/notifications/'+item.id+'/read',{method:'POST',body:{}});if(ack.id!==item.id)throw Error('已讀狀態未確認');await refresh();}catch(error){message(error.message);read.disabled=false;}});card.append(read);}holder.append(card);
         }

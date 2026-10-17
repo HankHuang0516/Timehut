@@ -718,10 +718,10 @@
 .storybook-page .album-menu summary { cursor:pointer; padding:8px 0; min-height:44px; font-size:.9rem; }
 .storybook-page .album-menu button { display:block; margin:6px 0; min-height:44px; }
 .storybook-page .feedback-section { margin:24px auto; }
-.storybook-page .feedback-section form { display:grid; gap:14px; }
-.storybook-page .feedback-section label { display:grid; gap:8px; }
-.storybook-page .feedback-section textarea { width:100%; min-height:120px; border:1px solid #ccb994; border-radius:12px; padding:12px; font:inherit; background:#fffdf5; color:#493326; resize:vertical; }
-.storybook-page .feedback-section input[type=file] { max-width:100%; min-height:44px; }
+.storybook-page .feedback-section form { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:14px; }
+.storybook-page .feedback-section label { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:8px; }
+.storybook-page .feedback-section textarea { width:100%; min-width:0; min-height:120px; border:1px solid #ccb994; border-radius:12px; padding:12px; font:inherit; background:#fffdf5; color:#493326; resize:vertical; }
+.storybook-page .feedback-section input[type=file] { width:100%; min-width:0; max-width:100%; min-height:44px; }
 .storybook-page #feedback-preview,.storybook-page .feedback-saved-image { display:block; max-width:100%; max-height:380px; object-fit:contain; border-radius:12px; }
 .storybook-page #feedback-preview[hidden] { display:none; }
 .storybook-page .feedback-actions { display:flex; gap:10px; flex-wrap:wrap; }
@@ -729,3 +729,64 @@
 .storybook-page .feedback-report button,.storybook-page .feedback-notification button,.storybook-page .feedback-notification a { margin:6px 8px 6px 0; min-height:44px; }
 .storybook-page .feedback-section details summary { min-height:44px; padding:10px 0; cursor:pointer; font-weight:700; }
 .storybook-page .feedback-notification-toggle { display:flex!important; align-items:center; gap:10px; min-height:44px; }
+
+/* Formal06 density candidate: keep controls reachable in narrow upload sheets. */
+@media(max-width:760px) {
+ .storybook-page .upload-modal-content { max-height:calc(100dvh - 24px); }
+ .storybook-page .upload-header { padding:12px 68px 10px 12px; min-height:64px; }
+ .storybook-page .upload-header::after { display:none; }
+ .storybook-page .upload-header h2 { max-width:none; font-size:20px; line-height:1.3; }
+ .storybook-page .upload-header p { max-width:none; font-size:12px; line-height:1.5; }
+ .storybook-page .upload-modal-content > .modal-close { width:48px; height:48px; border-radius:12px; top:8px; right:8px; }
+ .storybook-page .upload-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:10px 12px; padding:12px; }
+ .storybook-page .upload-dropzone { grid-column:1/-1; min-height:88px; padding:10px 8px 10px 88px; background-size:96px auto; background-position:0 bottom; }
+ .storybook-page .dropzone-icon { display:none; }
+ .storybook-page .dropzone-content p { font-size:14px; line-height:1.5; margin:0 0 4px; }
+ .storybook-page .dropzone-hint { font-size:12px; line-height:1.5; padding:4px 8px; }
+ .storybook-page .upload-field { min-width:0; }
+ .storybook-page .upload-field > label { font-size:13px; line-height:1.5; margin:0 0 6px; }
+ .storybook-page :is(.upload-input,.upload-select,.queue-item-tags) { min-height:48px; border-radius:12px; padding:10px 12px; font-size:16px; line-height:normal; }
+ .storybook-page .uploader-display { min-height:48px; padding:10px 12px; font-size:16px; line-height:normal; border-radius:12px; }
+ .storybook-page #batchTagsField { grid-column:1/-1; }
+ .storybook-page .tagging-mode-field { display:grid; grid-template-columns:76px minmax(0,1fr); align-items:center; gap:4px 8px; }
+ .storybook-page .tagging-mode-field > label { margin:0; }
+ .storybook-page .tagging-mode-toggle { margin:0; }
+ .storybook-page .tagging-mode-toggle .mode-btn { min-height:48px; padding:8px; font-size:16px; line-height:normal; border-radius:12px; }
+ .storybook-page .mode-hint { grid-column:1/-1; margin:0; font-size:12px; line-height:1.5; }
+ .storybook-page .upload-queue { grid-column:1/-1; padding:10px; }
+ .storybook-page .upload-queue h4 { margin:0 0 8px; font-size:14px; line-height:1.5; }
+ .storybook-page .queue-list { max-height:220px; }
+ .storybook-page .queue-item { grid-template-columns:minmax(0,1fr) minmax(100px,42%); min-height:72px; padding:8px 44px 8px 6px; }
+ .storybook-page .queue-filename { font-size:13px; }
+ .storybook-page .queue-item .queue-remove { top:10px; height:48px; width:44px; }
+ .storybook-page .queue-actions { gap:10px; padding:10px 0 0; bottom:-12px; }
+ .storybook-page .queue-actions button { min-height:48px; padding:10px 12px; font-size:16px; line-height:normal; border-radius:12px; }
+ .storybook-page .upload-tips { padding:8px 12px; }
+ .storybook-page .upload-tips .storybook-note { font-size:12px; line-height:1.5; }
+}
+
+@media(max-width:760px) {
+ .storybook-page .upload-modal-content > .modal-close { position:absolute!important; top:8px; right:8px; }
+ .storybook-page .upload-field > label { font-size:16px; line-height:normal; }
+ .storybook-page .mode-hint,.storybook-page .upload-tips .storybook-note { font-size:13px; line-height:normal; }
+ .storybook-page .uploader-name { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+}
+@media(max-width:360px) { .storybook-page .uploader-icon { display:none; } }
+
+/* Intrinsic rows must grow with WebView text zoom instead of overlapping. */
+.storybook-page .upload-sheet-scroll { display:contents; }
+@media(max-width:760px) {
+ .storybook-page .upload-options { grid-auto-rows:max-content; align-content:start; }
+ .storybook-page .dropzone-content { min-width:0; overflow-wrap:anywhere; }
+ .storybook-page .dropzone-content > :is(p,.dropzone-hint) { max-width:100%; }
+}
+@media(max-width:760px) and (max-height:700px) {
+ .storybook-page .upload-sheet-scroll { display:block; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+ .storybook-page .upload-options { overflow-y:visible; min-height:auto; }
+ .storybook-page .queue-actions { position:static; }
+}
+
+@media(max-width:760px) {
+ .storybook-page .tagging-mode-toggle { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); min-width:0; }
+ .storybook-page .tagging-mode-toggle .mode-btn { min-width:0; white-space:normal; overflow-wrap:anywhere; }
+}

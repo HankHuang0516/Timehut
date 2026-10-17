@@ -300,10 +300,42 @@ window.TimehutTransfers = (() => {
         }
         let filter = 'all';
         const isComplete = row => ['saved','completed','photo_deleted'].includes(row.stage);
-        const albumName = id => CONFIG.CHILDREN.find(child => String(child.albumId) === String(id))?.name || '尚未確認相簿';
+        const albumNames = new Map(CONFIG.CHILDREN.map(child => [String(child.albumId), child.name]));
+        const nameOwner = window.TimehutAccounts?.status(), nameInFlight = new Set(), nameRetryAfter = new Map();
+        let namePageActive = true;
+        const sameNameOwner = () => {
+            const current = window.TimehutAccounts?.status();
+            return current?.authenticated && current.user?.id === nameOwner?.user?.id && current.generation === nameOwner?.generation;
+        };
+        const currentNameOwner = () => namePageActive && sameNameOwner();
+        const albumName = id => albumNames.get(String(id)) || '尚未確認相簿';
+        function resolveAlbumNames(rows) {
+            if (!CONFIG.ACCOUNT_MODE || !currentNameOwner()) return;
+            const ids = [...new Set(rows.filter(row => row.direction === 'upload').map(row => String(row.albumId || '')))];
+            for (const id of ids) {
+                if (nameInFlight.size >= 3) break;
+                if (!/^[A-Za-z0-9_-]{1,128}$/.test(id) || albumNames.has(id) || nameInFlight.has(id) || (nameRetryAfter.get(id) || 0) > Date.now()) continue;
+                nameInFlight.add(id);
+                window.TimehutAccounts.request('/api/accounts/context?album=' + encodeURIComponent(id)).then(context => {
+                    if (!currentNameOwner() || context.user?.id !== nameOwner.user.id || !Array.isArray(context.children)) return;
+                    const child = context.children.find(child => child?.albumId === id);
+                    if (!child || typeof child.name !== 'string' || !child.name) return;
+                    albumNames.set(id, child.name);
+                    listEl.querySelectorAll('[data-destination-album]').forEach(node => {
+                        if (node.dataset.destinationAlbum === id) node.textContent = '上傳至：' + child.name;
+                    });
+                }).catch(() => {}).finally(() => {
+                    nameInFlight.delete(id);
+                    if (sameNameOwner() && !albumNames.has(id)) nameRetryAfter.set(id, Date.now() + 15000);
+                });
+            }
+        }
+        window.addEventListener('pagehide', () => { namePageActive = false; });
+        window.addEventListener('pageshow', event => { if (event.persisted) namePageActive = true; });
+        window.addEventListener('timehut-account-changed', () => { namePageActive = false; albumNames.clear(); nameRetryAfter.clear(); });
         const sizeText = bytes => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${(bytes / 1024).toFixed(1)} KiB`;
         album.addEventListener('change', () => {
-            listEl.querySelectorAll('[data-upload-destination]').forEach(node => { node.textContent = '上傳至：' + albumName(album.value); });
+            listEl.querySelectorAll('[data-upload-destination]').forEach(node => { node.dataset.destinationAlbum = album.value; node.textContent = '上傳至：' + albumName(album.value); });
         });
         async function render() {
             if (document.activeElement?.closest('.transfer-task') && document.activeElement.matches('input,select')) return;
@@ -328,7 +360,8 @@ window.TimehutTransfers = (() => {
                 if (row.direction === 'upload') {
                     const destination = document.createElement('p'); destination.className='transfer-destination';
                     if (row.stage === 'queued' && !row.endpoint) destination.dataset.uploadDestination = '';
-                    destination.textContent = '上傳至：' + albumName(row.albumId || (row.stage === 'queued' && !row.endpoint ? album.value : null));
+                    destination.dataset.destinationAlbum = String(row.albumId || (row.stage === 'queued' && !row.endpoint ? album.value : ''));
+                    destination.textContent = '上傳至：' + albumName(destination.dataset.destinationAlbum);
                     card.append(destination);
                 }
                 if (['transferring','waiting_network','waiting_wifi'].includes(row.stage)) {
@@ -371,6 +404,7 @@ window.TimehutTransfers = (() => {
                 }
                 listEl.append(card);
             }
+            resolveAlbumNames(rows);
         }
         const pickButton=document.getElementById('nativePickButton'), capabilityText=document.getElementById('transferCapability');
         let pickBusy=false, stopBusy=false, cancelPicked=false, pickedActor=null;
@@ -422,7 +456,7 @@ window.TimehutTransfers = (() => {
             }catch(error){capabilityText.textContent=error.message||'選取結果尚未確認，請核對下方任務。';}
             finally{pickBusy=false;pickButton.disabled=stopBusy;album.disabled=false;document.getElementById('transferTags').disabled=false;}
         });
-        document.getElementById('refreshTransfers').addEventListener('click',render);
+        document.getElementById('refreshTransfers').addEventListener('click',()=>{nameRetryAfter.clear();render().catch(error=>{capabilityText.textContent=error.message;});});
         document.querySelectorAll('[data-transfer-filter]').forEach(button => button.addEventListener('click', () => {
             filter=button.dataset.transferFilter;
             document.querySelectorAll('[data-transfer-filter]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));

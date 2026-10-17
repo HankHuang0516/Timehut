@@ -1,0 +1,29 @@
+.upload-safety-results {
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    margin: 20px auto;
+    padding: 20px;
+    width: min(720px, calc(100% - 24px));
+    border: 1px solid #d3c6ac;
+    border-radius: 16px;
+    background: #fffdf6;
+    color: #302f29;
+    font-size: 15px;
+    line-height: 1.6;
+    scroll-margin-top: 130px;
+    overflow-wrap: anywhere;
+}
+.upload-safety-results h2 { margin: 0 0 8px; font-size: 21px; }
+.upload-safety-results ul { padding: 0; margin: 14px 0; list-style: none; }
+.upload-safety-results li { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid #e9e0cf; }
+.upload-safety-results li span { color: #73591f; }
+.upload-safety-results small, .upload-safety-note { font-size: 13px; color: #615e54; }
+.upload-safety-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.upload-safety-actions button { min-height: 44px; max-width: 100%; padding: 10px 16px; border: 1px solid #9d8036; border-radius: 10px; background: #fff5cf; color: #32290d; cursor: pointer; font: inherit; }
+.upload-safety-actions button:disabled { opacity: .55; cursor: default; }
+.upload-safety-actions button:focus-visible { outline: 3px solid #366fa3; outline-offset: 3px; }
+
+/* Keep the upload close control inside its scrolling card on every screen size. */
+#uploadModal .upload-modal-content { padding-top: 56px; }
+#uploadModal .modal-close { position: absolute !important; top: 10px; right: 10px; z-index: 1002; }
