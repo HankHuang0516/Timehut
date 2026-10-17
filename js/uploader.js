@@ -376,7 +376,8 @@ const BackgroundUploader = {
             this.failedFiles.forEach(item => UploadUI.retainedTasks.set(item.task.file, item.task));
             UploadUI.fileList = [...this.failedFiles.map(item => item.task.file), ...drafts.map(item => item.file)];
             UploadUI.individualTags = Object.fromEntries([
-                ...this.failedFiles.map(item => item.task.tags?.replace(/^uploader:\S+\s*/, '') || ''), ...drafts.map(item => item.tags)
+                ...this.failedFiles.map(item => typeof item.task.userTags === 'string'
+                    ? item.task.userTags : item.task.tags?.replace(/^uploader:\S+\s*/, '') || ''), ...drafts.map(item => item.tags)
             ].map((tags, index) => [index, tags]));
             UploadUI.videoWarnings = Object.fromEntries([
                 ...this.failedFiles.map(item => item.task.videoWarning), ...drafts.map(item => item.warning)
@@ -922,7 +923,7 @@ const UploadUI = {
                     const tagInput = document.querySelector(`input[data-file-index="${i}"]`);
                     const fileTags = tagInput ? tagInput.value : '';
                     const tags = `${uploaderTag} ${fileTags}`.trim();
-                    tasks.push({ file, albumId, tags, index: i }); // Add index for progress tracking
+                    tasks.push({ file, albumId, tags, userTags: fileTags, index: i }); // Keep the original field independent of the uploader name.
                 }
             } else {
                 const tagsInput = document.getElementById('tagsInput');
@@ -930,7 +931,7 @@ const UploadUI = {
                 const tags = `${uploaderTag} ${batchTags}`.trim();
 
                 this.fileList.forEach((file, index) => {
-                    tasks.push({ file, albumId, tags, index: index }); // Add index for progress tracking
+                    tasks.push({ file, albumId, tags, userTags: batchTags, index: index }); // Keep the original field for a retained retry.
                 });
             }
 
