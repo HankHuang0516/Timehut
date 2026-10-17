@@ -120,6 +120,12 @@
                 if (!child.matches('.modal-tags-edit,.modal-actions,.modal-download-btn,.viewer-decoration,.toast-container')) details.append(child);
             }
             viewer.prepend(details);
+            for (const region of [details, chips]) region.addEventListener('keydown', event => {
+                if (event.target !== region || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+                if (!['PageDown', 'PageUp'].includes(event.key) || region.scrollHeight <= region.clientHeight) return;
+                event.preventDefault();
+                region.scrollBy({top: (event.key === 'PageDown' ? 1 : -1) * Math.max(1, region.clientHeight * .9), behavior: 'instant'});
+            });
             const renderTags = () => {
                 chips.replaceChildren(); (document.getElementById('editTagsInput')?.value || '').split(/\s+/).filter(Boolean).forEach(tag => {
                     const chip = document.createElement('span'); chip.className = 'viewer-tag'; chip.textContent = tag; chips.append(chip);
