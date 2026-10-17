@@ -140,27 +140,78 @@ body.settings-refined, body.account-refined {
 .account-refined .full-name-details > summary { color:var(--ui-accent); }
 .account-refined .full-name-details > p { margin:8px 0 0; font-size:var(--ui-body); line-height:normal; overflow-wrap:anywhere; }
 
-/* Original05 illustration scale within the shared refined settings controls. */
-.settings-refined.settings-page .child-card { grid-template-columns:96px minmax(0,1fr) auto; }
-.settings-refined.settings-page .child-emoji { width:96px; height:104px; }
-.settings-refined.settings-page .child-emoji img { width:96px; height:104px; object-fit:contain; object-position:center; border-radius:16px; }
-.settings-refined.settings-page .settings-story-closing { display:flex; align-items:center; gap:16px; margin:0 0 24px; padding:16px; border:1px solid #ece5ce; border-radius:var(--ui-card-radius); background:#fff9e9; }
-.settings-refined.settings-page .settings-story-closing img { flex:0 0 128px; width:128px; height:112px; max-width:45%; object-fit:contain; }
-.settings-refined.settings-page .settings-story-closing p { min-width:0; margin:0; color:#59634e; font-size:var(--ui-meta); line-height:1.5; }
-.settings-refined.settings-page :is(.settings-story-closing p,.settings-header > p) { text-wrap:pretty; }
-@media(min-width:761px) {
- .settings-refined.settings-page #childrenList { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; align-items:stretch; }
+/* Board05 keeps the picture-book composition and the shared 48px controls.
+   These settings-only rules leave account pages on their existing palette. */
+body.settings-refined.settings-page {
+ --ui-ink:#493326; --ui-muted:#736858; --ui-accent:#715217; --ui-line:#e9e1cd;
+ --ui-surface:#fffefb; --ui-field:#fff; --ui-secondary:#fff2bf; --ui-heading:36px;
+ background:radial-gradient(circle at 8% 4%,#edf5df 0,transparent 28%),#faf7ef;
+}
+.settings-refined.settings-page .settings-container { max-width:1250px; padding:24px 26px 40px 220px; }
+.settings-refined.settings-page .settings-story-side { display:flex; height:650px; color:var(--ui-ink); }
+.settings-refined.settings-page .settings-story-brand { color:var(--ui-ink); font-size:22px; }
+.settings-refined.settings-page .settings-header { min-height:132px; margin-bottom:20px; padding:8px 0 28px; background:url('../assets/storybook-garden-v1.png') right bottom / 250px auto no-repeat; }
+.settings-refined.settings-page .settings-title { line-height:1.3; }
+.settings-refined.settings-page .settings-subtitle { max-width:300px; font-size:15px; line-height:1.6; }
+.settings-refined.settings-page .settings-section { border-radius:24px; box-shadow:0 4px 16px #49332606; }
+.settings-refined.settings-page .settings-family-section { padding:20px; background:linear-gradient(#fff3c9 0 70px,#fffefb 70px); }
+.settings-refined.settings-page .settings-family-section > .section-title { font-size:22px; font-weight:700; margin:0 0 22px; }
+.settings-refined.settings-page .section-symbol { background:#fff6d5; }
+.settings-refined.settings-page #childrenList { gap:16px; align-items:stretch; }
+.settings-refined.settings-page .child-card,
+.settings-refined.settings-page .child-card:first-child,
+.settings-refined.settings-page .child-card:last-child {
+ grid-template-columns:140px minmax(0,1fr) 48px; grid-template-rows:minmax(100px,1fr) auto;
+ gap:12px; padding:16px; border:1px solid var(--ui-line); border-radius:20px;
+ background:linear-gradient(135deg,#edf8ff,#fffefb 70%); align-items:start;
+}
+.settings-refined.settings-page .child-card:nth-child(even) { background:linear-gradient(135deg,#fff0f1,#fffefb 70%); }
+.settings-refined.settings-page .child-emoji { grid-row:1/3; align-self:center; width:140px; height:186px; }
+.settings-refined.settings-page .child-emoji img { width:100%; height:100%; object-fit:contain; object-position:center; border-radius:18px; }
+.settings-refined.settings-page .child-info { align-self:center; }
+.settings-refined.settings-page .child-name { font-size:24px; font-weight:700; line-height:1.4; }
+.settings-refined.settings-page .child-age { display:inline-block; margin-top:8px; padding:6px 10px; background:#fff3c9; border-radius:14px; font-size:14px; line-height:1.5; }
+.settings-refined.settings-page .child-birthdate { grid-column:2/-1; align-self:end; }
+.settings-refined.settings-page button.save-btn { min-height:56px; max-width:360px; margin:20px auto; background:linear-gradient(135deg,#ffdf70,#ffe589); color:var(--ui-ink); font-size:20px; font-weight:700; box-shadow:0 4px 14px #c99c261c; }
+.settings-refined.settings-page #settingsStatus.toast { max-width:540px; margin:0 auto 16px; }
+.settings-refined.settings-page .settings-story-closing { display:flex; justify-content:center; align-items:center; gap:24px; margin:0 0 28px; padding:8px 16px; background:none; border:0; }
+.settings-refined.settings-page .settings-story-closing img { flex:0 0 220px; width:220px; height:144px; max-width:48%; object-fit:contain; }
+.settings-refined.settings-page .settings-story-closing p { min-width:0; margin:0; font-size:14px; line-height:1.9; color:var(--ui-muted); text-wrap:pretty; }
+@media(min-width:1101px) {
+ .settings-refined.settings-page #childrenList { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .settings-refined.settings-page .child-card,
  .settings-refined.settings-page .child-card:first-child,
- .settings-refined.settings-page .child-card:last-child { padding:0; border-bottom:0; grid-template-columns:104px minmax(0,1fr) auto; grid-template-rows:1fr auto; align-self:stretch; }
- .settings-refined.settings-page .child-emoji,
- .settings-refined.settings-page .child-emoji img { width:104px; height:116px; }
- .settings-refined.settings-page .child-birthdate { align-self:end; }
+ .settings-refined.settings-page .child-card:last-child { grid-template-columns:130px minmax(0,1fr) 48px; padding:12px; gap:10px; }
+ .settings-refined.settings-page .child-emoji { width:130px; height:180px; }
+}
+@media(max-width:1100px) {
+ .settings-refined.settings-page .settings-container { max-width:900px; padding:20px; }
+ .settings-refined.settings-page .settings-story-side { display:none; }
+}
+@media(max-width:760px) {
+ body.settings-refined.settings-page { --ui-heading:30px; }
+ .settings-refined.settings-page .settings-container { padding:16px 12px 32px; }
+ .settings-refined.settings-page .settings-header { min-height:122px; padding-bottom:30px; margin-bottom:16px; background-size:150px auto; }
+ .settings-refined.settings-page .settings-subtitle { max-width:215px; }
+ .settings-refined.settings-page .settings-family-section { padding:12px; }
+ .settings-refined.settings-page .settings-family-section > .section-title { margin:0 0 20px; font-size:20px; }
+ .settings-refined.settings-page .child-card,
+ .settings-refined.settings-page .child-card:first-child,
+ .settings-refined.settings-page .child-card:last-child { grid-template-columns:100px minmax(0,1fr) 48px; grid-template-rows:minmax(84px,1fr) auto; gap:10px; padding:12px; }
+ .settings-refined.settings-page .child-emoji { width:100px; height:148px; }
+ .settings-refined.settings-page .child-name { font-size:22px; }
+ .settings-refined.settings-page .child-birthdate { grid-column:1/-1; }
+ .settings-refined.settings-page .child-emoji { grid-row:1; }
+ .settings-refined.settings-page .child-age { font-size:13px; padding:5px 8px; }
+ .settings-refined.settings-page button.save-btn { max-width:none; margin:16px 0; }
+ .settings-refined.settings-page .settings-story-closing { gap:12px; padding:0; }
+ .settings-refined.settings-page .settings-story-closing img { flex-basis:150px; width:150px; height:112px; }
+ .settings-refined.settings-page .settings-story-closing p { font-size:13px; line-height:1.6; }
 }
 @media(max-width:360px) {
- .settings-refined.settings-page .child-card { grid-template-columns:80px minmax(0,1fr) auto; }
- .settings-refined.settings-page .child-emoji,
- .settings-refined.settings-page .child-emoji img { width:80px; height:96px; }
- .settings-refined.settings-page .settings-story-closing { gap:12px; }
- .settings-refined.settings-page .settings-story-closing img { flex-basis:96px; width:96px; height:88px; }
+ .settings-refined.settings-page .child-card,
+ .settings-refined.settings-page .child-card:first-child,
+ .settings-refined.settings-page .child-card:last-child { grid-template-columns:80px minmax(0,1fr) 48px; gap:8px; padding:10px; }
+ .settings-refined.settings-page .child-emoji { width:80px; height:124px; }
+ .settings-refined.settings-page .child-name { font-size:20px; }
 }

@@ -111,6 +111,7 @@
         const viewer = document.querySelector('#photoModal .modal-info');
         if (viewer) {
             const chips = document.createElement('div'); chips.className = 'viewer-tags'; chips.setAttribute('aria-label', '照片標籤');
+            chips.tabIndex = 0; chips.setAttribute('role', 'region');
             viewer.querySelector('.modal-tags-edit')?.before(chips);
             const decoration = document.createElement('img'); decoration.src = 'assets/storybook-family.png'; decoration.className = 'viewer-decoration'; decoration.alt = ''; viewer.append(decoration);
             const renderTags = () => {

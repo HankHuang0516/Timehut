@@ -57,7 +57,15 @@
         const toggle = document.createElement('button'); toggle.type = 'button'; toggle.id = 'viewerOverviewToggle';
         toggle.className = 'btn-secondary viewer-overview-toggle'; toggle.textContent = '照片總覽';
         toggle.setAttribute('aria-controls', 'viewerOverview'); toggle.setAttribute('aria-expanded', 'false');
-        info.insertBefore(toggle, info.querySelector('.viewer-decoration'));
+        const download = info.querySelector('#modalDownloadBtn');
+        if (download) {
+            let actions = download.closest('.modal-actions');
+            if (!actions) {
+                actions = document.createElement('div'); actions.className = 'modal-actions';
+                download.before(actions); actions.append(download);
+            }
+            actions.classList.add('viewer-actions'); actions.append(toggle);
+        } else info.insertBefore(toggle, info.querySelector('.viewer-decoration'));
         const panel = document.createElement('section'); panel.id = 'viewerOverview'; panel.className = 'viewer-overview'; panel.hidden = true;
         panel.setAttribute('aria-labelledby', 'viewerOverviewTitle');
         const header = document.createElement('div'); header.className = 'viewer-overview-header';

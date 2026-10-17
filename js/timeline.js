@@ -83,7 +83,7 @@ function showToast(message, type = 'success') {
     }
     const viewer = document.querySelector('.photo-modal.active .modal-info');
     container.classList.toggle('viewer-toast', Boolean(viewer));
-    if (viewer) viewer.insertBefore(container, viewer.querySelector('.modal-actions'));
+    if (viewer) viewer.prepend(container);
     else document.body.appendChild(container);
 
     // Get icon based on type
@@ -100,6 +100,13 @@ function showToast(message, type = 'success') {
     toast.textContent = `${icon} ${message}`;
     toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
     container.replaceChildren(toast);
+
+    // Keep viewer feedback visible until the next action or photo. Moving to a
+    // different photo clears it, so an old failure cannot label the new media.
+    if (viewer) {
+        toast.scrollIntoView({block:'nearest',behavior:'instant'});
+        return;
+    }
 
     // Auto remove after 2.5s
     setTimeout(() => {
@@ -872,6 +879,8 @@ function openModal(index) {
     if (SelectionState.isSelectMode) { togglePhotoSelection(String(photo.id)); return; }
     ViewerTagState.view++;
 
+    document.querySelector('.toast-container.viewer-toast')?.replaceChildren();
+
     const modal = document.getElementById('photoModal');
     const modalImg = document.getElementById('modalImage');
     const modalTitle = document.getElementById('modalTitle');
@@ -937,6 +946,7 @@ function openModal(index) {
  */
 function closeModal() {
     ViewerTagState.view++;
+    document.querySelector('.toast-container.viewer-toast')?.replaceChildren();
     window.TimehutViewerOverview?.clear();
     window.TimehutViewerMedia?.stop();
     const modal = document.getElementById('photoModal');
