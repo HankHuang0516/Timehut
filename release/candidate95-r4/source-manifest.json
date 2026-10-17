@@ -1,0 +1,805 @@
+{
+  "schema": 1,
+  "scope": "Unpublished final test95-R4 QA/source binding; product source unchanged from parent ui95.9",
+  "parentSourceCommit": "abce55abe14e21b6827514afd6d5e56e0e583c00",
+  "APK": {
+    "path": "/Users/hank/.local/share/project-storage/internal/builds/timehut-mobile-installer95-r4-1f8mhnin/android/app/build/outputs/apk/candidate/app-candidate.apk",
+    "bytes": 13801802,
+    "sha256": "f532822e547fc223b620d0ce6658d77333f5c7a6bcb40f8e923a56d1794bc652"
+  },
+  "testAPK": {
+    "path": "/Users/hank/.local/share/project-storage/internal/builds/timehut-mobile-installer95-r4-1f8mhnin/android/app/build/outputs/apk/androidTest/candidate/app-candidate-androidTest.apk",
+    "bytes": 609903,
+    "sha256": "bd1bc513d1d05657b7c3bc5f6bbe4e0dce553ec7935a630eb9a1f8371478a235"
+  },
+  "publicInputManifest": {
+    "sourceRoot": "/Volumes/AiHankAppsData/Timehut",
+    "privateConfigCopied": false,
+    "files": {
+      "index.html": {
+        "bytes": 15682,
+        "sha256": "082c5790ba1e395e7861ba3bb3c7f0988f535955424fa099a9f36a1bfeffcc8d"
+      },
+      "timeline.html": {
+        "bytes": 22467,
+        "sha256": "5bbb0e1c78a40618c8a334ba3ec07bab196dc2d82907edfcba694bbbe07a4c87"
+      },
+      "album.html": {
+        "bytes": 66209,
+        "sha256": "eac57380e0be7ae43ba7addd23c81b4c9758c659cc21295d4a3869ca40bc2b5b"
+      },
+      "search.html": {
+        "bytes": 15240,
+        "sha256": "29448130b05847987417dbadec8e71e5463ed8de4829a33d2ffa02b0c86a8098"
+      },
+      "settings.html": {
+        "bytes": 18347,
+        "sha256": "e1a6bb4613b95042816f67927cdb81ac13f7a0c5bc50824fd3cfd054b3cbd0dc"
+      },
+      "transfer.html": {
+        "bytes": 3174,
+        "sha256": "40b415a6d1ada2f2103cb3cbbbc280b76e1233c0124537317f6ec1e6f76b6f3f"
+      },
+      "account.html": {
+        "bytes": 6218,
+        "sha256": "b79f8bc2155a93bf819a9b2710a5f49d222b9bbf30ab9df93daf57086b213cd3"
+      },
+      "privacy.html": {
+        "bytes": 7544,
+        "sha256": "50a17ba842be610d04f57d0dbacab6dfd17c186ee7e01538475701b3989909e6"
+      },
+      "support.html": {
+        "bytes": 3115,
+        "sha256": "c155c840fbe1aa45cfd377153ff4e1c0900f00c4f631d5d548c068db88272336"
+      },
+      "delete-account.html": {
+        "bytes": 3339,
+        "sha256": "13219f19823d2275a4ade62e1b730bae3a78d74119387557a569e277410d6588"
+      },
+      "offline.html": {
+        "bytes": 897,
+        "sha256": "2cd966b0939eee9999f1e82650902b23bdc5358e7d83bd18d54ab429536d2ab9"
+      },
+      "install.html": {
+        "bytes": 7797,
+        "sha256": "7bd7e2eedebb47090154e259daca12d08d282740343a5d4f9429916c99049f31"
+      },
+      "favicon.png": {
+        "bytes": 787826,
+        "sha256": "53932ddd014411550dc72b56211872fe0b6c6d9c5f121f0abdcddc14cad64107"
+      },
+      "favicon.ico": {
+        "bytes": 3565,
+        "sha256": "e1a194fe163d089e68203ebcab0c5372088940badb8049e0a7f80fb3a7f2a375"
+      },
+      "public-service-worker.js": {
+        "bytes": 1667,
+        "sha256": "54b4bcbd6cfbe9f6ed1749a4a6a6c2d70ab6d9cbb7640fe5acebb85d6acfd023"
+      },
+      "releases.json": {
+        "bytes": 981,
+        "sha256": "0f8e4f03e48b84ca5eb55db6c1492ceb76dfd1c47d1b1a363dce289eb2cf3f40"
+      },
+      "js/storybook.js": {
+        "bytes": 11297,
+        "sha256": "c9e35bdd60aab6e48e8f985f0727ad23663fc6ebcf4f08aec2bd9af12b2e0243"
+      },
+      "js/account-config.js": {
+        "bytes": 6170,
+        "sha256": "6a3a7ff2bd0ea76d015db0264c8363cb4a9de947ae0f40242da07f6f583897c4"
+      },
+      "js/web-upload.js": {
+        "bytes": 11107,
+        "sha256": "e33854850cb807425e1621fa409734a9b8538cc89bc1ae7c2e955f87c0d56dd2"
+      },
+      "js/uploader.js": {
+        "bytes": 44748,
+        "sha256": "b1b74b60762ab4a23ff42c0da3760501fe21cb6912b33dfc50feee047bd8c0a7"
+      },
+      "js/flickr.js": {
+        "bytes": 13341,
+        "sha256": "e34c9ecce09dae0143c8ece003391645e63df239dfacf5d3014104d7c6a365fc"
+      },
+      "js/legacy-upload-safety.js": {
+        "bytes": 15138,
+        "sha256": "2effde34cb52d98aab1e19c311f239693f92d9d88a38c2327337d6d35a36a1ba"
+      },
+      "js/results.js": {
+        "bytes": 1001,
+        "sha256": "1654b3727756a9d2eccc444a9061a19c7ccdf8fc95ffb53f9e4722bbfcce77d4"
+      },
+      "js/accounts.js": {
+        "bytes": 34126,
+        "sha256": "053494b85c353823bf27aed9fcfcb5bf85946ec921e707a5c966ddf7973e301e"
+      },
+      "js/version.js": {
+        "bytes": 167,
+        "sha256": "b5957786653a206b7476df11471fb8ce8859239329cfc0a223404a12cd84edcc"
+      },
+      "js/timeline.js": {
+        "bytes": 104369,
+        "sha256": "3ee26dcb43a9805665f4a987c3e0844446b3d1ac4b6ba009e4405171a191fcd9"
+      },
+      "js/transfers.js": {
+        "bytes": 51887,
+        "sha256": "6fcbcf41c74847d98afbc16b0c3e14c22d7859450fb30e1c837e7cb76ea85ed9"
+      },
+      "js/update-notice.js": {
+        "bytes": 7901,
+        "sha256": "1da50ee63fc22e71c080a106a8c8e58d31f9fdb62b808b54b0ea10d662a9cadb"
+      },
+      "js/dialogs.js": {
+        "bytes": 7500,
+        "sha256": "43086249551e8f72018323b75601ca279f0762873c3a7919fe15517ede0d1605"
+      },
+      "js/install.js": {
+        "bytes": 4022,
+        "sha256": "fb6b1227797022587b6e86fe913c1d5293d8f77e6c31291f26dfa019e868b836"
+      },
+      "js/album-management.js": {
+        "bytes": 7637,
+        "sha256": "f5aba379cdd08e9f88f55ce8939524f9761e9a366bc53f6a1615a22d623c86ca"
+      },
+      "js/account-page.js": {
+        "bytes": 13828,
+        "sha256": "718c26d7ad515323cb82b187a9eab2736a9cf30885be2c4f41fcedf1a5a44e22"
+      },
+      "js/utils.js": {
+        "bytes": 5183,
+        "sha256": "d0af9ee0191f79437f12a383839aa1dba0555b8903f5dcc391d5637508e88707"
+      },
+      "js/problem-feedback.js": {
+        "bytes": 18422,
+        "sha256": "cbfb63aec1c78485e6e9845b14c845b74ae0e533f39710f4392d1852e3a31a1c"
+      },
+      "js/deletion-status.js": {
+        "bytes": 7692,
+        "sha256": "7e413110287c3cf1a30de1dc6e0eca7016a257351bc26ca702b6583854cc51b9"
+      },
+      "js/service-info.js": {
+        "bytes": 397,
+        "sha256": "003b8633565df28680238203934ddb5991d0a8aa58888f8b54469701657c0821"
+      },
+      "js/pwa.js": {
+        "bytes": 312,
+        "sha256": "e470b853dbab00df8911af52e564dc8ec9c5bae4d6cd3f81655444061f1aad34"
+      },
+      "js/vendor/jszip-3.10.1.min.js": {
+        "bytes": 97630,
+        "sha256": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e"
+      },
+      "js/vendor/filesaver-2.0.5.min.js": {
+        "bytes": 2749,
+        "sha256": "c68874cbaa2fd1650b7d770b328680ea765fb3376023cc3608427fde4f0d0481"
+      },
+      "js/vendor/noble-hashes-2.4.0/_md.js": {
+        "bytes": 9175,
+        "sha256": "60cf3010fda89e3e4d3f0e7ff1ce249e9c467f34b4fd41b6fd6101d9f69be763"
+      },
+      "js/vendor/noble-hashes-2.4.0/_u64.js": {
+        "bytes": 4794,
+        "sha256": "b09da8c07fe8187c07649494cdb7cd0bcf13df90b506a9473d19e4d5f8c2e102"
+      },
+      "js/vendor/noble-hashes-2.4.0/utils.js": {
+        "bytes": 26035,
+        "sha256": "037ad49adb78168b6b699598fd33f85f7877456b1d28b4d032e2a1a16807947c"
+      },
+      "js/vendor/noble-hashes-2.4.0/sha2.js": {
+        "bytes": 18997,
+        "sha256": "471746bba6ec4c6238ca41358d1d3b40b6ff31cf3363f0b4d550c649c1a8e83b"
+      },
+      "js/vendor/noble-hashes-2.4.0/LICENSE": {
+        "bytes": 1109,
+        "sha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
+      },
+      "js/vendor/noble-hashes-2.4.0/provenance.json": {
+        "bytes": 676,
+        "sha256": "07a9240cb0adb5dce1df5845e5c42954c4d6228955370bf8aef64829821d60cc"
+      },
+      "css/account.css": {
+        "bytes": 5230,
+        "sha256": "e7beb2165b26311857f1a7f9c4245e705f4945ffa8ef49dc85a834a855fb67e6"
+      },
+      "css/service-info.css": {
+        "bytes": 1307,
+        "sha256": "db1f9d0b438647be570f63b72924c57f9e300a34bbd0b26d1d12a721b85c3a26"
+      },
+      "css/timeline-ui.css": {
+        "bytes": 6480,
+        "sha256": "e83c9382a43072d023eb930be6d5fefb2a4f4e30838b0b5388d3739f1ecc4040"
+      },
+      "css/style.css": {
+        "bytes": 79418,
+        "sha256": "ce9917e78683dd1020964ac46fc26467162584d2e3988d9658e0e65c22e52860"
+      },
+      "css/settings-refined.css": {
+        "bytes": 18989,
+        "sha256": "9f45588896f4d4dc8dad07382463508038f5a1e70ad059c9f533a5c209e0cac0"
+      },
+      "css/upload-safety.css": {
+        "bytes": 1456,
+        "sha256": "ca07dd62374207b3ed459f993f725f5935939ed9091a44aea11ee4be8bfddd2b"
+      },
+      "css/storybook.css": {
+        "bytes": 71895,
+        "sha256": "2f1bde2e6842568bf39a2eb1de680dc838602e587541b7e0c7cd6027f403453e"
+      },
+      "assets/app-icon-512.png": {
+        "bytes": 787826,
+        "sha256": "53932ddd014411550dc72b56211872fe0b6c6d9c5f121f0abdcddc14cad64107"
+      },
+      "assets/storybook-girl.png": {
+        "bytes": 1646820,
+        "sha256": "f36a2e733b0ee7ddd0562900ba99e29e025506ee59f8e0786d0f9007a6f81abc"
+      },
+      "assets/app-icon-192.png": {
+        "bytes": 116881,
+        "sha256": "9943fcf9564fa92ade72aab0ba3af5a5149c7c528041cdf19898b4a6f35cf145"
+      },
+      "assets/storybook-upload-v1.png": {
+        "bytes": 2304715,
+        "sha256": "a9e19a57631c8fd38268051d2fb792e7fc9bf8a2761d0a1e475dae7d4e483c76"
+      },
+      "assets/storybook-boy.png": {
+        "bytes": 1524715,
+        "sha256": "5a8f9b36265237c9f6600a02db0445c10a49fc26cb95657e60a558d812b69658"
+      },
+      "assets/storybook-family.png": {
+        "bytes": 1032969,
+        "sha256": "3d6ac1af17582775aee3dc08a7a824b063839c2a1921207a68ea71013f6ada20"
+      },
+      "assets/storybook-garden-v1.png": {
+        "bytes": 1099578,
+        "sha256": "4780d362bd1dba10337d3ade978d6f917c2a9349b91fa3e30db9fada60092634"
+      },
+      "manifest.webmanifest": {
+        "bytes": 469,
+        "sha256": "94cb8d3254ee0dbf4004d7134d64b28f14603bd97b0f6f014618bc5f2adeb0e5",
+        "generatedPublicOnly": true
+      }
+    }
+  },
+  "nativeInputs": {
+    "mobile/android/app/src/main/AndroidManifest.xml": "8f4a78f93a02df134489ac709537a81a6a19c2331faf87b145970982afcb5629",
+    "mobile/android/app/src/main/assets/capacitor.plugins.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "mobile/android/app/src/main/assets/capacitor.config.json": "a481f8ed0fe22544a00888ce761262dca03dbef9f8d996dd0b942d09c106ee74",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/TransferCancelReceiver.java": "42124f2b785f52df469ec3d2a2c718d90770dd5e9de752bf3eba270f21d1c6f7",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/AccountIdentity.java": "f3655272b24fdea00227f41a92a5204341fced0dd5e2e5f60cedeac5ef0553e1",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/AccountRevocationJobService.java": "3ab08d3b05faa07dcfc5fbfc6da595798e0f4c31477c911467f969c4c13a2775",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/TransferJobService.java": "8b4e624ab6412abbb2198ef47bdd4c7b4bf7401e22178cefea979d52a88a6e53",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/UploadIdentity.java": "7d1d9ac9b693963f4885501a253352843529c2d7f1205c6f20cf4cfbecfb33ea",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/MainActivity.java": "7033c9f4e128765bc50adf742348952c8750500a6af2d199f213b1b2bfa8cc3f",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/AccountClient.java": "d8fffee3ccae098b80efe72afdd8869656e723165fe862a555461025eb666afc",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/AccountCommitRecovery.java": "0adf9484ac1d00da7ecc58f83ce294e9aabd86606b2195e88b60d97831a957f9",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/TransferForegroundService.java": "1c447eb88dc6a4cec1e3e7e03d279e48508545ebf06d670c8d8e4cbc27ece981",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/AccountSessionStore.java": "b9d1aa573baa03f19a0ba09b321a02726f12f71402f2c0eca548ba36fc15c037",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/TransferPlugin.java": "a48f39929f493ddbf80c0c3654062b9f3a8192fca6a622091020c6c2eaa6ea43",
+    "mobile/android/app/src/main/java/tw/aihankapps/timehut/TransferEngine.java": "a3647561b92becaf25f3a71273aa18735ac9e3f7320bd5ca74771654a5cf3df5",
+    "mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png": "0286c0488fe5d89a0ad7b49a961ab23d6c889f5ad84e44c8fdb12336ba5539f6",
+    "mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher.png": "2fa20b0b4a6e911116ec8635076385ac73168b63523a0e0cc5808c5a366ebd0d",
+    "mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png": "73c18d64f6bc99fffa642e401885858a980f22df8a82ff063b9b73220ab8b0cb",
+    "mobile/android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml": "a8514094f754b099d3e55ce1d6e0b2de79db418b2eeacb0fc2a6bb0bfadef221",
+    "mobile/android/app/src/main/res/drawable-port-xxxhdpi/splash.png": "3db071a03b2f8ffe0dfd4170fc59842d53cd15bba5e88af59401d58efabf7827",
+    "mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png": "b80d050614e4fc85dbceddcdda310d38b7808d9cf468a16ef87d1861a4bb3b10",
+    "mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher.png": "ebefa67c9d0e8e5f0a189e3f49b8cdde7f3f6980254c838064ab738061d1acb3",
+    "mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png": "3c03a343bce41e7859c3ff73f1d0d3b194d1da76993040e6c8f0a49f38039496",
+    "mobile/android/app/src/main/res/drawable-land-xhdpi/splash.png": "22f87e1e3bc89aa01a7dbc39c9a4db058cd0bf4ad3fe9f55712bf69eb997f4bf",
+    "mobile/android/app/src/main/res/drawable/splash.png": "5cf98b4451bd99b20df26f9e608a46946118be6b0ae90762f9ca1786a30c76ff",
+    "mobile/android/app/src/main/res/drawable/ic_launcher_background.xml": "718ba51adf166bb55c3e9936bb8199a0148457f7f0191aaa2f37a94f3159d6ec",
+    "mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png": "b1aa9b74ca8c8de7707824d271d59aa12022c877fdea3d325bf319851ff2632d",
+    "mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": "9e84d464d22523e3ac10a45b8f880454c986426e4abeaf985e87ac732b97b32b",
+    "mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png": "b7f12a324b42dd5655e55e59314592bef2d77cb482479105317b3f8425f05516",
+    "mobile/android/app/src/main/res/layout/activity_main.xml": "5d770feb791313b947020cbfc57e5c733c556dac5e9e49261a1190e527073253",
+    "mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png": "98ca6a06b0c66368e574f4ed2df441e8312c4cbfa71d8ef45a35bc3bbb390727",
+    "mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png": "67dd1beb44ec0e79b913e60a6213c625e67447ab040b69eba4173f252e3dfdae",
+    "mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png": "5ae3e6d82bc91ac42bdde7a47e7e48974699884ec81c389576f3d2d03a37ae1c",
+    "mobile/android/app/src/main/res/drawable-port-hdpi/splash.png": "c5015f4ba3628392b538386c5e210f0b94f352a3160adab934fd0311972137ca",
+    "mobile/android/app/src/main/res/values/styles.xml": "18ebba36575e9461347ee67361b23caf095f158ee85dbefe1b83a4669ba5bd6c",
+    "mobile/android/app/src/main/res/values/strings.xml": "bd6dbbe7de97525233327832c13b7f9ccbdbc48d4619d415e0b9d1038deb8915",
+    "mobile/android/app/src/main/res/values/ic_launcher_background.xml": "cd40bafe618ff506f4088778b135cb4faa15f25e0c9b475e22d730c74b7be115",
+    "mobile/android/app/src/main/res/xml/config.xml": "e9dcda493e663c5c4db9e3cb3bd968477a6e90aa8840bcbba40d72ed54b767ce",
+    "mobile/android/app/src/main/res/xml/file_paths.xml": "a46ed43ef65c90cb6778f4581decf3556e3f0055aad8f36d69dae16f9a0e99aa",
+    "mobile/android/app/src/main/res/drawable-port-mdpi/splash.png": "07fa579e1c83e04ba7f9cbcbfcf41b68e15fe3638f2c44a04e58b809103e6b69",
+    "mobile/android/app/src/main/res/drawable-land-mdpi/splash.png": "5cf98b4451bd99b20df26f9e608a46946118be6b0ae90762f9ca1786a30c76ff",
+    "mobile/android/app/src/main/res/drawable-land-hdpi/splash.png": "08cc34ad7713fe7ed58bceaa37b2387b670c53cd60264b4bd6442db3098e75dc",
+    "mobile/android/app/src/main/res/drawable-land-xxhdpi/splash.png": "42aa26392546fcdee1b8d3ac6d4b41bfcceb41dc6a4f3a3c30c24a8a8f4db862",
+    "mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png": "399a645eb7bbeb49bbdbbccdcecd2bf34537b507530865205775fff348367107",
+    "mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png": "578be04a4efbfb5537019a511525ed224fdd919714eaa42aa352f2c1ea4a9b24",
+    "mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png": "44a6770ed30fc49b1cd57b0b3588b58af3ced1268a4e7764b74822753b916c37",
+    "mobile/android/app/src/main/res/drawable-port-xxhdpi/splash.png": "0c7f1212f25b7b90e9a6e1d320013e4ff3d3e03e634cbb07b7b7981cac51627f",
+    "mobile/android/app/src/main/res/drawable-port-xhdpi/splash.png": "b73049cb37fe76d6c11b87a796766bf6af0c85483b31eb6a921657b0d764a4b9",
+    "mobile/android/app/src/main/res/drawable-land-xxxhdpi/splash.png": "60393ce8636fd263e4e1fea3fd4ab2de948c6295e898fda9b50ac4e5283be809",
+    "mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": "9c3a7e0a6515c6e1a7ae834a9ae430311ebc3241f7b2e5e7f0460aa690709a7c",
+    "mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml": "9c3a7e0a6515c6e1a7ae834a9ae430311ebc3241f7b2e5e7f0460aa690709a7c",
+    "mobile/android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java": "d4045ae8fac1f0807e6b24eb34e68409a9a235df9d1a3f896fb8c9a49424363d"
+  },
+  "additionalQAInputs": {
+    "tools/inspect_android_test95_r4_package.py": {
+      "sha256": "8a1b47de08dcbb98c86ae0ce08b02e5d73ffc79272daf47dc1a2fd772881287b",
+      "bytes": 4551,
+      "mode": "100644"
+    },
+    "tools/test_android_statusbar95_r4_revision.py": {
+      "sha256": "f5aca2d8c38b52dab06605bfd582547b8b587f71c42e2cad0abe4a5a94f20505",
+      "bytes": 7800,
+      "mode": "100644"
+    },
+    "tools/test_android_statusbar95_r4_system_font.py": {
+      "sha256": "77719d1c9834c2e3ef2b77a8a2c2ce9b3f73e65c487970cc6b3e5412ef0d9bf2",
+      "bytes": 4444,
+      "mode": "100644"
+    }
+  },
+  "workspaceTransformations": [
+    "versionCode/versionName",
+    "candidate testing applicationId, DEBUG false, existing test signing",
+    "testing app label",
+    "js/version.js installer version metadata",
+    "Capacitor sync/core script preceding account bootstrap"
+  ],
+  "backendManifest": {
+    "sourceRoot": "/Volumes/AiHankAppsData/Timehut",
+    "destination": "/Users/hank/.local/share/project-storage/internal/builds/timehut-backend-normal-worker95-9-9jm79ikm/backend",
+    "version": "1.0.71",
+    "build": "2026.10.17.1",
+    "node": "24.22.0",
+    "persistentProductionPath": "/app/uploads",
+    "serverRelativeUploadsPath": "uploads",
+    "operatorCommand": "node bootstrap_legacy_owner.cjs",
+    "publicRegistrationActivated": false,
+    "productionChanged": false,
+    "privateConfigOrEnvironmentCopied": false,
+    "credentialOrDatabaseCopied": false,
+    "files": {
+      "account-remember.js": {
+        "sha256": "63f80edf5ca1b7a334a760327d72ab1d624b250240fbd8f000d221545f82bfe1",
+        "bytes": 7759,
+        "source": "server/account-remember.js"
+      },
+      "server.js": {
+        "sha256": "3d6b11a9895fad4ab510d5b2caab8ead1d5eb746431deabb7b84aa96f1594968",
+        "bytes": 83246,
+        "source": "server/server.js"
+      },
+      "account-feedback.js": {
+        "sha256": "2f5ac6769499d7f0cc32d52c598fb63842fa75ff9ba40786aec1aaa85e84c9b4",
+        "bytes": 19053,
+        "source": "server/account-feedback.js"
+      },
+      "feedback_admin.cjs": {
+        "sha256": "b2ee84efbbd34e6fb979b06891471d4485fcb20a18f0b9ff3114e51cf5d0d7b9",
+        "bytes": 5043,
+        "source": "server/feedback_admin.cjs"
+      },
+      "account-album-membership.js": {
+        "sha256": "8306ead0bea2a3dc68fa12fafe146030808f60028b60892f4f0f4db9bdcb42b9",
+        "bytes": 822,
+        "source": "server/account-album-membership.js"
+      },
+      "account-erasure.js": {
+        "sha256": "dfacaa52fd04b0ab2a8e4f79f05b8a9abee39e69c259fbd6855974f8a57fedb1",
+        "bytes": 5903,
+        "source": "server/account-erasure.js"
+      },
+      "account-family-media.js": {
+        "sha256": "a5e722843e34e37a1d24d045e82331e689f1ddc4f18e45bacffa5145f0da8ac9",
+        "bytes": 9654,
+        "source": "server/account-family-media.js"
+      },
+      "account-gateway.js": {
+        "sha256": "94b1c5c88cb25a1d7cdfc60b6f73739cc970da33b0a3799fe61442b57dac031b",
+        "bytes": 10719,
+        "source": "server/account-gateway.js"
+      },
+      "account-media.js": {
+        "sha256": "095150790bb0658f1f271bd0be469b9bae49ea2bff7693506dd4b6eeb105cacf",
+        "bytes": 5721,
+        "source": "server/account-media.js"
+      },
+      "account-native-login.js": {
+        "sha256": "d200ac3ce7d6ad6c6aac1fd544562b8e079096659893ae118aafa0cdb4adc8dd",
+        "bytes": 4428,
+        "source": "server/account-native-login.js"
+      },
+      "account-owner-bootstrap.js": {
+        "sha256": "1f1eb044812852a917f19b4839285073ca34a7c48b7bf9bd1c11fa1c758f8550",
+        "bytes": 6786,
+        "source": "server/account-owner-bootstrap.js"
+      },
+      "account-photo-deletion.js": {
+        "sha256": "ad3776377f9754f9eb9885081dcca1332e81b41fde05ebec089472359e05375e",
+        "bytes": 10035,
+        "source": "server/account-photo-deletion.js"
+      },
+      "account-photo-mutations.js": {
+        "sha256": "b763007785169254f2bfd365799a1ffb05757cb9f991a0281c4d5c64d71f6dde",
+        "bytes": 6580,
+        "source": "server/account-photo-mutations.js"
+      },
+      "account-routes.js": {
+        "sha256": "3dc741b98a9c7d09115b8513b188b78c4a3894e2b5f1b809de2c9a0c6865529c",
+        "bytes": 14869,
+        "source": "server/account-routes.js"
+      },
+      "account-sqlite-store.js": {
+        "sha256": "3481c083f69f9e58ccc7e0766e42637ae8be66d51e30ec5ebdbc47e0a57e7a41",
+        "bytes": 6282,
+        "source": "server/account-sqlite-store.js"
+      },
+      "account-store.js": {
+        "sha256": "1e2ab02d21e9d2095eb7b342fff508ab530d700487d7ad2d8b6e946b78d5eab9",
+        "bytes": 19632,
+        "source": "server/account-store.js"
+      },
+      "account-upload-admissions.js": {
+        "sha256": "6c4a5917b9d84e180e5f83be032c5e01fdf5a434461828d4ab7a54ac78e19fb7",
+        "bytes": 4856,
+        "source": "server/account-upload-admissions.js"
+      },
+      "account-upload-journal.js": {
+        "sha256": "fde58f469bdb5d8f74220f3eaeda222f9077b06b888e65ae5d0600077b8e3912",
+        "bytes": 7303,
+        "source": "server/account-upload-journal.js"
+      },
+      "account-upload-receiver.js": {
+        "sha256": "6248fc563045f9960c43faf13222a30c91bfdc3e065997bd3f5a9fa632f365ae",
+        "bytes": 7576,
+        "source": "server/account-upload-receiver.js"
+      },
+      "flickr-api.js": {
+        "sha256": "c20a4d3be1d9d823c0227edd2fbacb34a68ccb5bf0329a4658de11e0360c4179",
+        "bytes": 1638,
+        "source": "server/flickr-api.js"
+      },
+      "flickr-erasure.js": {
+        "sha256": "970509eb986a8bb491af58622967a53dd2c3b685c45564e737231c70039bc21d",
+        "bytes": 843,
+        "source": "server/flickr-erasure.js"
+      },
+      "flickr-photo-mutations.js": {
+        "sha256": "a375f06a05048a99f377fe654ea976d353fb38d3d56bfc8b704816412f1e6b88",
+        "bytes": 3095,
+        "source": "server/flickr-photo-mutations.js"
+      },
+      "media-tickets.js": {
+        "sha256": "79fbd6613522a96f0e78d95a6ceb969dd81192296411e9640a322fd0934fb142",
+        "bytes": 2470,
+        "source": "server/media-tickets.js"
+      },
+      "photo-tags.js": {
+        "sha256": "f18d721ba1a0b6f3fb8744abed831a53ffadd561ef4a6479affe654cd6b4d83f",
+        "bytes": 1530,
+        "source": "server/photo-tags.js"
+      },
+      "video-media.js": {
+        "sha256": "beb16132996d99fb653efcef2486ffda99cec8df6eb06a2fe3ec338ff3b62bd9",
+        "bytes": 9961,
+        "source": "server/video-media.js"
+      },
+      "bootstrap_legacy_owner.cjs": {
+        "sha256": "6b82e37b980bfd1ecf1cfcbb5179ff3c678e90861c9fc8910b750bebf207ef99",
+        "bytes": 4004,
+        "source": "server/bootstrap_legacy_owner.cjs"
+      },
+      "package.json": {
+        "sha256": "8521abed31da560718de12fc7f933db57ef693b34861114f81f7279882c7176f",
+        "bytes": 488,
+        "source": "server/package.json"
+      },
+      "package-lock.json": {
+        "sha256": "ca8774000134ac229a254ad508ad7a8c61c6d32be867dee5bb3e31c8c0fd0a34",
+        "bytes": 62314,
+        "source": "server/package-lock.json"
+      },
+      "railway.json": {
+        "sha256": "b63568b3b6cb4516d7b2df3da1df31f3d44c9c95e92cc0f7d4a86ac695dc3f73",
+        "bytes": 253,
+        "source": "server/railway.json"
+      },
+      "public-app/index.html": {
+        "sha256": "082c5790ba1e395e7861ba3bb3c7f0988f535955424fa099a9f36a1bfeffcc8d",
+        "bytes": 15682,
+        "source": "safe-public-artifact/index.html"
+      },
+      "public-app/timeline.html": {
+        "sha256": "5bbb0e1c78a40618c8a334ba3ec07bab196dc2d82907edfcba694bbbe07a4c87",
+        "bytes": 22467,
+        "source": "safe-public-artifact/timeline.html"
+      },
+      "public-app/album.html": {
+        "sha256": "eac57380e0be7ae43ba7addd23c81b4c9758c659cc21295d4a3869ca40bc2b5b",
+        "bytes": 66209,
+        "source": "safe-public-artifact/album.html"
+      },
+      "public-app/search.html": {
+        "sha256": "29448130b05847987417dbadec8e71e5463ed8de4829a33d2ffa02b0c86a8098",
+        "bytes": 15240,
+        "source": "safe-public-artifact/search.html"
+      },
+      "public-app/settings.html": {
+        "sha256": "e1a6bb4613b95042816f67927cdb81ac13f7a0c5bc50824fd3cfd054b3cbd0dc",
+        "bytes": 18347,
+        "source": "safe-public-artifact/settings.html"
+      },
+      "public-app/transfer.html": {
+        "sha256": "40b415a6d1ada2f2103cb3cbbbc280b76e1233c0124537317f6ec1e6f76b6f3f",
+        "bytes": 3174,
+        "source": "safe-public-artifact/transfer.html"
+      },
+      "public-app/account.html": {
+        "sha256": "b79f8bc2155a93bf819a9b2710a5f49d222b9bbf30ab9df93daf57086b213cd3",
+        "bytes": 6218,
+        "source": "safe-public-artifact/account.html"
+      },
+      "public-app/privacy.html": {
+        "sha256": "50a17ba842be610d04f57d0dbacab6dfd17c186ee7e01538475701b3989909e6",
+        "bytes": 7544,
+        "source": "safe-public-artifact/privacy.html"
+      },
+      "public-app/support.html": {
+        "sha256": "c155c840fbe1aa45cfd377153ff4e1c0900f00c4f631d5d548c068db88272336",
+        "bytes": 3115,
+        "source": "safe-public-artifact/support.html"
+      },
+      "public-app/delete-account.html": {
+        "sha256": "13219f19823d2275a4ade62e1b730bae3a78d74119387557a569e277410d6588",
+        "bytes": 3339,
+        "source": "safe-public-artifact/delete-account.html"
+      },
+      "public-app/offline.html": {
+        "sha256": "2cd966b0939eee9999f1e82650902b23bdc5358e7d83bd18d54ab429536d2ab9",
+        "bytes": 897,
+        "source": "safe-public-artifact/offline.html"
+      },
+      "public-app/install.html": {
+        "sha256": "7bd7e2eedebb47090154e259daca12d08d282740343a5d4f9429916c99049f31",
+        "bytes": 7797,
+        "source": "safe-public-artifact/install.html"
+      },
+      "public-app/favicon.png": {
+        "sha256": "53932ddd014411550dc72b56211872fe0b6c6d9c5f121f0abdcddc14cad64107",
+        "bytes": 787826,
+        "source": "safe-public-artifact/favicon.png"
+      },
+      "public-app/favicon.ico": {
+        "sha256": "e1a194fe163d089e68203ebcab0c5372088940badb8049e0a7f80fb3a7f2a375",
+        "bytes": 3565,
+        "source": "safe-public-artifact/favicon.ico"
+      },
+      "public-app/public-service-worker.js": {
+        "sha256": "54b4bcbd6cfbe9f6ed1749a4a6a6c2d70ab6d9cbb7640fe5acebb85d6acfd023",
+        "bytes": 1667,
+        "source": "safe-public-artifact/public-service-worker.js"
+      },
+      "public-app/releases.json": {
+        "sha256": "0f8e4f03e48b84ca5eb55db6c1492ceb76dfd1c47d1b1a363dce289eb2cf3f40",
+        "bytes": 981,
+        "source": "safe-public-artifact/releases.json"
+      },
+      "public-app/js/storybook.js": {
+        "sha256": "c9e35bdd60aab6e48e8f985f0727ad23663fc6ebcf4f08aec2bd9af12b2e0243",
+        "bytes": 11297,
+        "source": "safe-public-artifact/js/storybook.js"
+      },
+      "public-app/js/account-config.js": {
+        "sha256": "6a3a7ff2bd0ea76d015db0264c8363cb4a9de947ae0f40242da07f6f583897c4",
+        "bytes": 6170,
+        "source": "safe-public-artifact/js/account-config.js"
+      },
+      "public-app/js/web-upload.js": {
+        "sha256": "e33854850cb807425e1621fa409734a9b8538cc89bc1ae7c2e955f87c0d56dd2",
+        "bytes": 11107,
+        "source": "safe-public-artifact/js/web-upload.js"
+      },
+      "public-app/js/uploader.js": {
+        "sha256": "b1b74b60762ab4a23ff42c0da3760501fe21cb6912b33dfc50feee047bd8c0a7",
+        "bytes": 44748,
+        "source": "safe-public-artifact/js/uploader.js"
+      },
+      "public-app/js/flickr.js": {
+        "sha256": "e34c9ecce09dae0143c8ece003391645e63df239dfacf5d3014104d7c6a365fc",
+        "bytes": 13341,
+        "source": "safe-public-artifact/js/flickr.js"
+      },
+      "public-app/js/legacy-upload-safety.js": {
+        "sha256": "2effde34cb52d98aab1e19c311f239693f92d9d88a38c2327337d6d35a36a1ba",
+        "bytes": 15138,
+        "source": "safe-public-artifact/js/legacy-upload-safety.js"
+      },
+      "public-app/js/results.js": {
+        "sha256": "1654b3727756a9d2eccc444a9061a19c7ccdf8fc95ffb53f9e4722bbfcce77d4",
+        "bytes": 1001,
+        "source": "safe-public-artifact/js/results.js"
+      },
+      "public-app/js/accounts.js": {
+        "sha256": "053494b85c353823bf27aed9fcfcb5bf85946ec921e707a5c966ddf7973e301e",
+        "bytes": 34126,
+        "source": "safe-public-artifact/js/accounts.js"
+      },
+      "public-app/js/version.js": {
+        "sha256": "b5957786653a206b7476df11471fb8ce8859239329cfc0a223404a12cd84edcc",
+        "bytes": 167,
+        "source": "safe-public-artifact/js/version.js"
+      },
+      "public-app/js/timeline.js": {
+        "sha256": "3ee26dcb43a9805665f4a987c3e0844446b3d1ac4b6ba009e4405171a191fcd9",
+        "bytes": 104369,
+        "source": "safe-public-artifact/js/timeline.js"
+      },
+      "public-app/js/transfers.js": {
+        "sha256": "6fcbcf41c74847d98afbc16b0c3e14c22d7859450fb30e1c837e7cb76ea85ed9",
+        "bytes": 51887,
+        "source": "safe-public-artifact/js/transfers.js"
+      },
+      "public-app/js/update-notice.js": {
+        "sha256": "1da50ee63fc22e71c080a106a8c8e58d31f9fdb62b808b54b0ea10d662a9cadb",
+        "bytes": 7901,
+        "source": "safe-public-artifact/js/update-notice.js"
+      },
+      "public-app/js/dialogs.js": {
+        "sha256": "43086249551e8f72018323b75601ca279f0762873c3a7919fe15517ede0d1605",
+        "bytes": 7500,
+        "source": "safe-public-artifact/js/dialogs.js"
+      },
+      "public-app/js/install.js": {
+        "sha256": "fb6b1227797022587b6e86fe913c1d5293d8f77e6c31291f26dfa019e868b836",
+        "bytes": 4022,
+        "source": "safe-public-artifact/js/install.js"
+      },
+      "public-app/js/album-management.js": {
+        "sha256": "f5aba379cdd08e9f88f55ce8939524f9761e9a366bc53f6a1615a22d623c86ca",
+        "bytes": 7637,
+        "source": "safe-public-artifact/js/album-management.js"
+      },
+      "public-app/js/account-page.js": {
+        "sha256": "718c26d7ad515323cb82b187a9eab2736a9cf30885be2c4f41fcedf1a5a44e22",
+        "bytes": 13828,
+        "source": "safe-public-artifact/js/account-page.js"
+      },
+      "public-app/js/utils.js": {
+        "sha256": "d0af9ee0191f79437f12a383839aa1dba0555b8903f5dcc391d5637508e88707",
+        "bytes": 5183,
+        "source": "safe-public-artifact/js/utils.js"
+      },
+      "public-app/js/problem-feedback.js": {
+        "sha256": "cbfb63aec1c78485e6e9845b14c845b74ae0e533f39710f4392d1852e3a31a1c",
+        "bytes": 18422,
+        "source": "safe-public-artifact/js/problem-feedback.js"
+      },
+      "public-app/js/deletion-status.js": {
+        "sha256": "7e413110287c3cf1a30de1dc6e0eca7016a257351bc26ca702b6583854cc51b9",
+        "bytes": 7692,
+        "source": "safe-public-artifact/js/deletion-status.js"
+      },
+      "public-app/js/service-info.js": {
+        "sha256": "003b8633565df28680238203934ddb5991d0a8aa58888f8b54469701657c0821",
+        "bytes": 397,
+        "source": "safe-public-artifact/js/service-info.js"
+      },
+      "public-app/js/pwa.js": {
+        "sha256": "e470b853dbab00df8911af52e564dc8ec9c5bae4d6cd3f81655444061f1aad34",
+        "bytes": 312,
+        "source": "safe-public-artifact/js/pwa.js"
+      },
+      "public-app/js/vendor/jszip-3.10.1.min.js": {
+        "sha256": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
+        "bytes": 97630,
+        "source": "safe-public-artifact/js/vendor/jszip-3.10.1.min.js"
+      },
+      "public-app/js/vendor/filesaver-2.0.5.min.js": {
+        "sha256": "c68874cbaa2fd1650b7d770b328680ea765fb3376023cc3608427fde4f0d0481",
+        "bytes": 2749,
+        "source": "safe-public-artifact/js/vendor/filesaver-2.0.5.min.js"
+      },
+      "public-app/js/vendor/noble-hashes-2.4.0/_md.js": {
+        "sha256": "60cf3010fda89e3e4d3f0e7ff1ce249e9c467f34b4fd41b6fd6101d9f69be763",
+        "bytes": 9175,
+        "source": "safe-public-artifact/js/vendor/noble-hashes-2.4.0/_md.js"
+      },
+      "public-app/js/vendor/noble-hashes-2.4.0/_u64.js": {
+        "sha256": "b09da8c07fe8187c07649494cdb7cd0bcf13df90b506a9473d19e4d5f8c2e102",
+        "bytes": 4794,
+        "source": "safe-public-artifact/js/vendor/noble-hashes-2.4.0/_u64.js"
+      },
+      "public-app/js/vendor/noble-hashes-2.4.0/utils.js": {
+        "sha256": "037ad49adb78168b6b699598fd33f85f7877456b1d28b4d032e2a1a16807947c",
+        "bytes": 26035,
+        "source": "safe-public-artifact/js/vendor/noble-hashes-2.4.0/utils.js"
+      },
+      "public-app/js/vendor/noble-hashes-2.4.0/sha2.js": {
+        "sha256": "471746bba6ec4c6238ca41358d1d3b40b6ff31cf3363f0b4d550c649c1a8e83b",
+        "bytes": 18997,
+        "source": "safe-public-artifact/js/vendor/noble-hashes-2.4.0/sha2.js"
+      },
+      "public-app/js/vendor/noble-hashes-2.4.0/LICENSE": {
+        "sha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
+        "bytes": 1109,
+        "source": "safe-public-artifact/js/vendor/noble-hashes-2.4.0/LICENSE"
+      },
+      "public-app/js/vendor/noble-hashes-2.4.0/provenance.json": {
+        "sha256": "07a9240cb0adb5dce1df5845e5c42954c4d6228955370bf8aef64829821d60cc",
+        "bytes": 676,
+        "source": "safe-public-artifact/js/vendor/noble-hashes-2.4.0/provenance.json"
+      },
+      "public-app/css/account.css": {
+        "sha256": "e7beb2165b26311857f1a7f9c4245e705f4945ffa8ef49dc85a834a855fb67e6",
+        "bytes": 5230,
+        "source": "safe-public-artifact/css/account.css"
+      },
+      "public-app/css/service-info.css": {
+        "sha256": "db1f9d0b438647be570f63b72924c57f9e300a34bbd0b26d1d12a721b85c3a26",
+        "bytes": 1307,
+        "source": "safe-public-artifact/css/service-info.css"
+      },
+      "public-app/css/timeline-ui.css": {
+        "sha256": "e83c9382a43072d023eb930be6d5fefb2a4f4e30838b0b5388d3739f1ecc4040",
+        "bytes": 6480,
+        "source": "safe-public-artifact/css/timeline-ui.css"
+      },
+      "public-app/css/style.css": {
+        "sha256": "ce9917e78683dd1020964ac46fc26467162584d2e3988d9658e0e65c22e52860",
+        "bytes": 79418,
+        "source": "safe-public-artifact/css/style.css"
+      },
+      "public-app/css/settings-refined.css": {
+        "sha256": "9f45588896f4d4dc8dad07382463508038f5a1e70ad059c9f533a5c209e0cac0",
+        "bytes": 18989,
+        "source": "safe-public-artifact/css/settings-refined.css"
+      },
+      "public-app/css/upload-safety.css": {
+        "sha256": "ca07dd62374207b3ed459f993f725f5935939ed9091a44aea11ee4be8bfddd2b",
+        "bytes": 1456,
+        "source": "safe-public-artifact/css/upload-safety.css"
+      },
+      "public-app/css/storybook.css": {
+        "sha256": "2f1bde2e6842568bf39a2eb1de680dc838602e587541b7e0c7cd6027f403453e",
+        "bytes": 71895,
+        "source": "safe-public-artifact/css/storybook.css"
+      },
+      "public-app/assets/app-icon-512.png": {
+        "sha256": "53932ddd014411550dc72b56211872fe0b6c6d9c5f121f0abdcddc14cad64107",
+        "bytes": 787826,
+        "source": "safe-public-artifact/assets/app-icon-512.png"
+      },
+      "public-app/assets/storybook-girl.png": {
+        "sha256": "f36a2e733b0ee7ddd0562900ba99e29e025506ee59f8e0786d0f9007a6f81abc",
+        "bytes": 1646820,
+        "source": "safe-public-artifact/assets/storybook-girl.png"
+      },
+      "public-app/assets/app-icon-192.png": {
+        "sha256": "9943fcf9564fa92ade72aab0ba3af5a5149c7c528041cdf19898b4a6f35cf145",
+        "bytes": 116881,
+        "source": "safe-public-artifact/assets/app-icon-192.png"
+      },
+      "public-app/assets/storybook-upload-v1.png": {
+        "sha256": "a9e19a57631c8fd38268051d2fb792e7fc9bf8a2761d0a1e475dae7d4e483c76",
+        "bytes": 2304715,
+        "source": "safe-public-artifact/assets/storybook-upload-v1.png"
+      },
+      "public-app/assets/storybook-boy.png": {
+        "sha256": "5a8f9b36265237c9f6600a02db0445c10a49fc26cb95657e60a558d812b69658",
+        "bytes": 1524715,
+        "source": "safe-public-artifact/assets/storybook-boy.png"
+      },
+      "public-app/assets/storybook-family.png": {
+        "sha256": "3d6ac1af17582775aee3dc08a7a824b063839c2a1921207a68ea71013f6ada20",
+        "bytes": 1032969,
+        "source": "safe-public-artifact/assets/storybook-family.png"
+      },
+      "public-app/assets/storybook-garden-v1.png": {
+        "sha256": "4780d362bd1dba10337d3ade978d6f917c2a9349b91fa3e30db9fada60092634",
+        "bytes": 1099578,
+        "source": "safe-public-artifact/assets/storybook-garden-v1.png"
+      },
+      "public-app/manifest.webmanifest": {
+        "sha256": "94cb8d3254ee0dbf4004d7134d64b28f14603bd97b0f6f014618bc5f2adeb0e5",
+        "bytes": 469,
+        "source": "safe-public-artifact/manifest.webmanifest"
+      }
+    },
+    "publicArtifactSource": "/Users/hank/.local/share/project-storage/internal/builds/timehut-public-normal-worker95-9-kngxh5bx/site-source.json"
+  },
+  "snapshotCommitWillBeRecordedOutsideManifest": true,
+  "published": false,
+  "privateRuntimeFilesSelected": false
+}
