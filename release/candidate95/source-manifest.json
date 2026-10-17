@@ -1103,6 +1103,11 @@
       "sha256": "40b415a6d1ada2f2103cb3cbbbc280b76e1233c0124537317f6ec1e6f76b6f3f",
       "bytes": 3174,
       "mode": "100644"
+    },
+    "tools/check_storage.py": {
+      "sha256": "df07edf44d31448cfd7124b08914b40fe019b02ab36848f9ae955f09d985ce53",
+      "bytes": 2207,
+      "mode": "100644"
     }
   },
   "APK": {
@@ -1370,5 +1375,6 @@
   "distribution": "LOCAL_CANDIDATE_ONLY",
   "iOS": "Only narrow GET allowlist source delta; no new full compile/Keychain proof",
   "privateRuntimeFilesSelected": false,
-  "inheritedLegacyFiles": "Parent tree is preserved without reading/restaging old config, datasets or photos. Public build remains strict allowlist; no private root file is copied into new payload."
+  "inheritedLegacyFiles": "Parent tree is preserved without reading/restaging old config, datasets or photos. Public build remains strict allowlist; no private root file is copied into new payload.",
+  "packagingDependencyFollowup": "Include existing unchanged check_storage.py imported by candidate packaging/build tools. No APK/backend/public source change."
 }
