@@ -214,7 +214,9 @@ async function child() {
     browser = await chromium.launch({headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
       args: ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1']});
     async function newContext(state) {
-      const context = await browser.newContext({viewport: {width: 390, height: 844}, timezoneId: 'Asia/Taipei', serviceWorkers: 'block', ...(state ? {storageState: state} : {})});
+      const tzIndex = process.argv.indexOf('--timezone'), timezoneId = tzIndex < 0 ? 'Asia/Taipei' : process.argv[tzIndex + 1];
+      assert(['UTC', 'Asia/Taipei', 'America/Los_Angeles'].includes(timezoneId));
+      const context = await browser.newContext({viewport: {width: 390, height: 844}, timezoneId, serviceWorkers: 'block', ...(state ? {storageState: state} : {})});
       await context.route('**/*', async route => {
         const req = route.request(), url = new URL(req.url());
         if (['data:', 'blob:'].includes(url.protocol)) return route.continue();
@@ -419,7 +421,7 @@ async function child() {
     }
     if (process.argv.includes('--viewer-ui-only')) {
       const ci = process.argv.indexOf('--ui-cases'), names = ci < 0 ? ['album-tags', 'viewer-tags', 'viewer-keys-downloads'] : process.argv[ci + 1].split(',');
-      assert(names.every(n => ['album-tags', 'album-add', 'album-date', 'album-delete', 'album-zip', 'timeline-zip', 'viewer-tags', 'viewer-keys-downloads', 'viewer-video-play', 'location-date-empty', 'location-date-remaining', 'location-delete-empty', 'location-delete-remaining', 'crossbook-date-95.6', 'album-video-95.6', 'app-login-uploader-95.6', 'app-login-uploader-95.7'].includes(n)), 'BOUNDED_VIEWER_CASES');
+      assert(names.every(n => ['album-iso-date-remaining', 'album-tags', 'album-add', 'album-date', 'album-delete', 'album-zip', 'timeline-zip', 'viewer-tags', 'viewer-keys-downloads', 'viewer-video-play', 'location-date-empty', 'location-date-remaining', 'location-delete-empty', 'location-delete-remaining', 'crossbook-date-95.6', 'album-video-95.6', 'app-login-uploader-95.6', 'app-login-uploader-95.7'].includes(n)), 'BOUNDED_VIEWER_CASES');
       let seq = 0;
       async function freshViewer(name, video = false) {
         const album = store.album(A.id, 'UI ' + name, '2020-01-01'), n = 820000000100 + (++seq) * 10;
@@ -429,10 +431,11 @@ async function child() {
           mp4 = fs.readFileSync(path.join(ROOT, '.codex-local/qa/20261016-public-provider-e2e-proposal/media/public-r93-two-second.mp4'));
           assert.equal(mp4.length, 24731); assert.equal(sha(mp4), 'f615183359be88970ec4f7fd4a4cb015ee8c1a6d5cb06a9d13cdd0923a660542');
         }
-        const originals = [seed(A.id, album.id, ids[0], '2024-01-02', 'photo', png, 'uploader:人工 current park'),
-          seed(A.id, album.id, ids[1], '2024-01-02', video ? 'video' : 'photo', mp4 || png), seed(A.id, album.id, ids[2], '2023-02-03')];
-        if (name.startsWith('location-') && name.endsWith('-remaining')) {
-          ids.push(String(n + 4)); originals.push(seed(A.id, album.id, ids[3], '2024-01-02'));
+        const iso = name === 'album-iso-date-remaining';
+        const originals = [seed(A.id, album.id, ids[0], iso ? '2024-01-02T12:01:00Z' : '2024-01-02', 'photo', png, 'uploader:人工 current park'),
+          seed(A.id, album.id, ids[1], iso ? '2024-01-02T12:02:00Z' : '2024-01-02', video ? 'video' : 'photo', mp4 || png), seed(A.id, album.id, ids[2], '2023-02-03')];
+        if (name.startsWith('location-') && name.endsWith('-remaining') || iso) {
+          ids.push(String(n + 4)); originals.push(seed(A.id, album.id, ids[3], iso ? '2024-01-02T12:03:00Z' : '2024-01-02'));
         }
         await goto('timeline.html'); await page.locator('#hamburgerBtn').click(); await page.locator('.sidebar-album-card').filter({hasText: album.title}).click();
         await page.waitForFunction(ids => !TimelineState.isLoading && ids.every(id => TimelineState.photos.some(p => p.id === id)), ids);
@@ -484,9 +487,10 @@ async function child() {
         }
         const f = await freshViewer(name, ['viewer-keys-downloads', 'viewer-video-play', 'album-zip', 'timeline-zip', 'album-video-95.6'].includes(name));
         const receiptBefore = JSON.stringify(f.originals.map(r => store.state.receipts[r.localId]));
-        if (name.startsWith('location-') || name === 'crossbook-date-95.6') {
-          assert.equal(currentVersion(), name === 'crossbook-date-95.6' ? '2026.10.17-ui.95.6' : '2026.10.17-ui.95.5');
-          const action = name === 'crossbook-date-95.6' ? 'date' : name.split('-')[1], remaining = name.endsWith('-remaining'), ids = f.ids.slice(0, 2);
+        if (name.startsWith('location-') || name === 'crossbook-date-95.6' || name === 'album-iso-date-remaining') {
+          const iso = name === 'album-iso-date-remaining';
+          if (!iso) assert.equal(currentVersion(), name === 'crossbook-date-95.6' ? '2026.10.17-ui.95.6' : '2026.10.17-ui.95.5');
+          const action = iso || name === 'crossbook-date-95.6' ? 'date' : name.split('-')[1], remaining = name.endsWith('-remaining'), ids = f.ids.slice(0, 2);
           const unselected = remaining ? [f.ids[3]] : [], route = '/api/photos/' + (action === 'date' ? 'update-date' : 'delete');
           const untouched = JSON.stringify(store.state.media[f.ids[2]]), unselectedBefore = remaining ? JSON.stringify(store.state.media[f.ids[3]]) : null;
           await page.locator('.moment-item').filter({has: page.locator('.moment-album-link')}).first().locator('.moment-album-link').click();
@@ -524,10 +528,11 @@ async function child() {
           await page.locator('#headerSelectBtn').click();
           for (const id of ids) await page.locator('.album-photo-card[data-id="' + id + '"] .select-checkbox').click();
           const chooserObservations = [];
-          async function act() {
+          async function act(cancel = false) {
             if (action === 'date') {
               const chooserStart = ledger.length;
               if (!(await page.locator('#moveCollectionModal').isVisible())) await page.locator('#batchMoveCollectionBtn').click();
+              if (cancel) return page.locator('#moveCollectionModal').getByRole('button', {name: '取消', exact: true}).click();
               await page.locator('.collection-item[data-date="2023-02-03"]').first().click();
               if (name === 'crossbook-date-95.6') {
                 const dates = await page.locator('.collection-item').evaluateAll(ns => ns.map(n => n.dataset.date));
@@ -538,6 +543,21 @@ async function child() {
               }
               await page.locator('#moveCollectionConfirmBtn').click(); await page.locator('.timehut-dialog button[type="submit"]').click();
             } else { await page.locator('#deleteSelectedBtn').click(); await page.locator('#confirmOkBtn').click(); }
+          }
+          let isoTotalFailure = null;
+          if (iso) {
+            const beforeCancel = ledger.length; await act(true);
+            assert.equal(httpRows(beforeCancel, 'POST', route).length, 0);
+            checkSource(await sourceState(), [...ids, ...unselected], ids);
+            providerControl.failed = new Set(ids);
+            const beforeTotal = ledger.length, response = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === route);
+            await act(); await (await response).finished();
+            await page.waitForFunction(() => !document.querySelector('#moveCollectionConfirmBtn').disabled && document.querySelector('#moveCollectionConfirmBtn').textContent === '確認移動');
+            isoTotalFailure = {http: httpRows(beforeTotal, 'POST', route), state: await sourceState()};
+            assert.equal(isoTotalFailure.http.length, 1);
+            assert.deepEqual(isoTotalFailure.http[0].body.photoIds, ids);
+            assert(isoTotalFailure.http[0].response.results.every(r => r.success === false));
+            checkSource(isoTotalFailure.state, [...ids, ...unselected], ids);
           }
           providerControl.failed = new Set([ids[1]]); const partialStart = ledger.length;
           await act();
@@ -608,7 +628,7 @@ async function child() {
             for (const row of f.originals.slice(0, 2)) { assert(!fs.existsSync(row.localPath)); assert.equal(store.state.photoDeletes[row.flickrPhotoId].status, 'complete'); }
           }
           assert.equal(JSON.stringify(store.state.media[f.ids[2]]), untouched);
-          return {action, remaining, sourceAlbum: f.album.id, ids, unselected, differentChoice, savedAtDeepLink,
+          return {action, remaining, isoDateFixtures: iso, isoTotalFailure, sourceAlbum: f.album.id, ids, unselected, differentChoice, savedAtDeepLink,
             originalURL, chooserObservations, partialHTTP: partial[0], afterPartial, partialReload, retryHTTP: retry[0], afterRetry,
             manualReload, finalTimeline, ordinaryReadback: readback.map(p => ({id: p.id, date: p.datetaken})),
             failedOnlyRetry: true, noSuccessfulIDReplayed: true, actualWorker: action === 'delete', fallbackDeletion: 'NOTVERIFIED',

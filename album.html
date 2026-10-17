@@ -1088,7 +1088,7 @@
         function formatDateLabel(dateStr) {
             if (dateStr === 'unknown') return '未知日期';
             try {
-                const d = new Date(dateStr);
+                const d = new Date(dateStr + 'T12:00:00');
                 const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
                 return `${months[d.getMonth()]} ${d.getDate()}日`;
             } catch {
@@ -1179,7 +1179,7 @@
                     succeeded.forEach(id => AlbumState.selectedPhotos.delete(String(id)));
                     const originalDate = new URLSearchParams(location.search).get('date');
                     if (AlbumState.momentId?.startsWith('moment_') && originalDate) {
-                        AlbumState.photos = AlbumState.photos.filter(photo => photo.datetaken?.split(' ')[0] === originalDate);
+                        AlbumState.photos = AlbumState.photos.filter(photo => photoCalendarDay(photo) === originalDate);
                     }
                     TimehutResults.invalidateAlbumCache();
                     const emptySourceUrl = succeeded.length ? syncMomentSourceUrl() : null;
@@ -1269,7 +1269,7 @@
             window.TimehutViewerMedia?.show(photo);
 
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
-            document.getElementById('modalDate').textContent = formatDate(photo.datetaken || photo.dateupload);
+            document.getElementById('modalDate').textContent = formatDate(photoCalendarDay(photo));
 
             const pageIndicator = document.getElementById('modalPageIndicator');
             if (pageIndicator) {
@@ -1279,7 +1279,8 @@
 
         function formatDate(dateStr) {
             if (!dateStr) return '';
-            const date = new Date(dateStr);
+            if (dateStr === 'unknown') return '未知日期';
+            const date = new Date(dateStr + 'T12:00:00');
             if (isNaN(date.getTime())) return dateStr;
             const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
             return `${date.getFullYear()}年${months[date.getMonth()]}${date.getDate()}日`;

@@ -19,7 +19,7 @@ async function until(fn,label,ms=25000){const end=Date.now()+ms;while(Date.now()
 async function listen(s){await new Promise(r=>s.listen(0,'127.0.0.1',r));s.on('connection',c=>{sockets.add(c);c.on('close',()=>sockets.delete(c));});return s.address().port;}
 async function group(name,fn){stage=name;const result=await fn();report.checks.push({name,result});await page.screenshot({path:path.join(out,String(report.checks.length).padStart(2,'0')+'.png'),fullPage:true,mask:[page.locator('#deletion-status-form [name=receipt]')]});}
 async function read(route,p=page){assert(route.startsWith('/api/'));return p.evaluate(async route=>{const r=await fetch(route,{credentials:'include'});return{status:r.status,json:await r.json()};},route);}
-async function goto(name,p=page){await p.goto(origin+'/app/'+name);if(name==='account.html')await p.evaluate(()=>TimehutAccounts.ready);else assert(await p.evaluate(()=>window.TimehutPage.ready));if(name==='settings.html')assert.equal(await p.evaluate(()=>TimehutBuild.version),'2026.10.17-ui.95.10');}
+async function goto(name,p=page){await p.goto(origin+'/app/'+name);if(name==='account.html')await p.evaluate(()=>TimehutAccounts.ready);else assert(await p.evaluate(()=>window.TimehutPage.ready));if(name==='settings.html')assert.equal(await p.evaluate(()=>TimehutBuild.version),'2026.10.17-ui.95.11');}
 async function register(p,username,displayName){
  await p.goto(origin+'/app/account.html');await p.locator('#account-toggle').click();
  await p.locator('[name=username]').fill(username);await p.locator('[name=displayName]').fill(displayName);await p.locator('#account-form [name=password]').fill(password);

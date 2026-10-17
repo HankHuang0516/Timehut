@@ -27,6 +27,13 @@ const cases=[
 ];
 for(const [photo,expected] of cases){assert.equal(day(photo),expected,JSON.stringify(photo));checks++;}
 const original=JSON.stringify(same);ctx.rows=same;const grouped=vm.runInContext('groupPhotosToMoments(rows)',ctx);assert.equal(grouped[0].dateKey,'2026-10-17');assert.equal(grouped[0].photos.length,4);assert.equal(JSON.stringify(same),original);checks+=3;
+const album=read('album.html');
+for(const name of ['formatDateLabel','formatDate']){
+ const start=album.indexOf('        function '+name+'(');assert(start>=0);
+ const end=album.indexOf('\n        function ',start+1);assert(end>start);
+ vm.runInContext(album.slice(start,end),ctx);
+}
+ctx.date='2024-03-01';assert.equal(vm.runInContext('formatDateLabel(date)',ctx),'3月 1日');assert.equal(vm.runInContext('formatDate(date)',ctx),'2024年3月1日');checks+=2;
 async function main(){
  const api=ctx.window.FlickrAPI,photos=[{id:'naive',datetaken:'2024-03-01 08:00:00'},{id:'zoned',datetaken:'2024-02-29T23:30:00Z'},{id:'date',datetaken:'2024-03-01'},{id:'other',datetaken:'2024-02-28 09:00:00'}];
  const want=zone==='Asia/Taipei'?['naive','zoned','date']:['naive','date'],progress=[];
