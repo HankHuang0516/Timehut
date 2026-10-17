@@ -256,6 +256,7 @@
     <link rel="stylesheet" href="css/storybook.css?v=20261016.5">
     <script defer src="js/dialogs.js?v=20261016.5"></script>
     <script defer src="js/storybook.js?v=20261016.3"></script>
+    <script defer src="js/viewer-overview.js?v=20261017-overview96.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1267,6 +1268,10 @@
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
             window.TimehutViewerMedia?.show(photo);
+            window.TimehutViewerOverview?.set({photos:AlbumState.photos,index,select:id=>{
+                const target=AlbumState.photos.findIndex(item=>String(item.id)===id);
+                if(target>=0)openModal(target);
+            }});
 
             document.getElementById('modalTitle').textContent = photo.title || '未命名';
             document.getElementById('modalDate').textContent = formatDate(photoCalendarDay(photo));
@@ -1334,6 +1339,7 @@
         }
 
         function closeModal() {
+            window.TimehutViewerOverview?.clear();
             AlbumState.currentModalPhotoId=null;
             window.TimehutViewerMedia?.stop();
             const videoEl = document.getElementById('modalVideo');

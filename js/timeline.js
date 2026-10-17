@@ -842,12 +842,35 @@ function scrollToAge(years) {
  * 打開照片 Modal
  * @param {number} index - 照片索引
  */
+const ViewerTagState = {view:0, authority:0, pending:new Map(), observed:new WeakSet()};
+function viewerTagOwner() {
+    return window.TimehutAccounts?.status?.().user?.id || (CONFIG.ACCOUNT_MODE ? null : `legacy:${CONFIG.FLICKR_USER_ID}`);
+}
+function viewerTagKey(owner, id) { return JSON.stringify([ViewerTagState.authority, owner, String(id)]); }
+function syncViewerTagButton() {
+    const button=document.querySelector('.save-tags-btn'),input=document.getElementById('editTagsInput');
+    if (!button || !input) return;
+    const photo=TimelineState.allPhotosFlat[TimelineState.currentModalIndex],owner=viewerTagOwner();
+    const pending=photo&&owner&&ViewerTagState.pending.has(viewerTagKey(owner,photo.id));
+    button.disabled=Boolean(pending)||!owner;
+    button.textContent=pending?'⏳':'儲存標籤';
+    button.setAttribute('aria-label',pending?'正在確認標籤儲存':'儲存標籤');
+    if (!ViewerTagState.observed.has(input)) {
+        ViewerTagState.observed.add(input);
+        input.addEventListener('input',syncViewerTagButton);
+    }
+}
+for (const event of ['timehut-account-changed','pagehide']) window.addEventListener(event,()=>{
+    ViewerTagState.authority++;ViewerTagState.view++;ViewerTagState.pending.clear();
+});
+
 function openModal(index) {
     TimelineState.currentModalIndex = index;
     const photo = TimelineState.allPhotosFlat[index];
 
     if (!photo) return;
     if (SelectionState.isSelectMode) { togglePhotoSelection(String(photo.id)); return; }
+    ViewerTagState.view++;
 
     const modal = document.getElementById('photoModal');
     const modalImg = document.getElementById('modalImage');
@@ -902,12 +925,19 @@ function openModal(index) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
     window.TimehutViewerMedia?.show(photo);
+    window.TimehutViewerOverview?.set({photos:TimelineState.allPhotosFlat,index,select:id=>{
+        const target = TimelineState.allPhotosFlat.findIndex(item=>String(item.id)===id);
+        if (target >= 0) openModal(target);
+    }});
+    syncViewerTagButton();
 }
 
 /**
  * 關閉 Modal
  */
 function closeModal() {
+    ViewerTagState.view++;
+    window.TimehutViewerOverview?.clear();
     window.TimehutViewerMedia?.stop();
     const modal = document.getElementById('photoModal');
     modal.classList.remove('active');
@@ -1452,7 +1482,10 @@ window.scrollToAge = scrollToAge;
  */
 async function savePhotoTags() {
     const photo = TimelineState.allPhotosFlat[TimelineState.currentModalIndex];
-    if (!photo) return;
+    const owner=viewerTagOwner();
+    if (!photo || !owner || !document.getElementById('photoModal')?.classList.contains('active')) return;
+    const key=viewerTagKey(owner,photo.id);
+    if (ViewerTagState.pending.has(key)) return;
 
     const editTagsInput = document.getElementById('editTagsInput');
     const newTags = editTagsInput ? editTagsInput.value.trim() : '';
@@ -1464,12 +1497,13 @@ async function savePhotoTags() {
     // Combine uploader tag with new user tags
     const finalTags = uploaderTag ? `${uploaderTag} ${newTags}` : newTags;
 
-    const saveBtn = document.querySelector('.save-tags-btn');
-    const originalEmoji = saveBtn ? saveBtn.textContent : '💾';
-
+    const entry={owner,photoId:String(photo.id),authority:ViewerTagState.authority,view:ViewerTagState.view};
+    const sameAuthority=()=>entry.authority===ViewerTagState.authority&&entry.owner===viewerTagOwner();
+    const samePhoto=()=>sameAuthority()&&document.getElementById('photoModal')?.classList.contains('active')&&String(TimelineState.allPhotosFlat[TimelineState.currentModalIndex]?.id)===entry.photoId;
+    const sameView=()=>samePhoto()&&entry.view===ViewerTagState.view;
+    let succeeded=false,errorMessage='儲存結果尚未確認';
+    ViewerTagState.pending.set(key,entry);syncViewerTagButton();
     try {
-        if (saveBtn) saveBtn.textContent = '⏳';
-
         const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/tags`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1478,22 +1512,34 @@ async function savePhotoTags() {
 
         const result = await response.json();
 
-        if (response.ok && result.success) {
+        if (response.ok && result?.success===true && (result.tags===undefined||typeof result.tags==='string')) {
             // Update local photo object
             const savedTags = typeof result.tags === 'string' ? result.tags : finalTags;
-            photo.tags = savedTags;
-            TimehutResults.invalidateAlbumCache();
-            TimelineState.photos.filter(item => item.id === photo.id).forEach(item => { item.tags = savedTags; });
-            if (saveBtn) saveBtn.textContent = '✅';
-            showToast('標籤已儲存！', 'success');
-            setTimeout(() => { if (saveBtn) saveBtn.textContent = originalEmoji; }, 1500);
+            if(sameAuthority()){
+                photo.tags = savedTags;
+                TimehutResults.invalidateAlbumCache();
+                TimelineState.photos.filter(item => String(item.id)===entry.photoId).forEach(item => { item.tags = savedTags; });
+            }
+            succeeded=true;
         } else {
-            throw new Error(result.error || '儲存失敗');
+            throw new Error(typeof result?.error==='string'&&result.error?result.error:'儲存結果尚未確認');
         }
     } catch (error) {
         console.error('Save tags error:', error);
-        showToast('儲存標籤失敗：' + error.message, 'error');
-        if (saveBtn) saveBtn.textContent = originalEmoji;
+        errorMessage=error instanceof SyntaxError||error instanceof TypeError?'目前無法確認儲存結果，請重新載入後確認':error.message||errorMessage;
+    } finally {
+        if(ViewerTagState.pending.get(key)===entry)ViewerTagState.pending.delete(key);
+        if(samePhoto())syncViewerTagButton();
+    }
+    if(!sameView())return;
+    if(succeeded){
+        if(editTagsInput.value.trim()===newTags){
+            const button=document.querySelector('.save-tags-btn');
+            if(button){button.textContent='✅';button.setAttribute('aria-label','標籤已儲存');}
+            showToast('標籤已儲存！','success');
+        }else showToast('先前內容已儲存，目前的新內容尚未儲存。','info');
+    }else{
+        showToast('儲存標籤失敗：'+errorMessage,'error');
     }
 }
 
