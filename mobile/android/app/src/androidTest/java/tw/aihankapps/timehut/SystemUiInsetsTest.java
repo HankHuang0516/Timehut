@@ -104,7 +104,8 @@ public class SystemUiInsetsTest {
         String fixture="<script>const syntheticDisplayName="+JSONObject.quote(name)+";window.TimehutAccounts={ready:Promise.resolve(),status:()=>({authenticated:true,native:true,legacyOwner:false,user:{id:'30000000-0000-4000-8000-000000000090',username:'synthetic-name',displayName:syntheticDisplayName}}),request:async()=>({albums:[],total:0,page:1,pages:1})};window.fetch=async()=>{throw Error('Network disabled in native-name fixture')};</script>";
         load(html.replace("<head>","<head>"+fixture));
         waitFor("document.getElementById('account-home').hidden===false&&document.getElementById('account-name-details').hidden===false");
-        assertTrue(BuildConfig.VERSION_NAME.endsWith("-test.95"));
+        assertEquals("Instrumentation version must match the installed target", BuildConfig.VERSION_NAME, context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName);
+        assertEquals(BuildConfig.VERSION_CODE, context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionCode);
         assertEquals("true",read("(()=>{const s=document.querySelector('#account-name-details summary'),r=s.getBoundingClientRect();return r.height>=48&&document.getElementById('account-full-name').textContent===syntheticDisplayName+'的相簿'})()"));
         screenshot("account-long-name-closed");
         js("document.querySelector('#account-name-details summary').scrollIntoView({behavior:'instant',block:'center'})");

@@ -4,23 +4,23 @@
     {
       "platform": "android",
       "channel": "android-private-test",
-      "version": "2026.10.16-test.94",
-      "versionCode": 94,
+      "version": "2026.10.17-test.95",
+      "versionCode": 95,
       "available": true,
-      "url": "https://github.com/HankHuang0516/Timehut/releases/download/android-test-2026.10.16-94/HuangJiaXiaoWu-2026.10.16-test94.apk",
-      "sha256": "bcc4f7cd499f1e524a98736f9ad49706bd2ecda157e9cbe707d94a8e526d6108",
-      "notes": "調整設定頁排版，保留相集載入及頂部按鈕修正，改善上傳相簿選項與傳輸名稱。",
-      "verifiedAt": "2026-10-17T04:47:35.889934+00:00"
+      "url": "https://github.com/HankHuang0516/Timehut/releases/download/android-test-2026.10.17-95/HuangJiaXiaoWu-2026.10.17-test95.apk",
+      "sha256": "a27133a0f24ab3034e058e4d92e042d7961f00d937b61f27ba984a944a37d3df",
+      "notes": "修正相集日期與載入、失敗選取保留及頂部安全區；請覆蓋安裝後測試切換App與鎖屏傳輸。",
+      "verifiedAt": "2026-10-17T11:48:02.194739+00:00"
     },
     {
       "platform": "web",
       "channel": "web",
-      "version": "2026.10.16-web.4",
-      "versionCode": 4,
+      "version": "2026.10.17-web.5",
+      "versionCode": 5,
       "available": true,
       "url": "https://just-healing-production.up.railway.app/app/index.html",
-      "notes": "改善相集載入、私密照片顯示與失敗後重新載入。",
-      "verifiedAt": "2026-10-17T04:58:46.872763+00:00"
+      "notes": "保留原網站排版，新增設定頁更新查詢與可取得的Android內測安裝入口。",
+      "verifiedAt": "2026-10-17T11:45:55.668839+00:00"
     }
   ]
 }

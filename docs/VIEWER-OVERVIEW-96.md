@@ -8,4 +8,4 @@
 
 驗證來源與保存範圍：`.codex-local/qa/20261017-viewer-overview96/`包含原圖對照、96.1的17組合成HTTP／48圖與獨立07已呈現視覺82（仍HOLD F1/F2）；`.codex-local/qa/20261017-viewer-tag-state96/`保存四個真實點擊反例修前全部失敗、修後8組，以及相同61public bytes的17組三寬回歸、實際人工原檔下載。全為headless人工HTTP／媒體，0正式Flickr／native／phone，新的完整正式分數0。source-final與獨立報告為準，不能把API mocks當正式provider隔離。原HOLD、中斷的無界測試觀察與前後driver保留。
 
-95R6已凍結交付及其待批准範圍保持；96.2未打APK、未部署，沒有新增商店提交或正式媒體預算。真正背景傳輸／實體裝置與全六頁正式驗收仍按原目標補齊。
+來源凍結後已另建96工程APK（SHA85079f20dfe899abf15b2d74e73e425fb85bba0bf30e822176556ac8c24925cd），並完成兩SDK的R6保留升級；SDK36 UI初始化失敗尚未解釋，獨立A96-E1 OPEN／HOLD，96不分發。人類最新直接批准只限凍結95R6＋backend71/scopedweb5，發布紀錄另見20261017-scoped-update-web71-publish；沒有新增商店提交或正式媒體預算。真正背景傳輸／實體裝置與全六頁正式驗收仍按原目標補齊。
