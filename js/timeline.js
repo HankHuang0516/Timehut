@@ -115,6 +115,10 @@ function showToast(message, type = 'success') {
     }, 2500);
 }
 
+function clearViewerFeedback() {
+    document.querySelector('.toast-container.viewer-toast')?.replaceChildren();
+}
+
 /**
  * 切換時光旅行選單顯示
  */
@@ -850,6 +854,13 @@ function scrollToAge(years) {
  * @param {number} index - 照片索引
  */
 const ViewerTagState = {view:0, authority:0, pending:new Map(), observed:new WeakSet()};
+const ViewerNavigationState = {transitionTimer:null, cleanupTimer:null};
+function cancelViewerNavigation() {
+    clearTimeout(ViewerNavigationState.transitionTimer);
+    clearTimeout(ViewerNavigationState.cleanupTimer);
+    ViewerNavigationState.transitionTimer = ViewerNavigationState.cleanupTimer = null;
+    document.getElementById('modalImage')?.classList.remove('swipe-left-exit','swipe-right-exit','swipe-left-enter','swipe-right-enter');
+}
 function viewerTagOwner() {
     return window.TimehutAccounts?.status?.().user?.id || (CONFIG.ACCOUNT_MODE ? null : `legacy:${CONFIG.FLICKR_USER_ID}`);
 }
@@ -864,10 +875,11 @@ function syncViewerTagButton() {
     button.setAttribute('aria-label',pending?'正在確認標籤儲存':'儲存標籤');
     if (!ViewerTagState.observed.has(input)) {
         ViewerTagState.observed.add(input);
-        input.addEventListener('input',syncViewerTagButton);
+        input.addEventListener('input',()=>{clearViewerFeedback();syncViewerTagButton();});
     }
 }
 for (const event of ['timehut-account-changed','pagehide']) window.addEventListener(event,()=>{
+    cancelViewerNavigation();clearViewerFeedback();
     ViewerTagState.authority++;ViewerTagState.view++;ViewerTagState.pending.clear();
 });
 
@@ -879,7 +891,7 @@ function openModal(index) {
     if (SelectionState.isSelectMode) { togglePhotoSelection(String(photo.id)); return; }
     ViewerTagState.view++;
 
-    document.querySelector('.toast-container.viewer-toast')?.replaceChildren();
+    cancelViewerNavigation();clearViewerFeedback();
 
     const modal = document.getElementById('photoModal');
     const modalImg = document.getElementById('modalImage');
@@ -946,7 +958,7 @@ function openModal(index) {
  */
 function closeModal() {
     ViewerTagState.view++;
-    document.querySelector('.toast-container.viewer-toast')?.replaceChildren();
+    cancelViewerNavigation();clearViewerFeedback();
     window.TimehutViewerOverview?.clear();
     window.TimehutViewerMedia?.stop();
     const modal = document.getElementById('photoModal');
@@ -959,6 +971,10 @@ function closeModal() {
  * @param {number} direction - 方向 (-1: 上一張, 1: 下一張)
  */
 function navigatePhoto(direction) {
+    const modal = document.getElementById('photoModal');
+    if (!modal?.classList.contains('active')) return;
+    const view = ViewerTagState.view, authority = ViewerTagState.authority, owner = viewerTagOwner();
+    cancelViewerNavigation();
     const newIndex = TimelineState.currentModalIndex + direction;
 
     if (newIndex >= 0 && newIndex < TimelineState.allPhotosFlat.length) {
@@ -970,12 +986,15 @@ function navigatePhoto(direction) {
 
             modalImage.classList.add(exitClass);
 
-            setTimeout(() => {
+            ViewerNavigationState.transitionTimer = setTimeout(() => {
+                ViewerNavigationState.transitionTimer = null;
+                if (!modal.classList.contains('active') || view !== ViewerTagState.view || authority !== ViewerTagState.authority || owner !== viewerTagOwner()) return;
                 openModal(newIndex);
                 modalImage.classList.remove(exitClass);
                 modalImage.classList.add(enterClass);
 
-                setTimeout(() => {
+                ViewerNavigationState.cleanupTimer = setTimeout(() => {
+                    ViewerNavigationState.cleanupTimer = null;
                     modalImage.classList.remove(enterClass);
                 }, 300);
             }, 150);
@@ -1496,6 +1515,7 @@ async function savePhotoTags() {
     if (!photo || !owner || !document.getElementById('photoModal')?.classList.contains('active')) return;
     const key=viewerTagKey(owner,photo.id);
     if (ViewerTagState.pending.has(key)) return;
+    clearViewerFeedback();
 
     const editTagsInput = document.getElementById('editTagsInput');
     const newTags = editTagsInput ? editTagsInput.value.trim() : '';
