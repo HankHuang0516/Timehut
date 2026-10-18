@@ -82,7 +82,12 @@ def main():
   if name=='install.html':dst.write_text(render_installer(src.read_text(),release))
   elif name=='account.html':dst.write_text(account_entry())
   else:shutil.copyfile(src,dst)
- check_local_references(out,names,['downloads/'+release['filename']])
+ review_names=['store-review/20261018-build3/index.html','store-review/20261018-build3/foreground-transfers.mp4']
+ inspect_files(source,review_names)
+ for name in review_names:
+  src=source/name;assert src.is_file() and not src.is_symlink(),name
+  dst=out/name;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(src,dst)
+ check_local_references(out,names+review_names,['downloads/'+release['filename']])
  apk=out/'downloads'/release['filename'];apk.parent.mkdir(exist_ok=True);apk.write_bytes(body)
  (out/'.nojekyll').write_text('')
  inspect_directory(out)
