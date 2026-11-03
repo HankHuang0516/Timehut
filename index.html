@@ -1,48 +1,67 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 
-<head>
-    <style>html[data-timehut-loading] body{visibility:hidden}</style>
-    <script src="js/accounts.js?v=20261016.1"></script>
+<head><script src="js/capacitor-core.js"></script>
+    <script>if(window.Capacitor?.isNativePlatform?.()){window.__timehutNativeEntryRedirect=true;location.replace('timeline.html'+location.search+location.hash);}</script>
+    <style>html[data-timehut-loading] [data-account-private]{visibility:hidden;pointer-events:none}</style>
+    <script src="js/accounts.js?v=20261019.1"></script><script src="js/entry-routing.js?v=20261030.return.1"></script>
     <script src="js/web-upload.js?v=20261016.1"></script>
-    <script src="js/account-config.js?v=20261016.1"></script>
+    <script src="js/account-config.js?v=20261016.5"></script>
 
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="黃家小屋 - 記錄寶貝成長的每一刻">
-    <title>黃家小屋 - 家庭相簿</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="時光相簿 - 記錄寶貝成長的每一刻">
+    <title>小時候時光相簿 · 拾光與成長記錄</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="assets/app-icon-512.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
-        rel="stylesheet">
+        rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
     <link rel="stylesheet" href="css/style.css?v=20261014.2">
-    <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261016.1"></script>
-    <script defer src="js/storybook.js?v=20261016.1"></script>
+    <link rel="stylesheet" href="css/storybook.css?v=20261028.native-album-settings.1">
+    <script defer src="js/dialogs.js?v=20261016.5"></script>
+    <script defer src="js/storybook.js?v=20261028.native-album-settings.1"></script>
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#fff3be">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261016.1"></script>
+    <script defer src="js/transfers.js?v=20261016.5"></script>
 <script defer src="js/pwa.js?v=20261016.1"></script>
-</head>
+    <link rel="stylesheet" href="css/album-create-entry.css?v=20261021.album-entry.1">
+    <script defer src="js/album-create-entry.js?v=20261021.album-entry.1"></script>
+    <style>
+      .logo-icon img{display:block;width:88px;height:88px;object-fit:contain;margin:auto}
+      .logo-section .logo-text{font-size:clamp(1.6rem,7vw,2.5rem);line-height:1.35;overflow-wrap:anywhere}
+      .logo-section .logo-subtitle{font-size:1rem;line-height:1.7;margin:14px auto 20px;max-width:30rem}
+      .entry-actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+      .entry-primary,.entry-actions .btn-secondary{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:10px 22px;border-radius:18px;text-decoration:none;font-weight:700;box-sizing:border-box}
+      .entry-primary{background:#42664d;color:#fff;border:1px solid #42664d}
+      .entry-primary:hover{background:#31573e}.entry-primary:focus-visible,.entry-details:focus-visible{outline:3px solid #b79037;outline-offset:4px}
+      .entry-ai{margin-top:24px;padding:28px 24px;border:1px solid #dedecb;border-radius:26px;background:#fffdf4;text-align:left}
+      .entry-eyebrow{font-size:.85rem;font-weight:700;color:#577150;letter-spacing:.04em}
+      .entry-ai h2{font-size:1.3rem;line-height:1.6;color:#304b3b;margin:10px 0}
+      .entry-ai .features-subtitle,.entry-ai-note{font-size:.95rem;line-height:1.9;color:#556253;margin:8px 0 16px}
+      .entry-ai .feature-tags{justify-content:flex-start;gap:8px;flex-wrap:wrap}
+      .entry-ai .feature-tag{display:inline-flex;align-items:center;gap:7px;padding:10px 12px;min-width:0;background:#f0f3e7;border-radius:14px;font-size:.9rem}
+      .entry-details{display:inline-block;min-height:44px;line-height:1.6;padding:8px 0;color:#315c43;font-weight:700}
+      .entry-consent-note{font-size:.8rem;line-height:1.8;color:#657064;margin:8px 0 0}
+      @media(max-width:420px){.entry-ai{padding:22px 18px}.entry-actions{gap:8px}.entry-primary,.entry-actions .btn-secondary{padding:10px 16px}}
+    </style>
+<link rel="stylesheet" href="css/reading-shell.css?v=20261026.integration.1">
+<link rel="stylesheet" href="css/app-ui.css?v=20261102.ux1"><script defer src="js/app-ui.js?v=20261102.ux1"></script></head>
 
-<body class="storybook-page login-page">
+<body class="storybook-page login-page app-ui">
     <div class="login-container">
         <!-- Logo Section -->
         <div class="logo-section">
-            <div class="logo-icon">
-                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M24 4L4 16V44H44V16L24 4Z" fill="#FFEC00" stroke="#333" stroke-width="2" />
-                    <rect x="18" y="24" width="12" height="16" rx="2" fill="#333" />
-                    <circle cx="24" cy="14" r="4" fill="#333" />
-                </svg>
-            </div>
-            <h1 class="logo-text">黃家小屋</h1>
-            <p class="logo-subtitle">記錄寶貝成長的每一刻</p>
-            <p><a class="btn-secondary" href="install.html">安裝 App</a></p>
+            <div class="logo-icon"><img src="assets/app-icon-192.png" width="88" height="88" alt=""></div>
+            <h1 class="logo-text">小時候時光相簿</h1>
+            <p class="logo-subtitle">把照片變成可搜尋、可回顧的成長記錄</p>
+            <nav class="entry-actions" aria-label="相簿與拾光入口">
+                <a class="entry-primary" href="memories.html">✦ 打開拾光</a>
+                <a class="btn-secondary" href="account.html">我的帳戶</a>
+            </nav>
         </div>
 
         <!-- Password Login Form (Step 1) -->
@@ -56,7 +75,7 @@
                 </div>
                 <button type="submit" class="submit-btn">
                     <span class="btn-icon">🏠</span>
-                    <span class="btn-text">進入黃家小屋</span>
+                    <span class="btn-text">進入時光相簿</span>
                 </button>
                 <p id="password-error" class="error-message" style="display: none;">
                     密碼錯誤，請再試一次
@@ -70,7 +89,7 @@
         </div>
 
         <!-- Member Selection (Step 2) -->
-        <div id="member-section" class="child-selection" style="display: none;">
+        <div id="member-section" data-account-private class="child-selection" style="display: none;">
             <h2 class="selection-title">👋 你是誰？</h2>
             <p class="selection-subtitle">選擇你的身份（可選）</p>
 
@@ -83,50 +102,44 @@
 
         <!-- Child Selection (Step 3) -->
         <div id="child-section" class="child-selection" style="display: none;">
-            <h2 class="selection-title">選擇寶貝的時光相簿</h2>
+            <h2 class="selection-title">選擇相簿，回看那段日子</h2>
+            <a href="account.html#create-album" class="album-create-entry album-create-home-entry" data-album-create-entry hidden><span aria-hidden="true">＋</span><span>新增相簿</span></a>
 
             <div id="child-cards" class="child-cards">
                 <!-- 動態生成 -->
             </div>
         </div>
 
-        <!-- Photo Tags Section -->
-        <div class="features-section">
-            <h3 class="features-title">📸 照片標籤</h3>
-            <p class="features-subtitle">標記寶寶成長的重要瞬間</p>
-
-            <div class="feature-tags">
-                <div class="feature-tag">
-                    <span class="tag-icon">📅</span>
-                    <span class="tag-text">每日一拍</span>
-                </div>
-                <div class="feature-tag">
-                    <span class="tag-icon">📏</span>
-                    <span class="tag-text">身高體重</span>
-                </div>
-                <div class="feature-tag">
-                    <span class="tag-icon">🌟</span>
-                    <span class="tag-text">各種第一次</span>
-                </div>
+        <section class="features-section entry-ai" aria-labelledby="entry-ai-title">
+            <span class="entry-eyebrow">拾光 · AI 照片整理</span>
+            <h2 id="entry-ai-title">記得那一刻，不一定記得日期。</h2>
+            <p class="features-subtitle">選擇相簿並同意縮圖分析後，拾光會辨識場景、物件與活動，為照片補上可修改的註解與標籤。</p>
+            <div class="feature-tags" aria-label="拾光功能">
+                <span class="feature-tag"><span aria-hidden="true">✎</span><span>AI 註解與標籤</span></span>
+                <span class="feature-tag"><span aria-hidden="true">⌕</span><span>用文字找照片</span></span>
+                <span class="feature-tag"><span aria-hidden="true">✦</span><span>重新發現舊照</span></span>
             </div>
-        </div>
+            <p class="entry-ai-note">用日期、描述與同義詞搜尋已整理的照片，回看超過 30 天的舊照。你可以改寫註解、調整推薦，並隨時排除相簿。</p>
+            <a class="entry-details" href="memories.html#exploration-settings">選擇相簿與查看分析方式 <span aria-hidden="true">→</span></a>
+            <p class="entry-consent-note">分析預設關閉。必要縮圖會交由第三方服務處理；開啟前會再次說明並取得同意。AI 結果可能不準確，可自行修改。</p>
+        </section>
 
         <!-- Current User Display -->
         <div id="current-user-badge" class="current-user-badge" style="display: none;">
             <span id="current-user-emoji">👤</span>
             <span id="current-user-name">訪客</span>
-            <button id="logout-btn" class="logout-btn" title="登出">✕</button>
+            <button id="logout-btn" class="logout-btn" title="登出" aria-label="登出">✕</button>
         </div>
 
         <!-- Footer -->
         <footer class="login-footer">
-            <p>Powered by Flickr • © 2026 黃家小屋</p>
+            <p>Powered by Flickr • © 2026 時光相簿</p>
         </footer>
     </div>
 
     
     <script src="js/results.js?v=20261016.1"></script>
-    <script src="js/utils.js?v=20261016.1"></script>
+    <script src="js/utils.js?v=20261017.10"></script>
     <script>
         // Auth keys for localStorage
         const AUTH_KEY = 'timehut_authenticated';
@@ -169,7 +182,17 @@
 
         // Initialize page
         function init() {
-            if(CONFIG.ACCOUNT_MODE){passwordSection.style.display="none";memberSection.style.display="none";childSection.style.display="block";currentUserBadge.style.display="flex";currentUserName.textContent=TimehutAccounts.status().user.displayName;generateChildCards();if(!CONFIG.CHILDREN.length){const link=document.createElement('a');link.href='account.html';link.textContent='建立第一本相簿';childCards.append(link);}return;}
+            if(CONFIG.ACCOUNT_MODE){
+                passwordSection.style.display="none";memberSection.style.display="none";childSection.style.display="none";
+                const entryFailed=error=>{
+                    const title=childSection.querySelector('h2');if(title)title.textContent='暫時無法開啟相簿';
+                    childSection.style.display='block';childCards.replaceChildren();const message=document.createElement('p');message.textContent=error.message||'相簿尚未開啟，請重新連線。';
+                    const retry=document.createElement('button');retry.type='button';retry.className='btn-secondary';retry.textContent='重新開啟相簿';retry.addEventListener('click',()=>location.reload());childCards.append(message,retry);
+                };
+                if(!window.TimehutEntry){entryFailed(new Error('頁面尚未載入完整，請重新開啟相簿。'));return;}
+                const query=new URLSearchParams(location.search);
+                void TimehutEntry.openReading({requiredAlbumId:query.has('album')?query.get('album'):undefined,context:{user:{id:TimehutPage.owner()},children:CONFIG.CHILDREN,albumPagination:{total:CONFIG.ALBUM_TOTAL}}}).catch(entryFailed);return;
+            }
             if (checkAuth()) {
                 // Already logged in
                 const currentMember = (window.TimehutStorage?.local || localStorage).getItem(MEMBER_KEY);
@@ -248,6 +271,9 @@
                     selectChild(parseInt(childIndex));
                 });
             });
+            if (CONFIG.ACCOUNT_MODE && CONFIG.ALBUM_TOTAL > CONFIG.CHILDREN.length) {
+                const more=document.createElement('a');more.href='account.html';more.className='btn-secondary';more.textContent=`更多相簿（共 ${CONFIG.ALBUM_TOTAL} 本）`;childCards.append(more);
+            }
         }
 
         // Handle password submit

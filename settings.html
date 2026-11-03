@@ -1,416 +1,50 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-
-<head>
-    <style>html[data-timehut-loading] body{visibility:hidden}</style>
-    <script src="js/accounts.js?v=20261016.1"></script>
-    <script src="js/web-upload.js?v=20261016.1"></script>
-    <script src="js/account-config.js?v=20261016.1"></script>
-    <link rel="stylesheet" href="css/service-info.css"><script src="js/service-info.js?v=20261016.1" defer></script>
-
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="黃家小屋 - 設定">
-    <title>黃家小屋 - 設定</title>
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="apple-touch-icon" href="assets/app-icon-512.png">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20261014.2">
-    <style>
-        .settings-page {
-            min-height: 100vh;
-            background: var(--color-background);
-            padding-bottom: 40px;
-        }
-
-        .settings-container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .settings-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 2px solid var(--color-primary);
-        }
-
-        .back-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            background: var(--color-surface);
-            border: none;
-            border-radius: 12px;
-            font-size: 1.5rem;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .back-btn:hover {
-            background: var(--color-primary);
-            transform: scale(1.05);
-        }
-
-        .settings-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--color-text);
-        }
-
-        .settings-section {
-            background: var(--color-surface);
-            border-radius: var(--radius-lg);
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--color-text);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .child-card {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 16px;
-            background: var(--color-background);
-            border-radius: var(--radius-lg);
-            margin-bottom: 12px;
-            border: 2px solid transparent;
-            transition: all 0.2s;
-        }
-
-        .child-card:hover {
-            border-color: var(--color-primary);
-        }
-
-        .child-emoji {
-            font-size: 2.5rem;
-        }
-
-        .child-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .child-name {
-            font-weight: 600;
-            overflow-wrap: anywhere;
-            font-size: 1.1rem;
-            color: var(--color-text);
-            margin-bottom: 4px;
-        }
-
-        .child-age {
-            font-size: 0.9rem;
-            color: var(--color-text-muted);
-        }
-
-        .child-birthdate {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .birthdate-label {
-            font-size: 0.8rem;
-            color: var(--color-text-muted);
-        }
-
-        .birthdate-input {
-            padding: 10px 14px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-family: inherit;
-            background: white;
-            transition: all 0.2s;
-        }
-
-        .birthdate-input:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(255, 236, 0, 0.3);
-        }
-
-        .save-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
-            color: #333;
-            border: none;
-            border-radius: var(--radius-lg);
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 4px 12px rgba(255, 236, 0, 0.3);
-        }
-
-        .save-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(255, 236, 0, 0.4);
-        }
-
-        .save-btn:active {
-            transform: scale(0.98);
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            background: #333;
-            color: white;
-            border-radius: 12px;
-            font-weight: 500;
-            z-index: 1000;
-            animation: slideUp 0.3s ease;
-        }
-
-        .toast.success {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
-        }
-    </style>
-    <link rel="stylesheet" href="css/storybook.css?v=20261014.2">
-    <script defer src="js/dialogs.js?v=20261016.1"></script>
-    <script defer src="js/storybook.js?v=20261016.1"></script>
-    <link rel="manifest" href="manifest.webmanifest">
-    <meta name="theme-color" content="#fff3be">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <script defer src="js/transfers.js?v=20261016.1"></script>
-<script defer src="js/pwa.js?v=20261016.1"></script>
-</head>
-
-<body class="storybook-page settings-page">
-    <div class="settings-container">
-        <div class="settings-header">
-            <a href="timeline.html" class="back-btn" title="返回">←</a>
-            <h1 class="settings-title">⚙️ 設定</h1>
-        </div>
-
-        <div class="settings-section">
-            <h2 class="section-title">👶 小孩資料</h2>
-            <div id="childrenList">
-                <!-- 動態生成 -->
+<!doctype html>
+<html lang="zh-Hant"><head><script src="js/capacitor-core.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>設定 · 時光相簿</title>
+<link rel="icon" href="assets/app-icon-192.png"><link rel="stylesheet" href="css/reading-shell.css?v=20261026.1"><link rel="stylesheet" href="css/coffee-tip.css?v=20261019.1"><link rel="stylesheet" href="css/service-info.css"><link rel="stylesheet" href="css/app-ui.css?v=20261102.ux1"><link rel="stylesheet" href="css/settings-hub.css?v=20261102.ux1"><link rel="stylesheet" href="css/page-loading-shell.css?v=20261102.ux1">
+<script src="js/accounts.js?v=20261019.1"></script><script src="js/entry-routing.js?v=20261030.return.1"></script><script src="js/web-upload.js?v=20261016.1"></script><script src="js/account-config.js?v=20261016.5"></script>
+<script defer src="js/dialogs.js?v=20261028.1"></script><script defer src="js/storybook.js?v=20261028.1"></script><script defer src="js/settings-page.js?v=20261102.ux1"></script><script defer src="js/problem-feedback.js?v=20261102.ux1"></script><script defer src="js/service-info.js?v=20261016.1"></script><script defer src="js/coffee-tip.js?v=20261019.1"></script><script defer src="js/version.js?v=20261016.1"></script><script defer src="js/page-loading-shell.js?v=20261102.ux1"></script><script defer src="js/app-ui.js?v=20261102.ux1"></script>
+</head><body class="app-ui settings-hub"><main class="app-shell settings-container" data-public-page-shell>
+<header class="app-header settings-header"><a id="settings-back" href="timeline.html" class="app-back">‹ 時間軸</a><h1 id="settings-title">設定</h1><p class="app-subtitle" id="settings-subtitle">讓收藏回憶，更簡單。</p></header>
+<p id="settingsStatus" role="status" aria-live="polite" hidden></p>
+<div id="settings-home" data-settings-view="home">
+<section class="settings-group" aria-labelledby="personal-title"><h2 id="personal-title">帳戶與收藏</h2><div class="app-list">
+<a class="app-row" href="account.html?manage=1"><span class="app-row-copy"><strong>帳號與安全</strong><small>登入、密碼與復原信箱</small></span><span aria-hidden="true">›</span></a>
+<button class="app-row" type="button" data-settings-panel="albums" data-requires-account disabled><span class="app-row-copy"><strong>相簿管理</strong><small>選擇一本相簿，再編輯資料</small></span><span aria-hidden="true">›</span></button>
+<a class="app-row" id="settings-line-entry" href="line-albums.html"><span class="app-row-copy"><strong>LINE 收件與自動上傳</strong><small>綁定來源、參考人物與逐張處理進度</small></span><span aria-hidden="true">›</span></a>
+<a class="app-row" href="memories.html#exploration-settings"><span class="app-row-copy"><strong>拾光設定</strong><small>照片整理、搜尋與資料使用</small></span><span aria-hidden="true">›</span></a></div></section>
+<section class="settings-group" aria-labelledby="deviceSettingsTitle"><h2 id="deviceSettingsTitle">App 與傳輸</h2><div class="app-list">
+<a class="app-row" href="transfer.html#transfer-preferences"><span class="app-row-copy"><strong>傳輸、網路與通知</strong><small>上傳偏好、完成通知與裝置權限</small></span><span aria-hidden="true">›</span></a>
+<a class="app-row" href="install.html"><span class="app-row-copy"><strong>App 安裝與更新</strong></span><span aria-hidden="true">›</span></a></div></section>
+<section class="settings-group" aria-labelledby="help-title"><h2 id="help-title">支援與服務</h2><div class="app-list">
+<a class="app-row" href="support.html"><span>使用說明</span><span aria-hidden="true">›</span></a>
+<button class="app-row" type="button" data-settings-panel="feedback" data-requires-account disabled><span>問題回報與處理通知</span><span aria-hidden="true">›</span></button>
+<button class="app-row" type="button" data-settings-panel="support"><span>支持時光相簿</span><span aria-hidden="true">›</span></button>
+<a class="app-row" href="privacy.html"><span>隱私與資料使用</span><span aria-hidden="true">›</span></a>
+<a class="app-row" href="delete-account.html"><span>刪除帳戶與資料</span><span aria-hidden="true">›</span></a></div></section>
+<p class="settings-version-footer">App 版本：<span id="fe-version">讀取中</span></p><p class="service-notice" data-flickr-attribution></p></div>
+<section id="settings-albums" data-settings-view="albums" data-account-private hidden><div class="settings-toolbar"><label>搜尋已載入相簿<input id="settings-album-search" type="search" placeholder="相簿名稱"></label><a class="app-text-link" href="account.html#create-album">新增相簿</a></div><div id="settings-album-list" class="app-list"></div><button id="settings-albums-more" class="secondary" type="button" hidden>載入更多相簿</button><button class="app-row app-list" type="button" data-settings-panel="archived"><span>已刪除相簿</span><span aria-hidden="true">›</span></button><button type="button" id="settings-albums-retry" class="secondary">重新讀取相簿</button></section>
+<section id="settings-album-detail" data-settings-view="album" data-account-private hidden><p id="settings-draft-note" class="app-note" hidden>這本相簿有尚未儲存的變更；切換檢視時會保留草稿。</p><form id="settings-album-form" class="app-card"><h2 id="settings-album-name"></h2><label>出生日期<input id="settings-birthdate" type="date" required></label><fieldset class="settings-portrait"><legend>相簿形象</legend><label><input type="radio" name="portrait" value="boy">男孩</label><label><input type="radio" name="portrait" value="girl">女孩</label></fieldset><button type="submit" id="settings-save">儲存這本相簿</button></form><div class="app-list"><button id="settings-rename" type="button" class="app-row">重新命名</button><a id="settings-golden" href="golden.html" class="app-row">設定參考人物<span aria-hidden="true">›</span></a><button id="settings-archive" type="button" class="app-row danger-text">移至已刪除相簿</button></div><p class="app-note">移除相簿可復原；照片與影片會保留。</p><button type="button" id="settings-detail-retry" class="secondary">重新讀取相簿狀態</button></section>
+<section id="settings-archived" data-settings-view="archived" data-account-private hidden><p class="app-note">照片與影片會保留，選擇相簿即可復原。</p><div id="settings-archived-list" class="app-list"></div><button id="settings-archived-more" type="button" class="secondary" hidden>載入更多已刪除相簿</button><button type="button" id="settings-archived-retry" class="secondary">重新讀取</button></section>
+<section id="settings-feedback" data-settings-view="feedback" data-account-private hidden></section>
+<section id="settings-support" data-settings-view="support" hidden><section class="settings-section coffee-card" id="coffeeTip" aria-labelledby="coffeeTitle" data-coffee-state="loading">
+            <div class="coffee-top">
+                <svg class="coffee-art" viewBox="0 0 100 112" aria-hidden="true">
+                    <ellipse cx="49" cy="99" rx="42" ry="7" fill="#e7ddc5" opacity=".65"/>
+                    <path d="M31 24c-9-12 9-12 1-24M49 23c-8-10 9-11 3-22M66 26c-7-10 8-12 4-20" fill="none" stroke="#c7b89f" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M76 43h6c20 0 19 28 0 30h-8" fill="#fff4d7" stroke="#86654d" stroke-width="3"/>
+                    <path d="M17 37h62l-5 42c-1 18-49 18-51 0Z" fill="#ffe6b0" stroke="#86654d" stroke-width="3" stroke-linejoin="round"/>
+                    <ellipse cx="48" cy="38" rx="31" ry="7" fill="#fff6df" stroke="#86654d" stroke-width="3"/>
+                    <ellipse cx="48" cy="39" rx="25" ry="4" fill="#b07c50"/>
+                    <path d="M38 67c0-6 8-7 11-1 3-6 11-5 11 1 0 6-11 12-11 12S38 73 38 67" fill="#d98973"/>
+                    <path d="M30 59h.1m36 0h.1" stroke="#72513e" stroke-width="4" stroke-linecap="round"/>
+                    <ellipse cx="28" cy="66" rx="5" ry="3" fill="#e9a28a" opacity=".7"/><ellipse cx="69" cy="66" rx="5" ry="3" fill="#e9a28a" opacity=".7"/>
+                    <path d="m12 17 2 4 4 1-4 2-1 4-2-4-4-1 4-2Z" fill="#cda761"/>
+                </svg>
+                <div><p class="coffee-eyebrow">小小心意，暖暖支持</p><h2 id="coffeeTitle">請作者喝咖啡</h2><p class="coffee-description">喜歡小屋收藏的回憶？<br>請作者喝杯咖啡吧。</p></div>
             </div>
-        </div>
-
-        <p id="settingsStatus" class="settings-status toast" role="status" aria-live="polite" hidden></p>
-        <button class="save-btn" onclick="saveSettings()">
-            💾 儲存設定
-        </button>
-        <section class="settings-section device-settings" aria-labelledby="deviceSettingsTitle">
-            <h2 class="section-title" id="deviceSettingsTitle">手機 App 與權限</h2>
-            <div class="device-status-grid">
-                <div class="device-status-card"><h3>目前開啟方式</h3><p id="deviceAppStatus" role="status">正在確認…</p><a class="btn-secondary" href="install.html">查看安裝方式</a></div>
-                <div class="device-status-card"><h3>完成通知</h3><p id="deviceNotificationStatus" role="status">正在確認…</p><a class="btn-secondary" href="transfer.html">到傳輸中心設定</a></div>
-                <div class="device-status-card"><h3>保存照片與影片</h3><p id="devicePhotoStatus" role="status">正在確認…</p><a class="btn-secondary" href="transfer.html">查看下載與保存結果</a></div>
-            </div>
-            <p class="storybook-note">此處只查看目前狀態。開啟完成通知、保存至手機相簿時，才會依需要顯示權限提示。</p>
-            <button class="btn-secondary" id="refreshDeviceSettings" type="button">更新手機狀態</button>
-        </section>
-        <section class="settings-section service-card" aria-labelledby="serviceInfoTitle"><h2 class="section-title" id="serviceInfoTitle">服務資訊</h2><nav class="service-links" aria-label="服務資訊"><a href="privacy.html">隱私與資料使用</a><a href="support.html">使用與支援</a><a href="delete-account.html">刪除帳戶與資料</a></nav><p class="service-notice" data-flickr-attribution></p></section>
-    </div>
-
-
-    <script src="js/results.js?v=20261016.1"></script>
-    <script src="js/version.js?v=20261016.1"></script>
-    <script>
-        function parseBirthDate(value) {
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
-            const [year, month, day] = value.split('-').map(Number);
-            const date = new Date(0);
-            date.setHours(0, 0, 0, 0);
-            date.setFullYear(year, month - 1, day);
-            return year > 0 && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
-        }
-
-        function todayDate() {
-            const date = new Date(); date.setHours(0, 0, 0, 0); return date;
-        }
-
-        // 計算年齡
-        function calculateAge(birthDate) {
-            const birth = parseBirthDate(birthDate);
-            const now = new Date();
-
-            // Check for invalid date
-            if (!birth) {
-                return '日期無效';
-            }
-
-            let years = now.getFullYear() - birth.getFullYear();
-            let months = now.getMonth() - birth.getMonth();
-            if (now.getDate() < birth.getDate()) months--;
-
-            // Adjust for negative months
-            if (months < 0) {
-                years--;
-                months += 12;
-            }
-
-            // Handle future birthdates
-            if (years < 0) {
-                return '尚未出生';
-            }
-
-            if (years >= 1) {
-                return `${years}歲${months}個月`;
-            } else if (months >= 1) {
-                return `${months}個月`;
-            } else {
-                return '新生兒';
-            }
-        }
-
-        // 取得儲存的出生日期
-        function getSavedBirthDate(index) {
-            const saved = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`);
-            return saved || CONFIG.CHILDREN[index].birthDate;
-        }
-
-        // 渲染小孩列表
-        function renderChildren() {
-            const container = document.getElementById('childrenList');
-
-            container.innerHTML = CONFIG.CHILDREN.map((child, index) => {
-                const birthDate = getSavedBirthDate(index);
-                const age = calculateAge(birthDate);
-
-                return `
-                    <div class="child-card">
-                        <span class="child-emoji">${child.emoji}</span>
-                        <div class="child-info">
-                            <div class="child-name">${escapeTimehutText(child.name)}</div>
-                            <div class="child-age">目前 ${age}</div>
-                        </div>
-                        <div class="child-birthdate">
-                            <label class="birthdate-label" for="birthdate-${index}">出生日期</label>
-                            <input type="date" 
-                                   class="birthdate-input" 
-                                   id="birthdate-${index}"
-                                   value="${birthDate}"
-                                   required
-                                   max="${todayDate().getFullYear()}-${String(todayDate().getMonth()+1).padStart(2,'0')}-${String(todayDate().getDate()).padStart(2,'0')}"
-                                   oninput="updateAge(${index})">
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // 更新年齡顯示
-        function updateAge(index) {
-            document.getElementById('settingsStatus').hidden = true;
-            const input = document.getElementById(`birthdate-${index}`);
-            const card = input.closest('.child-card');
-            const ageEl = card.querySelector('.child-age');
-
-            const date = parseBirthDate(input.value);
-            const valid = date && date <= todayDate();
-            input.setAttribute('aria-invalid', String(!valid));
-            ageEl.textContent = `目前 ${calculateAge(input.value)}`;
-        }
-
-        // 儲存設定
-        async function saveSettings() {
-            const inputs = CONFIG.CHILDREN.map((child, index) => document.getElementById(`birthdate-${index}`));
-            if (inputs.some(input => !parseBirthDate(input?.value) || parseBirthDate(input.value) > todayDate())) {
-                inputs.forEach((input, index) => updateAge(index));
-                showToast('請填寫有效且不晚於今天的出生日期', 'error'); return;
-            }
-            if(CONFIG.ACCOUNT_MODE){try{const result=await TimehutAccounts.request('/api/accounts/albums/dates',{method:'PUT',body:{updates:CONFIG.CHILDREN.map((child,index)=>({id:child.albumId,birthDate:inputs[index].value}))}});for(const child of CONFIG.CHILDREN){const saved=result.albums.find(album=>album.id===child.albumId);if(!saved)throw new Error('生日保存尚未確認');child.birthDate=saved.birthDate;}showToast('設定已儲存！');}catch(error){showToast(error.message||'生日尚未儲存，請稍後重試。','error');}return;}
-            const previous = [];
-            try {
-                inputs.forEach((input, index) => previous.push((window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`)));
-                inputs.forEach((input, index) => (window.TimehutStorage?.local || localStorage).setItem(`timehut_child_${index}_birthdate`, input.value));
-                showToast('設定已儲存！');
-            } catch (_) {
-                let restored = true;
-                previous.forEach((value, index) => {
-                    try { if (value === null) (window.TimehutStorage?.local || localStorage).removeItem(`timehut_child_${index}_birthdate`); else (window.TimehutStorage?.local || localStorage).setItem(`timehut_child_${index}_birthdate`, value); }
-                    catch (_) { restored = false; }
-                });
-                showToast(restored ? '設定無法儲存，原設定已保留。請確認瀏覽器儲存空間。' : '設定未完整儲存，請確認儲存空間後重新檢查兩個生日。', 'error');
-            }
-        }
-
-        // 顯示 Toast (with icon support)
-        function showToast(message, type = 'success') {
-            const icons = {
-                success: '✅',
-                error: '❌',
-                info: 'ℹ️'
-            };
-            const icon = icons[type] || '✅';
-
-            const toast = document.getElementById('settingsStatus');
-            toast.className = `settings-status toast ${type}`;
-            toast.textContent = `${icon} ${message}`;
-            toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-            toast.hidden = false;
-        }
-
-        // 初始化
-        (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( renderChildren);
-    </script>
-    <!-- Version Footer -->
-    <div style="text-align: center; color: #666; padding: 20px; font-size: 0.8em; margin-top: auto;">
-        前端版本：<span id="fe-version">讀取中</span><br>
-        後端版本：<span id="be-version">確認中</span>
-    </div>
-
-    <script>
-        document.getElementById('fe-version').textContent = `候選版 ${TimehutBuild.version}`;
-
-        // Backend Version (Fetch from server)
-        const API_BASE = CONFIG.UPLOAD_API_URL;
-        (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${API_BASE}/health`)
-            .then(r => { if (!r.ok) throw new Error('版本查詢失敗'); return r.json(); })
-            .then(d => {
-                if (!d.version || typeof d.version !== 'string') throw new Error('沒有版本資料');
-                document.getElementById('be-version').textContent = d.version;
-            })
-            .catch(() => {
-                document.getElementById('be-version').textContent = '暫時無法確認';
-            });
-    </script>
-</body>
-
-</html>
+            <p class="coffee-note">隨心支持小屋持續長大。單次贊助，可再次購買；不會自動續費，也不影響原有功能。</p>
+            <button class="coffee-buy" data-coffee-buy type="button" disabled>請一杯咖啡</button>
+            <p class="coffee-status" data-coffee-status role="status" aria-live="polite">正在準備咖啡小舖…</p>
+            <button class="coffee-retry" data-coffee-retry type="button" hidden>重新確認商店狀態</button>
+        </section></section>
+</main></body></html>

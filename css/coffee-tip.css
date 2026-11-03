@@ -1,0 +1,25 @@
+.settings-refined.settings-page .coffee-card {
+    position:relative; isolation:isolate; overflow:hidden; padding:28px 24px;
+    background:linear-gradient(135deg,#fff8ec,#fffdf7 68%,#f3f6e9);
+    border:1px solid #e8dac5; border-radius:24px;
+}
+.coffee-card::after { content:'✦'; position:absolute; top:22px; right:24px; color:#c5a969; font-size:22px; }
+.coffee-card .coffee-top { display:flex; align-items:center; gap:18px; margin-bottom:18px; }
+.coffee-card .coffee-art { flex:0 0 92px; width:92px; height:104px; overflow:visible; }
+.coffee-card .coffee-eyebrow { margin:0 0 6px; color:#897254; font-size:12px; font-weight:600; letter-spacing:.12em; }
+.settings-refined.settings-page .coffee-card h2 { margin:0 0 8px; color:#5c4432; font-size:22px; font-weight:700; }
+.coffee-card .coffee-description { margin:0; color:#7f6b58; font-size:14px; line-height:1.8; }
+.coffee-card .coffee-note { margin:0 0 18px; color:#867968; font-size:12px; line-height:1.8; }
+.settings-refined.settings-page .coffee-card .coffee-buy {
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:50px;
+    border:1px solid #79543b; border-radius:15px; background:#79543b; color:#fffaf1;
+    font-size:15px; box-shadow:0 3px 0 #573d2c14;
+}
+.settings-refined.settings-page .coffee-card .coffee-buy:hover:not(:disabled) { background:#674630; }
+.settings-refined.settings-page .coffee-card .coffee-buy:focus-visible { outline:3px solid #bb925c; outline-offset:4px; }
+.coffee-card .coffee-buy:disabled { opacity:.65; }
+.coffee-card .coffee-status { min-height:1.6em; margin:12px 0 0; text-align:center; color:#7f6b58; font-size:12px; line-height:1.8; }
+.coffee-card[data-coffee-state=completed] .coffee-status { color:#527552; }
+.coffee-card .coffee-retry { display:block; margin:8px auto 0; color:#79543b; font-size:13px; background:none; border:0; text-decoration:underline; cursor:pointer; }
+.coffee-card [hidden] { display:none !important; }
+@media(max-width:360px) { .settings-refined.settings-page .coffee-card { padding:22px 18px; } .coffee-card .coffee-top { gap:12px; } .coffee-card .coffee-art { flex-basis:76px; width:76px; } .settings-refined.settings-page .coffee-card h2 { font-size:20px; } }

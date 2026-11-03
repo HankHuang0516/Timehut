@@ -2700,6 +2700,12 @@ body.select-mode .main-content {
     transition: transform 0.3s;
 }
 
+/* Keep queued/undecoded preview geometry without showing a browser error icon. */
+.moment-photo:not([src]),
+.moment-photo[aria-busy="true"] {
+    visibility: hidden;
+}
+
 .moment-photo:hover {
     transform: scale(1.05);
 }

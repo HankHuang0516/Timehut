@@ -1,21 +1,45 @@
 /* Shared progressive enhancement; original page handlers remain authoritative. */
 (() => {
     'use strict';
-    const portraits = ['assets/storybook-boy.png', 'assets/storybook-girl.png'];
+    window.TimehutPortraits = {
+        style(child,index=0) { return child?.portrait === 'boy' || child?.portrait === 'girl' ? child.portrait : index % 2 ? 'girl' : 'boy'; },
+        src(child,index=0) { return `assets/storybook-${this.style(child,index)}.png`; }
+    };
     function decorateProfiles() {
         document.querySelectorAll('.profile-btn').forEach((button, index) => {
+            index = /^\d+$/.test(button.dataset.child || '') ? Number(button.dataset.child) : index;
+            const child = CONFIG.CHILDREN[index];
             const emoji = button.querySelector('.profile-emoji');
-            if (emoji && !emoji.querySelector('img')) {
-                const image = document.createElement('img');
-                image.src = portraits[index % portraits.length]; image.alt = ''; emoji.replaceChildren(image);
+            if (emoji) {
+                let image = emoji.querySelector('img');
+                if (!image) { image = document.createElement('img'); image.alt = ''; emoji.replaceChildren(image); }
+                const source = window.TimehutPortraits.src(child,index);
+                if (image.getAttribute('src') !== source) image.src = source;
+            }
+            if (emoji && !button.querySelector('.profile-label')) {
                 const label = document.createElement('span'); label.className = 'profile-label';
                 label.textContent = CONFIG.CHILDREN[index]?.name || ''; button.append(label);
+                const age = document.createElement('small'); age.className = 'profile-age';
+                if (child && typeof calculateAge === 'function' && typeof formatAgeString === 'function') {
+                    const value = calculateAge(child.birthDate, new Date().toLocaleDateString('en-CA'));
+                    age.textContent = formatAgeString(value.years, value.months, value.days);
+                    label.append(age);
+                }
             }
         });
         document.querySelectorAll('.child-card .child-emoji').forEach((emoji, index) => {
             if (emoji.querySelector('img')) return;
-            const image = document.createElement('img'); image.src = portraits[index % portraits.length]; image.alt = ''; emoji.replaceChildren(image);
+            const image = document.createElement('img'); image.src = window.TimehutPortraits.src(CONFIG.CHILDREN[index],index); image.alt = ''; emoji.replaceChildren(image);
         });
+        const active=document.querySelector('.profile-btn.active'), requested=new URLSearchParams(location.search).get('album');
+        const index=active?Number(active.dataset.child):Math.max(0,CONFIG.CHILDREN.findIndex(child=>child.albumId===requested));
+        const child=CONFIG.CHILDREN[index];
+        if(child){
+            const source=window.TimehutPortraits.src(child,index);
+            document.querySelector('.timeline-header')?.style.setProperty('--storybook-portrait',`url("${new URL(source,location.href).href}")`);
+            const cover=document.getElementById('albumCover');
+            if(cover&&/^assets\/storybook-(boy|girl)\.png$/.test(cover.getAttribute('src')||''))cover.src=source;
+        }
     }
     function init() {
         const header=document.querySelector('.header');
@@ -23,6 +47,8 @@
         const bars=[...document.querySelectorAll('.selection-bar,.moment-selection-bar')];
         if(bars.length){const observer=new ResizeObserver(()=>document.documentElement.style.setProperty('--storybook-selection-height',`${Math.max(...bars.map(bar=>bar.getBoundingClientRect().height))}px`));bars.forEach(bar=>observer.observe(bar));}
         decorateProfiles();
+        const profileList = document.querySelector('.child-profiles');
+        if (profileList) new MutationObserver(decorateProfiles).observe(profileList, {childList:true,subtree:true,attributes:true,attributeFilter:['class']});
         const picker = document.getElementById('uploadDropzone');
         picker?.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('fileInput').click(); } });
         const image=document.getElementById('modalImage'),modal=document.getElementById('photoModal');
@@ -35,7 +61,7 @@
             const mediaRetry=document.createElement('button');mediaRetry.id='modalMediaRetry';mediaRetry.type='button';mediaRetry.className='btn-secondary viewer-media-status';mediaRetry.textContent='重試播放';mediaRetry.hidden=true;
             const info=modal.querySelector('.modal-info');info.prepend(mediaStatus);mediaStatus.after(mediaRetry);
             let activeVideo=false,activePhoto=null;
-            const stop=()=>{token++;activeVideo=false;activePhoto=null;mediaStatus.hidden=true;mediaRetry.hidden=true;video.pause();video.removeAttribute('src');video.load();video.hidden=true;};
+            const stop=(preserveImages=false)=>{if(!preserveImages)window.TimehutViewerImages?.clear();token++;activeVideo=false;activePhoto=null;mediaStatus.hidden=true;mediaRetry.hidden=true;video.pause();video.removeAttribute('src');video.load();video.hidden=true;};
             const playbackFailed=()=>{if(!activeVideo||!modal.classList.contains('active'))return;video.hidden=true;video.style.display='none';image.hidden=false;image.style.display='block';mediaStatus.textContent=CONFIG.ACCOUNT_MODE?'影片暫時無法播放，請重試或下載原檔':'影片暫時無法播放，請重試或在 Flickr 開啟';mediaStatus.hidden=false;mediaRetry.hidden=false;};
             const loadVideo=async(current)=>{
                 try {
@@ -49,12 +75,14 @@
                 mediaStatus.textContent='正在重新載入影片…';mediaStatus.hidden=false;mediaRetry.hidden=true;
                 loadVideo(++token);
             });
-            window.TimehutViewerMedia={stop,async show(photo){
-                stop();const current=token;image.hidden=false;image.style.display='block';
+            window.TimehutViewerMedia={stop,async show(photo,context={}){
+                image.dataset.viewerMedia=photo.media==='video'?'video':'photo';
+                stop(true);const current=token;image.hidden=false;image.style.display='block';
                 let link=document.getElementById('modalVideoLink');
                 if(!link){link=document.createElement('a');link.id='modalVideoLink';link.className='modal-download-btn';link.target='_blank';link.rel='noopener';link.textContent='▶ 在 Flickr 開啟影片';modal.querySelector('.modal-info').append(link);}
                 link.hidden=CONFIG.ACCOUNT_MODE||photo.media!=='video';link.href=`https://www.flickr.com/photos/${encodeURIComponent(CONFIG.FLICKR_USER_ID)}/${encodeURIComponent(photo.id)}`;
                 const download=document.getElementById('modalDownloadBtn');if(download)download.textContent=photo.media==='video'?'📥 下載影片':'📥 下載原圖';
+                window.TimehutViewerImages?.show(photo,context.photos||[photo],context.index||0);
                 if(photo.media!=='video')return;
                 activeVideo=true;activePhoto=photo;
                 await loadVideo(current);
@@ -102,14 +130,27 @@
         const viewer = document.querySelector('#photoModal .modal-info');
         if (viewer) {
             const chips = document.createElement('div'); chips.className = 'viewer-tags'; chips.setAttribute('aria-label', '照片標籤');
+            chips.tabIndex = 0; chips.setAttribute('role', 'region');
             viewer.querySelector('.modal-tags-edit')?.before(chips);
             const decoration = document.createElement('img'); decoration.src = 'assets/storybook-family.png'; decoration.className = 'viewer-decoration'; decoration.alt = ''; viewer.append(decoration);
+            const details = document.createElement('div'); details.className = 'viewer-details';
+            details.tabIndex = 0; details.setAttribute('role', 'region'); details.setAttribute('aria-label', '照片資訊');
+            for (const child of [...viewer.children]) {
+                if (!child.matches('.modal-tags-edit,.modal-actions,.modal-download-btn,.viewer-decoration,.toast-container')) details.append(child);
+            }
+            viewer.prepend(details);
+            for (const region of [details, chips]) region.addEventListener('keydown', event => {
+                if (event.target !== region || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+                if (!['PageDown', 'PageUp'].includes(event.key) || region.scrollHeight <= region.clientHeight) return;
+                event.preventDefault();
+                region.scrollBy({top: (event.key === 'PageDown' ? 1 : -1) * Math.max(1, region.clientHeight * .9), behavior: 'instant'});
+            });
             const renderTags = () => {
                 chips.replaceChildren(); (document.getElementById('editTagsInput')?.value || '').split(/\s+/).filter(Boolean).forEach(tag => {
                     const chip = document.createElement('span'); chip.className = 'viewer-tag'; chip.textContent = tag; chips.append(chip);
                 });
             };
-            const title = document.getElementById('modalTitle'); if (title) new MutationObserver(()=>{renderTags();modal?.setAttribute('aria-label',title.textContent || '照片檢視');}).observe(title, {childList:true});
+            const title = document.getElementById('modalTitle'); if (title) new MutationObserver(()=>{renderTags();details.scrollTop=0;chips.scrollTop=0;modal?.setAttribute('aria-label',title.textContent || '照片檢視');}).observe(title, {childList:true});
             document.getElementById('editTagsInput')?.addEventListener('input', renderTags);
         }
         document.addEventListener('keydown', event => {

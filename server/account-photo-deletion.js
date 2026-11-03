@@ -8,6 +8,18 @@ function validatePhotoDelete(id,row,state){
 }
 class AccountPhotoDeletion{
  constructor(store,journal,{uploadsDirectory,readQueue,deletePhoto,isActive=()=>false}={}){this.store=store;this.journal=journal;this.directory=path.resolve(uploadsDirectory);this.readQueue=readQueue;this.deletePhoto=deletePhoto;this.isActive=isActive;this.active=new Map();store.commit(s=>{s.photoDeletes||={};});}
+ listStatus(user,query={}){
+  this.store.assertAvailable();const s=this.store.state,album=query.album??null,ids=query.photoIds===undefined?null:typeof query.photoIds==='string'?query.photoIds.split(','):[];const page=Number(query.page??1);
+  const unavailable=()=>{throw Object.assign(new Error('Deletion status unavailable'),{status:404});};
+  if(!Object.hasOwn(s.users,user)||s.users[user].disabled)unavailable();
+  if(album!==null&&(typeof album!=='string'||!this.store.owns(user,'album',album)))unavailable();
+  if(!Number.isSafeInteger(page)||page<1||page>100000||ids&&(!ids.length||ids.length>200||new Set(ids).size!==ids.length||ids.some(id=>!/^\d{1,32}$/.test(id))))throw new Error('Invalid status query');
+  const rows=Object.values(s.photoDeletes||{}).filter(job=>{const media=s.media[job.id],receipt=s.receipts[job.receiptId],complete=job.status==='complete';return job.userId===user&&(!complete||ids&&confirmedPhotoDeletion(s,media))&&media?.userId===user&&media.receiptId===job.receiptId&&receipt?.userId===user&&(!ids||ids.includes(job.id))&&(!album||complete||(media.albumIds??[media.albumId]).includes(album));}).sort((a,b)=>b.requestedAt-a.requestedAt||a.id.localeCompare(b.id));
+  // Exact-ID probes can acknowledge own minimal terminal tombstones. Their old
+  // memberships/names were deliberately scrubbed and are not reconstructed.
+  const perPage=ids?200:30;const items=rows.slice((page-1)*perPage,page*perPage).map(job=>({photoId:job.id,status:job.status,requestedAt:job.requestedAt,filename:job.status==='complete'?'照片':String(s.media[job.id].title||s.media[job.id].originalFilename||'照片').slice(0,255)}));
+  return {items,page,perPage,pages:Math.max(1,Math.ceil(rows.length/perPage)),total:rows.length};
+ }
  enqueue(user,ids){if(!Array.isArray(ids)||!ids.length||ids.length>100||ids.some(id=>typeof id!=='string'||!/^\d+$/.test(id))||new Set(ids).size!==ids.length)throw new Error('Invalid deletion batch');return this.store.commit(s=>{
   if(!Object.hasOwn(s.users,user)||s.users[user].disabled||ids.some(id=>!Object.hasOwn(s.media,id)||s.media[id].userId!==user))throw new Error('Owned photo unavailable');
   for(const id of ids){const row=s.media[id],receipt=s.receipts[row.receiptId];if(!receipt||receipt.userId!==user||!Number.isSafeInteger(row.deletedAt)&&(!Number.isSafeInteger(row.bytes)||row.bytes<=0||(receipt.queueItem&&receipt.queueItem.status!=='completed')))throw new Error('Completed original unavailable');}

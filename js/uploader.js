@@ -64,12 +64,39 @@ const Uploader = {
     },
 
     async getAlbums(options = {}) {
-        const data = await this.readJSON('/api/albums', options);
-        if (!Array.isArray(data.albums) || data.albums.some(album =>
-            !album || typeof album.id !== 'string' || !album.id || typeof album.title !== 'string')) {
-            throw new Error('相簿清單格式不完整');
+        const validate = data => {
+            if (!data || !Array.isArray(data.albums) || data.albums.some(album =>
+                !album || typeof album.id !== 'string' || !album.id || typeof album.title !== 'string')) {
+                throw new Error('相簿清單格式不完整');
+            }
+        };
+        if (!CONFIG.ACCOUNT_MODE) {
+            const data = await this.readJSON('/api/albums', options);
+            validate(data);
+            return data.albums;
         }
-        return data.albums;
+        const albums = [], seen = new Set();
+        let page = 1, pages = 1, total = null;
+        do {
+            if (options.signal?.aborted) throw new DOMException('相簿讀取已停止', 'AbortError');
+            const data = await this.readJSON(`/api/accounts/albums?page=${page}&per_page=30`, options);
+            validate(data);
+            if (data.page !== page || !Number.isSafeInteger(data.total) || data.total < 0 ||
+                !Number.isSafeInteger(data.pages) || data.pages < 1 || data.pages > 100000 ||
+                data.pages !== Math.max(1, Math.ceil(data.total / 30)) ||
+                (total !== null && (data.total !== total || data.pages !== pages)) ||
+                data.albums.length !== Math.min(30, Math.max(0, data.total - (page - 1) * 30))) {
+                throw new Error('相簿分頁尚未確認');
+            }
+            total = data.total; pages = data.pages;
+            for (const album of data.albums) {
+                if (seen.has(album.id)) throw new Error('相簿分頁有重複項目，請重試');
+                seen.add(album.id); albums.push(album);
+            }
+            page++;
+        } while (page <= pages);
+        if (albums.length !== total) throw new Error('相簿總數尚未確認');
+        return albums;
     },
 
     // 上傳檔案 (Modified to use XHR for progress)
@@ -179,6 +206,8 @@ const Uploader = {
 const BackgroundUploader = {
     isUploading: false,
     uploadQueue: [], // Array of {file, albumId, tags}
+    failedFiles: [],
+    receiptWarnings: [],
     totalFiles: 0,
     completedFiles: 0,
 
@@ -245,6 +274,7 @@ const BackgroundUploader = {
         if (this.isUploading || !tasks.length) return;
         clearTimeout(this.finishTimer);
         document.getElementById('uploadStopNotice')?.remove();
+        document.getElementById('uploadResultNotice')?.remove();
         this.isUploading = true;
         this.stopRequested = false;
         this.controller = new AbortController();
@@ -349,7 +379,8 @@ const BackgroundUploader = {
             this.failedFiles.forEach(item => UploadUI.retainedTasks.set(item.task.file, item.task));
             UploadUI.fileList = [...this.failedFiles.map(item => item.task.file), ...drafts.map(item => item.file)];
             UploadUI.individualTags = Object.fromEntries([
-                ...this.failedFiles.map(item => item.task.tags?.replace(/^uploader:\S+\s*/, '') || ''), ...drafts.map(item => item.tags)
+                ...this.failedFiles.map(item => typeof item.task.userTags === 'string'
+                    ? item.task.userTags : item.task.tags?.replace(/^uploader:\S+\s*/, '') || ''), ...drafts.map(item => item.tags)
             ].map((tags, index) => [index, tags]));
             UploadUI.videoWarnings = Object.fromEntries([
                 ...this.failedFiles.map(item => item.task.videoWarning), ...drafts.map(item => item.warning)
@@ -376,12 +407,31 @@ const BackgroundUploader = {
             details.append(heading, explanation);
             notice.append(summary, details);
             document.getElementById('uploadQueue')?.prepend(notice);
+        } else if (this.failedFiles.length || this.receiptWarnings.length) {
+            const notice = document.createElement('div');
+            notice.id = 'uploadResultNotice';
+            notice.className = 'upload-result-notice';
+            notice.setAttribute('role', 'status');
+            const summary = document.createElement('p');
+            summary.textContent = `已完成 ${success - staged} 個；待確認 ${staged} 個；失敗 ${fail} 個。`;
+            const guidance = document.createElement('p');
+            guidance.textContent = this.failedFiles.length
+                ? '未完成的原檔與設定已保留在本頁；重試會先核對原收據，已收件的檔案不會重送。請勿重新整理。'
+                : '檔案已送出，請到傳輸中心核對原收據，勿重新上傳。';
+            notice.append(summary, guidance);
+            if (this.receiptWarnings.length) {
+                const warning = document.createElement('p');
+                warning.textContent = this.receiptWarnings.join('；');
+                notice.append(warning);
+            }
+            document.getElementById('uploadQueue')?.prepend(notice);
         }
         this.isUploading = false;
         if (this.stopButton) this.stopButton.hidden = true;
-        this.updateStatus(stopped ? `已停止傳送；結果未知 ${unknown}、未送出 ${unsent}` : (staged > 0 ? '檔案已送出，Flickr 處理中' : '上傳作業結束'));
-        this.updateProgress(stopped ? success / this.totalFiles * 100 : 100);
+        this.updateStatus(stopped ? `已停止傳送；結果未知 ${unknown}、未送出 ${unsent}` : (this.failedFiles.length ? `上傳作業結束，未完成 ${this.failedFiles.length} 個` : (staged > 0 ? '檔案已送出，Flickr 處理中' : '上傳作業結束')));
+        this.updateProgress(this.totalFiles ? success / this.totalFiles * 100 : 0);
         if (stopped && this.percentText) this.percentText.textContent = '已停止';
+        else if (this.failedFiles.length && this.percentText) this.percentText.textContent = `待處理 ${this.failedFiles.length} 個`;
         this.finishTimer = setTimeout(() => {
             alert(message);
             this.hideGlobalBar();
@@ -461,7 +511,7 @@ const BackgroundWorker = {
             }
 
             this.updateStatus(failedCount ? `刪除未全部完成：成功 ${succeeded.length}、未完成 ${failedCount}` : `已確認刪除 ${succeeded.length} 個`);
-            this.updateProgress(100);
+            this.updateProgress(total ? (succeeded.length / total) * 100 : 0);
 
             setTimeout(() => {
                 // A previous result must not hide the progress bar or reload
@@ -538,6 +588,23 @@ const UploadUI = {
 
         if (!this.dropzone || !this.fileInput) return;
 
+        document.getElementById('queueList')?.addEventListener('focusin', () => this.revealFocusedTag());
+        window.addEventListener('resize', () => this.revealFocusedTag());
+        window.visualViewport?.addEventListener('resize', () => this.revealFocusedTag());
+
+        if (CONFIG.ACCOUNT_MODE) {
+            const name = window.TimehutAccounts.status().user?.displayName || '';
+            const input = document.getElementById('uploaderValue');
+            const label = document.querySelector('#uploaderDisplay .uploader-name');
+            if (input) input.value = name;
+            if (label) label.textContent = name || '請先登入';
+            if (window.TimehutAccounts.status().native) {
+                document.getElementById('nativeBackgroundUploadLink')?.removeAttribute('hidden');
+                const submit = document.getElementById('startUploadBtn');
+                if (submit) submit.textContent = '網頁傳送（保持開啟）';
+            }
+        }
+
         // 點擊 dropzone 觸發檔案選擇
         this.dropzone.addEventListener('click', () => {
             this.fileInput.click();
@@ -583,6 +650,26 @@ const UploadUI = {
     // injectStyles removed
 
 
+    revealFocusedTag() {
+        requestAnimationFrame(() => {
+            const input = document.activeElement;
+            if (!input?.matches('.queue-item-tags') || !input.getBoundingClientRect().height) return;
+            const footer = this.modal?.querySelector('.queue-actions');
+            for (const region of [document.getElementById('queueList'), input.closest('.upload-options'), input.closest('.upload-sheet-scroll')]) {
+                if (!region || region.scrollHeight <= region.clientHeight) continue;
+                const box = region.getBoundingClientRect(), field = input.getBoundingClientRect();
+                const top = box.top + region.clientTop;
+                let bottom = top + region.clientHeight;
+                if (footer && getComputedStyle(footer).position === 'sticky') {
+                    const actions = footer.getBoundingClientRect();
+                    if (actions.top > top && actions.left < field.right && actions.right > field.left) bottom = Math.min(bottom, actions.top);
+                }
+                if (field.bottom > bottom - 8) region.scrollTop += field.bottom - bottom + 8;
+                else if (field.top < top + 8) region.scrollTop -= top + 8 - field.top;
+            }
+        });
+    },
+
     /**
      * 填充相簿選擇下拉選單 - 從 CONFIG.CHILDREN 讀取，預設為當前相簿
      */
@@ -598,6 +685,7 @@ const UploadUI = {
     },
 
     async addFiles(files) {
+        const previousCount = this.fileList.length;
         for (const file of files) {
             if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) continue;
             // 檢查是否已存在
@@ -614,6 +702,7 @@ const UploadUI = {
                 }
             }
         }
+        if (this.fileList.length !== previousCount) document.getElementById('uploadResultNotice')?.remove();
         this.renderFileList();
         this.showUploadQueue();
     },
@@ -654,6 +743,7 @@ const UploadUI = {
         // Preserve per-file labels before indices shift after a removal.
         document.querySelectorAll('.queue-item-tags').forEach(input => { this.individualTags[input.dataset.fileIndex] = input.value; });
         this.fileList.splice(index, 1);
+        document.getElementById('uploadResultNotice')?.remove();
         const reindex = values => Object.fromEntries(Object.entries(values).filter(([key]) => Number(key) !== index).map(([key, value]) => [Number(key) > index ? Number(key) - 1 : key, value]));
         this.individualTags = reindex(this.individualTags);
         this.videoWarnings = reindex(this.videoWarnings);
@@ -683,6 +773,7 @@ const UploadUI = {
 
         (this.previewUrls || []).forEach(url => URL.revokeObjectURL(url));
         this.previewUrls = [];
+        const failures = new Map(BackgroundUploader.failedFiles.map(item => [item.task.file, item]));
         queueList.innerHTML = this.fileList.map((file, index) => {
             const isImage = file.type.startsWith('image/');
             const isVideo = file.type.startsWith('video/');
@@ -694,6 +785,9 @@ const UploadUI = {
             // P1: In individual mode, show per-file tag input with preserved value
             const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
             const savedTag = escape(this.individualTags[index] || '');
+            const failure = failures.get(file);
+            const statusLabels = {failed:'傳送失敗 · 原檔已保留，可沿用原設定重試', unknown:'收件結果未知 · 保留原檔，先查原收據', not_sent:'尚未送出 · 原檔與設定已保留'};
+            const retryStatus = failure ? `<div class="queue-retry-status" title="${escape(failure.reason)}">${escape(statusLabels[failure.state] || '未完成 · 原檔已保留')}</div>` : '';
             const tagInput = this.taggingMode === 'individual'
                 ? `<input type="text" class="queue-item-tags" data-file-index="${index}" placeholder="此照片的標籤..." value="${savedTag}" ${this.retainedTasks.has(file) ? 'readonly title="重試沿用原始上傳設定"' : ''}>`
                 : '';
@@ -709,6 +803,7 @@ const UploadUI = {
                         <button class="queue-remove" onclick="UploadUI.removeFile(${index})">✕</button>
                     </div>
                     ${warningText}
+                    ${retryStatus}
                     ${tagInput}
                     <div class="progress-container">
                         <div class="progress-bar" id="progress-bar-${index}"></div>
@@ -872,7 +967,8 @@ const UploadUI = {
 
             // Uploader tag
             const uploaderInput = document.getElementById('uploaderValue');
-            const uploader = uploaderInput ? uploaderInput.value : '爸爸';
+            const uploader = CONFIG.ACCOUNT_MODE ? window.TimehutAccounts.status().user?.displayName : (uploaderInput ? uploaderInput.value : '爸爸');
+            if (!uploader) throw new Error('請先登入帳戶再上傳');
             const uploaderTag = `uploader:${uploader}`;
 
             if (this.taggingMode === 'individual') {
@@ -881,7 +977,7 @@ const UploadUI = {
                     const tagInput = document.querySelector(`input[data-file-index="${i}"]`);
                     const fileTags = tagInput ? tagInput.value : '';
                     const tags = `${uploaderTag} ${fileTags}`.trim();
-                    tasks.push({ file, albumId, tags, index: i }); // Add index for progress tracking
+                    tasks.push({ file, albumId, tags, userTags: fileTags, index: i }); // Keep the original field independent of the uploader name.
                 }
             } else {
                 const tagsInput = document.getElementById('tagsInput');
@@ -889,7 +985,7 @@ const UploadUI = {
                 const tags = `${uploaderTag} ${batchTags}`.trim();
 
                 this.fileList.forEach((file, index) => {
-                    tasks.push({ file, albumId, tags, index: index }); // Add index for progress tracking
+                    tasks.push({ file, albumId, tags, userTags: batchTags, index: index }); // Keep the original field for a retained retry.
                 });
             }
 
@@ -916,6 +1012,7 @@ const UploadUI = {
 
     clearQueue() {
         document.getElementById('uploadStopNotice')?.remove();
+        document.getElementById('uploadResultNotice')?.remove();
         this.fileList = [];
         this.retryAlbumId = null;
         this.individualTags = {}; this.videoWarnings = {};

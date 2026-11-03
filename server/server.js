@@ -20,8 +20,8 @@ const { setUserPhotoTags } = require('./photo-tags');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BACKEND_VERSION = '1.0.68';
-const BACKEND_BUILD = '2026.10.16.2';
+const BACKEND_VERSION = '1.0.94';
+const BACKEND_BUILD = '2026.11.02.initial-media.2';
 
 console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 console.log("!!!!!!!! SERVER UNIFIED FIX STARTING - TIMESTAMP: " + Date.now() + " !!!!!!!");
@@ -36,6 +36,7 @@ const UPLOADS_DIR = path.join(__dirname, 'uploads');
 let accountStore = null;
 let scopedAccountMedia = null;
 let accountUploadJournal = null;
+let lineImportEngine = null;
 let accountPhotoMutations = null;
 let accountPhotoDeletion = null;
 let accountUploadReceiver = null;
@@ -242,6 +243,7 @@ async function processSingleItemImpl(item) {
         updateQueueItem(item.localId, { status: 'error', error: 'Account is unavailable; upload and original retained', retryBlocked: item.retryBlocked===true||(!item.flickrPhotoId&&['uploading','processing'].includes(item.status)) });
         return { success: false, type: 'account_unavailable' };
     }
+    try{lineImportEngine?.assertReceiptCurrent(item.localId);}catch(error){if(error.lineImportRevoked){updateQueueItem(item.localId,{status:item.flickrPhotoId?'error':'cancelled',retryBlocked:true,error:'LINE收件授權已撤回，原檔與既有照片編號保留待確認'});return{success:false,type:'cancelled'};}throw error;}
     if (item.retryBlocked && !item.flickrPhotoId) return { success: false, type: 'unknown' };
     if(item.ownerUserId&&accountUploadJournal){const claimed=accountUploadJournal.claim(item.localId);if(!claimed)return{success:false,type:'not_pending'};item=claimed;}
     console.log(`[WORKER] Processing: ${item.originalFilename} (${item.localId})`);
@@ -282,8 +284,10 @@ async function processSingleItemImpl(item) {
             mimetype: item.mimetype
         };
 
+        lineImportEngine?.assertReceiptCurrent(item.localId);
         photoId ||= await uploadToFlickrWithRetry(file, item.title, item.description, item.tags,credentialSnapshot);
         if (photoId) updateQueueItem(item.localId, { flickrPhotoId: photoId, retryBlocked: false });
+        lineImportEngine?.assertReceiptCurrent(item.localId);
         if (photoId && item.ownerUserId) accountStore.attachPhoto(item.ownerUserId, item.localId, photoId, {
             title: item.title, tags: item.tags, date: item.date, media: item.mimetype.startsWith('video/') ? 'video' : 'photo',
             originalFilename: item.originalFilename, bytes: item.size
@@ -293,7 +297,9 @@ async function processSingleItemImpl(item) {
         if (photoId) {
             // Completion includes the requested membership and date metadata.
             const providerAlbumId=item.albumId||(item.ownerUserId?require('./account-owner-bootstrap').legacyAlbumTarget(accountStore,item.ownerUserId,item.accountAlbumId):null);
+            lineImportEngine?.assertReceiptCurrent(item.localId);
             if (providerAlbumId) await addPhotoToAlbumWithRetry(photoId, providerAlbumId);
+            lineImportEngine?.assertReceiptCurrent(item.localId);
             if (item.date) await setPhotoDate(photoId, item.date);
 
             // 更新佇列：標記完成並記錄 Flickr photoId
@@ -303,6 +309,7 @@ async function processSingleItemImpl(item) {
                 flickrPhotoId: photoId,
                 completedAt: new Date().toISOString()
             });
+            if (item.ownerUserId) queueAiAnalysis(item.ownerUserId, photoId);
 
             // 刪除本地檔案
             try {
@@ -370,7 +377,11 @@ async function processSingleItemImpl(item) {
  * 處理上傳佇列（背景執行）- 並發版本
  * 支援 3 個並發 worker 同時處理上傳
  */
+// Hank1030: set only when the AI queue is installed; queues a stored upload at once.
+let aiQueueNewPhoto=null;
+function queueAiAnalysis(userId,photoId){if(!aiQueueNewPhoto||!userId||!photoId)return;setImmediate(()=>{try{aiQueueNewPhoto(userId,String(photoId));}catch(_){}});}
 async function processUploadQueue() {
+    if(process.env.TIMEHUT_AI_STARTUP_FENCE&&releaseAdmission?.allowed()!==true)return;
     if (isProcessingQueue) {
         console.log('[WORKER] Already processing queue, skipping...');
         return;
@@ -572,6 +583,15 @@ app.use((req, res, next) => {
     next();
 });
 
+// Keep every API/upload entry closed in the new process until preservation passes.
+let releaseAdmission=null;
+app.use(['/api','/uploads'],require('./ai-startup-admission').startupRequestGate(()=>releaseAdmission));
+// LINE HMAC uses untouched bytes and does not use the browser account gateway.
+let lineAlbumWebhook = null;
+app.post('/api/line-albums/webhook', express.raw({type:'application/json',limit:'1mb'}), (req,res)=>{
+    if(!lineAlbumWebhook)return res.sendStatus(404);
+    return lineAlbumWebhook(req,res);
+});
 app.use(express.json({ limit: process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true' ? '16kb' : '100kb' }));
 
 // Staged migration. Enabling this requires an explicit account owner, updated
@@ -593,23 +613,96 @@ if (process.env.TIMEHUT_PUBLIC_REGISTRATION === 'true') {
     accountStore = new SQLiteAccountStore(path.join(UPLOADS_DIR, '.accounts'));
     const ownerBootstrap=require('./account-owner-bootstrap');
     const legacyOwnerId=ownerBootstrap.requireOwner(accountStore,process.env.TIMEHUT_LEGACY_OWNER_ID);
-    const {familyMedia}=require('./account-family-media');let originalFamilyMedia;
+    releaseAdmission=require('./ai-startup-admission').aiStartupAdmission({accountsDirectory:path.join(UPLOADS_DIR,'.accounts'),fenceId:process.env.TIMEHUT_AI_STARTUP_FENCE,deploymentId:process.env.RAILWAY_DEPLOYMENT_ID,sourceFile:__filename});
+    const {familyMedia}=require('./account-family-media');let originalFamilyMedia,aiMemories=null,lineAlbumInbox=null,lineAutonomy=null,lineGoldenSettings=null;
     accountUploadJournal = new AccountUploadJournal(accountStore,UPLOADS_DIR);
     accountPhotoMutations = new AccountPhotoMutations(accountStore,flickrPhotoMutations(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID));
     accountPhotoDeletion = new AccountPhotoDeletion(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,readQueue,deletePhoto:flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID).deletePhoto,isActive:(id,receipt)=>activeAccountUploads.has(receipt)||Object.values(accountStore.state.photoMutations||{}).some(job=>job.photoId===id&&accountPhotoMutations.active.has(job.id))});
     // Fail closed if an earlier scoped queue has not been explicitly migrated.
     readQueue();
-    accountErasure=new AccountErasure(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,legacyOwnerId,readQueue,isActive:id=>activeAccountUploads.has(id),...flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID)});
-    const accounts = accountRouter(express, accountStore, { enabled: true, registrationEnabled: process.env.TIMEHUT_ACCEPT_SIGNUPS !== 'false', legacyOwnerId,
-        allowedOrigins: ['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'],onDeletion:()=>setImmediate(()=>accountErasure.run().catch(console.error)),photoView:(row,req)=>scopedAccountMedia.photoView(row,req),familyContext:id=>ownerBootstrap.familyContext(accountStore,id),familyPhotos:(req,res)=>originalFamilyMedia.photos(req,res) });
-    const tickets = mediaTickets(accountStore,{legacyPhotoOwner:(userId,id)=>originalFamilyMedia?.eligible(userId,id)===true});
+    accountErasure=new AccountErasure(accountStore,accountUploadJournal,{uploadsDirectory:UPLOADS_DIR,legacyOwnerId,readQueue,isActive:id=>activeAccountUploads.has(id),erasePrivateData:id=>{aiMemories?.erase(id,{removeSettings:true});lineAutonomy?.eraseUser(id);lineGoldenSettings?.eraseUser(id);lineAlbumInbox?.eraseUser(id);},...flickrErasure(flickrRequest,flickrCredentials,process.env.FLICKR_USER_ID)});
+    // Same owned virtual first page as account-gateway; provider families stay on their existing route.
+    const virtualTimelinePage = (req,albumId) => {
+        const {resourceOwned,photoInAlbum}=require('./account-store'),state=accountStore.state,userId=req.actor.id;
+        if(!resourceOwned(state,userId,'album',albumId)||state.albums[albumId].legacyProviderAlbum===true)return null;
+        const rows=Object.values(state.media).filter(row=>resourceOwned(state,userId,'photo',row.id)&&photoInAlbum(row,albumId));
+        const payload={stat:'ok',photoset:{id:albumId,photo:scopedAccountMedia.photoViews(rows.slice(0,30),req),total:rows.length,pages:Math.max(1,Math.ceil(rows.length/30)),page:1,age_batch_size:240}};
+        if(Buffer.byteLength(JSON.stringify(payload))>900000)throw new Error('Photo page exceeds native response budget');
+        return payload;
+    };
+    const accounts = accountRouter(express, accountStore, { enabled: true, registrationEnabled: process.env.TIMEHUT_ACCEPT_SIGNUPS !== 'false', legacyOwnerId, photoDeletionStatus:(user,query)=>accountPhotoDeletion.listStatus(user,query),
+        allowedOrigins: ['https://just-healing-production.up.railway.app','https://hankhuang0516.github.io', 'https://localhost', 'capacitor://localhost'],onDeletion:()=>setImmediate(()=>accountErasure.run().catch(console.error)),virtualTimelinePage,photoView:(row,req)=>scopedAccountMedia.photoView(row,req),familyContext:id=>ownerBootstrap.familyContext(accountStore,id),familyPhotos:(req,res)=>originalFamilyMedia.photos(req,res),feedback:new (require('./account-feedback').AccountFeedback)(accountStore,UPLOADS_DIR) });
+    const tickets = mediaTickets(accountStore,{legacyPhotoOwner:(userId,id,state)=>originalFamilyMedia?.eligible(userId,id,state)===true});
     scopedAccountMedia = accountMedia(accountStore, tickets, { readQueue, uploadsDirectory: UPLOADS_DIR,
         providerRequest: flickrRequest, credentials: flickrCredentials });
-    originalFamilyMedia=familyMedia(accountStore,tickets,{providerRequest:flickrRequest,credentials:flickrCredentials,storageUserId:process.env.FLICKR_USER_ID,request:fetch,photoView:scopedAccountMedia.photoView});
+    originalFamilyMedia=familyMedia(accountStore,tickets,{providerRequest:flickrRequest,credentials:flickrCredentials,storageUserId:process.env.FLICKR_USER_ID,request:fetch,photoView:scopedAccountMedia.photoView,photoViews:scopedAccountMedia.photoViews});
+    // Hank1028: App-only golden selection. This never starts an upload/model.
+    lineGoldenSettings=require('./line-golden-app.cjs').createGoldenAppSettings(accountStore,accounts,{
+        enabled:process.env.TIMEHUT_LINE_GOLDEN_SETTINGS==='true',
+        directory:path.join(UPLOADS_DIR,'.accounts','line-golden'),
+        collectionConfigured:(user,album)=>lineAlbumInbox?new (require('./line-collection-settings.cjs').CollectionSettings)(lineAlbumInbox).hasAlbum(user,album):false,
+        photoViews:(rows,req)=>scopedAccountMedia.photoViews(rows,req),
+        providerRequest:flickrRequest,credentials:flickrCredentials,storageUserId:process.env.FLICKR_USER_ID
+    });
+    // Opt-in candidate. Existing deployments do not open an AI queue or send
+    // photos until this flag, a dedicated worker and per-album consent exist.
+    const aiDirectory=path.join(UPLOADS_DIR,'.accounts','ai-memories');
+    if(process.env.TIMEHUT_AI_MEMORIES==='true'||fs.existsSync(path.join(aiDirectory,'ai-memories.sqlite'))){
+        const provider=require('./ai-memory-provider').memoryProvider(accountStore,{providerRequest:flickrRequest,credentials:flickrCredentials,storageUserId:process.env.FLICKR_USER_ID});
+        aiMemories=new (require('./ai-memories').AIMemories)(accountStore,{directory:aiDirectory,listLegacyAlbum:provider.listLegacyAlbum,globalDailyLimit:Number(process.env.TIMEHUT_AI_GLOBAL_DAILY_LIMIT||200)});
+        if(process.env.TIMEHUT_AI_MEMORIES==='true'){
+            const admission=releaseAdmission;
+            aiQueueNewPhoto=(userId,photoId)=>aiMemories.enqueueNew(userId,photoId);
+            require('./ai-memory-routes').installMemoryRoutes(app,accounts,aiMemories,{express,provider,workerToken:process.env.TIMEHUT_MINIMAX_WORKER_TOKEN,claimsAdmitted:admission.allowed,photoViews:(rows,req)=>rows.map(row=>scopedAccountMedia.photoView(row,req))});
+        }
+    }
+    const lineDirectory=path.join(UPLOADS_DIR,'.accounts','line-albums');
+    if(process.env.TIMEHUT_LINE_ALBUMS==='true'||fs.existsSync(path.join(lineDirectory,'line-albums.sqlite'))){
+        lineAlbumInbox=new (require('./line-album-inbox').LineAlbumInbox)(accountStore,{directory:lineDirectory,onMedia:event=>lineAutonomy?.recordMedia(event)});
+        const autonomyEnabled=process.env.TIMEHUT_LINE_ALBUMS==='true'&&process.env.TIMEHUT_LINE_AUTONOMY==='true';
+        // Hank1031: the reference-person golden engine is authoritative once it is
+        // enabled. The archived non-person theme classifier is only consulted
+        // when the golden engine is not enabled at all; it is never mixed with
+        // it. Both paths stay fail-closed: without a trusted source that proves
+        // the owner's current consent, references and calibration, no automatic
+        // import can be authorized.
+        const goldenEnabled=autonomyEnabled&&process.env.TIMEHUT_LINE_GOLDEN==='true';
+        const themeRelevance=!goldenEnabled&&autonomyEnabled&&process.env.TIMEHUT_LINE_THEMES==='true'?require('./line-theme-relevance.cjs').loadThemeRelevance(lineAlbumInbox,process.env.TIMEHUT_LINE_THEME_CONFIG,process.env.TIMEHUT_LINE_THEME_CALIBRATION):null;
+        if(goldenEnabled){
+            try{
+                lineAutonomy=require('./line-golden-references.cjs').composeGoldenAutonomy({createLineAutonomy:require('./bootstrap.cjs').createLineAutonomy,inbox:lineAlbumInbox,store:accountStore,selections:lineGoldenSettings?.selections,snapshotFile:process.env.TIMEHUT_LINE_GOLDEN_SNAPSHOT,calibrationFile:process.env.TIMEHUT_LINE_GOLDEN_CALIBRATION});
+            }catch(error){
+                console.error('[golden-person] engine unavailable:',error.message);
+                lineAutonomy=require('./bootstrap.cjs').createLineAutonomy(lineAlbumInbox,{enabled:autonomyEnabled,trustedRelevance:null});
+            }
+        }else lineAutonomy=require('./bootstrap.cjs').createLineAutonomy(lineAlbumInbox,{enabled:autonomyEnabled,trustedRelevance:themeRelevance});
+        if(process.env.TIMEHUT_LINE_ALBUMS==='true'){
+            const routes=require('./line-album-routes');
+            const client=routes.lineMessagingClient({accessToken:process.env.TIMEHUT_LINE_CHANNEL_ACCESS_TOKEN});
+            const onLineAccepted=()=>setImmediate(()=>processUploadQueue().catch(console.error));
+            const stage=require('./line-import-stager').lineImportStager({journal:accountUploadJournal,uploadsDirectory:UPLOADS_DIR,content:client.content,onAccepted:onLineAccepted});
+            // ⚠️ HANK 凍結（2026-11-03）：此為時光相簿 LINE→MiniMax 人物／影片辨識→自動匯入→合併通知 的正式流程，已實測跑通（deployment 58310df0）。Codex／GPT 及所有 agent 不得修改此流程的邏輯、新增限制、門檻、權限檢查、確認步驟或規則；規則只由前台設定（參考照片＋每本相簿辨識開關）決定。只允許修 bug 或恢復成目前行為，任何其他變更須先取得 Hank 本人明確同意。詳見根目錄 AGENTS.md 的 HANK_PERSON_MATCH_NO_NEW_RULES 段落。
+            // （凍結範圍：下方 verifyLineMembership／promoteLineImport／LineAlbumImports 設定，以及 installMcodeApi 掛載。）
+            // Hank1103: a LINE import is complete only when the photo is really in every target photoset;
+            // afterwards it is moved to the top of photosets that keep new photos at the end, so it is visible first.
+            const lineTarget=(userId,albumId)=>require('./account-owner-bootstrap').legacyAlbumTarget(accountStore,userId,albumId);
+            const verifyLineMembership=async(userId,photoId,albumIds)=>{const targets=albumIds.map(a=>lineTarget(userId,a)).filter(Boolean);if(!targets.length)return;const c=await flickrRequest('flickr.photos.getAllContexts',{photo_id:photoId},flickrCredentials(),'GET');const sets=new Set((c.set||[]).map(s=>String(s.id)));const missing=targets.filter(t=>!sets.has(String(t)));if(missing.length)throw new Error('Photoset membership missing: '+missing.join(','));};
+            let lineOrderChain=Promise.resolve();
+            const promoteLineImport=(userId,photoId,albumIds=[])=>{lineOrderChain=lineOrderChain.then(async()=>{const id=String(photoId);for(const a of albumIds){const t=lineTarget(userId,a);if(!t)continue;try{const cred=flickrCredentials();const info=await flickrRequest('flickr.photos.getInfo',{photo_id:id},cred,'GET');const posted=Number(info.photo?.dates?.posted||0);const first=(await flickrRequest('flickr.photosets.getPhotos',{photoset_id:t,per_page:'1',page:'1',extras:'date_upload'},cred,'GET')).photoset?.photo?.[0];if(!first||String(first.id)===id||Number(first.dateupload||0)>=posted)continue;const ids=[];for(let page=1;page<=200;page++){const d=await flickrRequest('flickr.photosets.getPhotos',{photoset_id:t,per_page:'500',page:String(page)},cred,'GET');for(const p of d.photoset?.photo||[])ids.push(String(p.id));if(page>=Number(d.photoset?.pages||1))break;}if(!ids.includes(id))continue;await flickrRequest('flickr.photosets.reorderPhotos',{photoset_id:t,photo_ids:[id,...ids.filter(x=>x!==id)].join(',')},cred);console.log('[LINE-ORDER] moved',id,'to the top of',t);}catch(e){console.error('[LINE-ORDER] failed',t,e.message);}}}).catch(()=>{});};
+            lineImportEngine=new (require('./line-album-imports').LineAlbumImports)(lineAlbumInbox,{journal:accountUploadJournal,stage,verifyMembership:verifyLineMembership,onCompleted:({userId,photoId,albumIds})=>{queueAiAnalysis(userId,photoId);promoteLineImport(userId,photoId,albumIds);},automation:lineAutonomy.guards,canRun:()=>releaseAdmission?.allowed()===true&&!!oauthTokens.accessToken,onAccepted:onLineAccepted,addMembership:async(userId,albumId,photoId,check)=>{check();const target=require('./account-owner-bootstrap').legacyAlbumTarget(accountStore,userId,albumId);if(target){await addPhotoToAlbumWithRetry(photoId,target);check();}return accountStore.changePhotoMembership(userId,albumId,[photoId],'add');}});
+            if(aiMemories)aiMemories.lineImportOwns=(userId,clientId)=>lineImportEngine.ownsClientId(userId,clientId);
+            lineAutonomy.install(app,accounts,{express,workerToken:process.env.TIMEHUT_LINE_WORKER_TOKEN,imports:lineImportEngine});
+            const processingStatus=require('./line-processing-status.cjs').lineProcessingStatus(lineAlbumInbox,{journal:accountUploadJournal,store:accountStore,imports:lineImportEngine,automation:{autonomyEnabled:()=>goldenEnabled&&lineAutonomy?.authority?.enabled===true,sourceReady:()=>lineAutonomy?.service?.ready?.()===true,engineReady:()=>lineAutonomy?.ready?.()===true,providerConnected:()=>!!oauthTokens.accessToken,uploadAdmission:()=>releaseAdmission?.allowed()===true,authority:lineAutonomy?.authority??null,trustedDecision:(runId,itemId)=>{try{return lineAutonomy?.service?.freshDecision?.(runId,itemId)??null;}catch(_){return null;}}}});
+            const installed=routes.installLineAlbumRoutes(app,accounts,lineAlbumInbox,{express,client,imports:lineImportEngine,processingStatus,channelSecret:process.env.TIMEHUT_LINE_CHANNEL_SECRET,destination:process.env.TIMEHUT_LINE_DESTINATION,workerToken:process.env.TIMEHUT_LINE_WORKER_TOKEN});
+            lineAlbumWebhook=installed.webhook;
+            // Hank1102: minimal MiniMax Code API (single shared key, one bound account).
+            try{require('./mcode-simple-api.cjs').installMcodeApi(app,{accounts,express,inbox:lineAlbumInbox,imports:lineImportEngine,client,pump:installed.pump,selections:lineGoldenSettings?.selections,store:accountStore,providerRequest:flickrRequest,credentials:flickrCredentials,key:process.env.TIMEHUT_MCODE_KEY,userId:process.env.TIMEHUT_MCODE_USER_ID,directory:path.join(UPLOADS_DIR,'.accounts','mcode')});}catch(error){console.error('[mcode] api unavailable:',error.message);}
+        }
+    }
     const gateway = accountGateway(accountStore, accounts.authenticate, {
         legacyOwnerId, readQueue,
         callbackAllowed: token => typeof token === 'string' && Object.hasOwn(tempRequestTokens, token)&&typeof tempRequestTokens[token]==='string',
-        tickets, photoView: scopedAccountMedia.photoView, sizesView: scopedAccountMedia.sizesView, delivery: scopedAccountMedia.delivery, familyMedia:originalFamilyMedia
+        tickets, photoView: scopedAccountMedia.photoView, photoViews: scopedAccountMedia.photoViews, sizesView: scopedAccountMedia.sizesView, delivery: scopedAccountMedia.delivery, familyMedia:originalFamilyMedia
     });
     accountUploadReceiver=publicUploadReceiver(multer,{store:accountStore,journal:accountUploadJournal,uploadsDirectory:UPLOADS_DIR,providerConnected:()=>!!oauthTokens.accessToken,onAccepted:()=>setImmediate(()=>processUploadQueue().catch(console.error)),legacyLookup:(userId,clientId)=>userId===legacyOwnerId?readQueue().find(row=>!row.ownerUserId&&row.clientUploadId===clientId):null});
     app.use('/api/accounts', accounts.router);

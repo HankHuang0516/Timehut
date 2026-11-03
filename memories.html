@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><script src="js/capacitor-core.js"></script>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+ <title>拾光・時光相簿</title>
+ <meta name="description" content="用一句話尋找照片，每天重新發現舊回憶。">
+ <link rel="icon" href="favicon.png" type="image/png">
+ <link rel="apple-touch-icon" href="assets/app-icon-512.png">
+ <link rel="stylesheet" href="css/ai-memories.css?v=20261021.2">
+ <style>html[data-timehut-loading] [data-account-private]{visibility:hidden;pointer-events:none}</style>
+ <script src="js/accounts.js?v=20261020.ai1"></script>
+ <script src="js/account-config.js?v=20261020.ai1"></script>
+ <script defer src="js/transfers.js?v=20261016.5"></script>
+ <script defer src="js/ai-memories.js?v=20261021.2"></script>
+<link rel="stylesheet" href="css/reading-shell.css?v=20261026.1">
+<link rel="stylesheet" href="css/app-ui.css?v=20261102.ux1"><script defer src="js/app-ui.js?v=20261102.ux1"></script></head>
+<body class="app-ui">
+ <header class="memory-header"><a id="memory-back" class="memory-back" href="timeline.html"><span aria-hidden="true">‹</span><span id="memory-back-label">返回時間軸</span></a><a class="brand" href="timeline.html"><img src="assets/app-icon-192.png" alt=""><span>時光相簿</span></a><nav aria-label="主要導覽"><a href="settings.html">設定</a><a href="account.html?manage=1">我的帳戶</a></nav></header>
+ <main class="memory-shell">
+  <div class="intro"><div class="intro-copy"><span class="eyebrow">留住日常，慢慢發現</span><h1 id="memory-title">拾光</h1><p id="memory-subtitle">用一句話，找回那一刻。</p></div><img class="intro-art" src="assets/storybook-family.png" alt="" aria-hidden="true"></div>
+  <p id="memory-status" role="status" aria-live="polite">正在讀取回憶…</p>
+  <details class="panel"><summary>進階人物比對</summary><p>這是手動框選與比對工具。LINE 自動上傳請在收件設定管理參考人物。</p><a href="subjects.html">開啟進階人物比對 ›</a><p><a href="line-albums.html#line-golden">LINE 參考人物與收件設定 ›</a></p></details>
+  <section class="panel exploration home-section" aria-labelledby="exploration-title"><div><h2 id="exploration-title">回憶探索進度</h2><p id="exploration-progress">選擇相簿後，由拾光接續整理。</p></div><a href="#exploration-settings">拾光設定 <span aria-hidden="true">›</span></a><progress id="exploration-bar" value="0" max="1" aria-label="照片整理進度"></progress><small id="exploration-quota"></small></section>
+  <section class="panel daily-panel home-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title"><span aria-hidden="true">✦</span> 今天的舊照驚喜</h2><span id="daily-date"></span></div><div id="daily-memory"><p class="muted">整理好的舊照片，會在這裡和你再次相遇。</p></div></section>
+  <section class="panel home-section" aria-labelledby="search-title"><h2 id="search-title"><span aria-hidden="true">⌕</span> 想找哪一段回憶？</h2><form id="memory-search"><div class="search-row"><label class="sr-only" for="memory-query">用一句話搜尋照片</label><input id="memory-query" name="q" maxlength="200" placeholder="例如：去年狗狗在沙發上睡覺的照片"><button type="submit">尋找回憶</button></div><label class="album-filter">搜尋範圍 <select id="memory-album"><option value="">全部相簿</option></select></label><p class="muted search-note">使用已保存的描述與標籤搜尋，支援日期與同義詞。</p></form><p id="search-summary" role="status"></p><div id="memory-results" class="memory-grid"></div><div class="pagination"><button id="memory-prev" type="button" hidden>上一頁</button><span id="memory-page"></span><button id="memory-next" type="button" hidden>下一頁</button></div></section>
+  <details class="panel" id="exploration-settings"><summary>拾光設定與隱私</summary><form id="memory-settings" aria-busy="true"><p class="settings-intro">選擇要加入的相簿，其他交給拾光整理。</p><fieldset disabled><legend>加入拾光的相簿</legend><div id="memory-album-settings"></div><p class="muted selection-note">勾選：分析、搜尋與推薦；取消勾選：一併排除。</p></fieldset><div class="preferences"><label class="check"><input type="checkbox" name="analyzeExisting" checked>也整理以前上傳的照片</label><label class="check"><input type="checkbox" name="notifications">開啟本頁時提醒我查看今日回憶</label></div><div class="consent-card"><label class="check consent"><input type="checkbox" name="consent">我同意將所選相簿的縮圖交給 MiniMax 第三方 AI 產生描述與標籤。</label><p class="muted">縮圖可能包含人物與私人內容，會透過臨時圖片連結提供給 MiniMax。已送出的內容可能無法立即撤回；不同意仍可使用原有相簿。</p><a href="privacy.html">資料使用方式</a><small class="muted">原圖保留，不辨識人物身分。</small></div><button type="submit" class="save-settings" disabled>儲存拾光設定</button><p id="settings-status" role="status" aria-live="polite">正在讀取相簿與拾光設定…</p></form><button id="memory-settings-retry" type="button" class="secondary" hidden>重新讀取相簿與設定</button><details class="erase-section"><summary>清除拾光資料</summary><p>清除分析結果與偏好，並取消所有相簿的拾光選擇。相簿原圖保留。</p><button id="memory-erase" class="danger" type="button">確認清除拾光資料</button></details></details>
+ </main>
+ <dialog id="memory-viewer" aria-labelledby="memory-photo-title"><div class="viewer-header"><span>照片檢視</span><form method="dialog"><button class="close" aria-label="關閉照片">✕</button></form></div><img id="memory-photo" alt=""><div class="viewer-body"><h2 id="memory-photo-title"></h2><p id="memory-photo-date"></p><div id="memory-original-tags" class="original-tags" hidden><h3>原有標籤</h3><div class="tags"></div></div><form id="memory-edit"><label>照片描述與標籤<textarea name="description" maxlength="1200" rows="3"></textarea></label><div id="memory-edit-tags" class="tags editable-tags" aria-label="可編輯的照片標籤"></div><label>新增或修改標籤（以逗號分隔）<input name="tags" maxlength="1464" placeholder="例如：狗狗，沙發，睡覺"></label><div class="viewer-actions"><button type="submit">儲存描述與標籤</button><button id="memory-reanalyze" type="button" class="secondary">重新分析</button><button id="memory-download" type="button" class="download-action">下載原圖</button></div></form><p id="memory-photo-status" role="status" aria-live="polite"></p><p class="viewer-note">不會覆寫原有標籤</p><a class="transfer-link" href="transfer.html">查看傳輸中心 <span aria-hidden="true">›</span></a></div></dialog>
+</body>
+</html>

@@ -1,0 +1,26 @@
+.photo-viewer-tools { display:flex; align-items:center; gap:8px; padding:8px; flex:none; z-index:20; }
+.photo-viewer-tools button, .photo-viewer-load-status button { min-width:44px; min-height:44px; border:1px solid #ffffff80; border-radius:14px; background:#26312de6; color:white; padding:8px 12px; }
+.photo-viewer-tools button:disabled { opacity:.5; }
+.photo-modal #modalImage { touch-action:none; user-select:none; -webkit-user-select:none; }
+.photo-viewer-load-status { position:absolute; inset:40% 12% auto; z-index:21; padding:20px; border-radius:16px; color:white; background:#202824f0; text-align:center; }
+.photo-viewer-load-status[hidden] { display:none; }
+.photo-modal.viewer-immersive { background:#090c0b; }
+.photo-modal.viewer-immersive .modal-content { display:flex; flex-direction:row; align-items:center; gap:0; border:0; background:#090c0b; width:100%; height:100dvh; max-width:100%; max-height:100dvh; overflow:hidden; justify-content:center; padding:0; border-radius:0; }
+.photo-modal.viewer-immersive #modalImage, .photo-modal.viewer-immersive #modalVideo { width:100%; height:100%; max-width:100%; max-height:100%; object-fit:contain; border-radius:0; box-shadow:none; }
+.photo-modal.viewer-immersive .modal-info { display:none; }
+.photo-modal.viewer-immersive .photo-viewer-tools { position:absolute; top:max(8px,env(safe-area-inset-top)); left:max(8px,env(safe-area-inset-left)); right:64px; }
+.photo-modal.viewer-immersive .modal-close { top:max(8px,env(safe-area-inset-top)); right:max(8px,env(safe-area-inset-right)); width:44px; height:44px; z-index:22; }
+.photo-modal.viewer-immersive .modal-prev { left:max(8px,env(safe-area-inset-left)); z-index:20; }
+.photo-modal.viewer-immersive .modal-next { right:max(8px,env(safe-area-inset-right)); z-index:20; }
+.photo-modal.viewer-immersive .modal-page-indicator { top:auto; bottom:max(12px,env(safe-area-inset-bottom)); z-index:20; }
+@media (min-width:769px) {
+    .storybook-page .photo-modal:not(.viewer-immersive) .modal-content:not(.viewer-overview-open) { padding-top:76px; }
+    .storybook-page .photo-modal:not(.viewer-immersive) .photo-viewer-tools { position:absolute; top:12px; left:18px; max-width:calc(100% - 96px); }
+    .storybook-page .photo-modal:not(.viewer-immersive) .modal-close { background:#493326; z-index:22; }
+}
+
+.timeline-preview-failed { width:100%; height:100%; min-height:80px; border:0; border-radius:12px; background:#f5eee0; color:#6a5947; padding:12px; font:inherit; }
+
+.storybook-page .moment-photo-container img[hidden], .storybook-page .album-photo-card img[hidden], .storybook-page .photo-wrapper img[hidden], #albumCover[hidden] { display:none; }
+
+.photo-modal.viewer-immersive .modal-nav { top:50%; transform:translateY(-50%); }
