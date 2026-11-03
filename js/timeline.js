@@ -8,10 +8,22 @@ const TimelineState = {
     currentChildIndex: parseInt((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child') || '0'),
     photos: [],
     groupedPhotos: [],
-    currentPage: 1,
+    currentPage: 0,
     totalPages: 1,
     isLoading: false,
     loadRequestId: 0,
+    listGeneration: 0,
+    searchQuery: '',
+    searchTimer: null,
+    loadFailed: false,
+    failedPage: null,
+    activeLoad: null,
+    ageNavigationRequest: 0,
+    ageNavigationBusy: false,
+    ageReadMode: null,
+    inventoryRevision: null,
+    ageFilter: null,
+    ageCounts: null,
     currentModalIndex: 0,
     allPhotosFlat: [],
     momentData: new Map(), // Store moment data for album navigation
@@ -33,18 +45,221 @@ const MomentSelectionState = {
     selectedMoments: new Map() // Map of momentDataId -> { photos: [], timestamp: ... }
 };
 
+// Cross-document return bookmarks contain navigation metadata only. Photos and
+// media tickets are always re-read under the freshly admitted account context.
+const TIMELINE_RETURN_KEY = 'timehut:timeline-return:v1';
+// At most two positive, completely verified ages share one display buffer.
+// This is never an all-album pagination prefix or a media authorization proof.
+const VerifiedAgeViews=new Map();
+function clearVerifiedAgeViews(){VerifiedAgeViews.clear();}
+function ageDisplayScopeKey(){const scope=timelineReturnScope(),actor=window.TimehutAccounts?.status();return scope&&actor?.authenticated&&!actor.unconfirmed?JSON.stringify({...scope,generation:actor.generation}):null;}
+function ageSourceProofKey(proof){return JSON.stringify([proof.inventory_revision,proof.user_id,proof.album_id,proof.birth_date,proof.time_zone,proof.source_total,Object.entries(proof.age_counts).sort((a,b)=>Number(a[0])-Number(b[0]))]);}
+function prepareVerifiedAgeDisplay(years,result){
+    const key=ageDisplayScopeKey(),proof=result.ageSelection;
+    const bad=()=>Object.assign(new Error('此歲數的顯示範圍尚未確認'),{ageReadIntegrity:true});
+    if(!key||!proof||proof.complete!==true||proof.age!==years||result.photos.length!==proof.selected_total||result.total!==proof.selected_total||!result.found||result.inventoryRevision!==proof.inventory_revision)throw bad();
+    const scope=JSON.parse(key);
+    if(proof.user_id!==scope.owner||proof.album_id!==scope.album||proof.birth_date!==scope.birthDate||proof.time_zone!==scope.timeZone||!Number.isSafeInteger(proof.source_total)||proof.source_total<proof.selected_total||!proof.age_counts||proof.age_counts[years]!==proof.selected_total)throw bad();
+    const prior=[...VerifiedAgeViews.values()][0],sourceKey=ageSourceProofKey(proof);
+    if(prior&&(prior.key!==key||prior.revision!==proof.inventory_revision))clearVerifiedAgeViews();
+    else if(prior&&prior.sourceKey!==sourceKey){clearVerifiedAgeViews();throw bad();}
+    VerifiedAgeViews.delete(years);VerifiedAgeViews.set(years,{key,revision:proof.inventory_revision,sourceKey,result:{...result,photos:result.photos.slice()}});
+    while(VerifiedAgeViews.size>2)VerifiedAgeViews.delete(VerifiedAgeViews.keys().next().value);
+    const photos=[],ids=new Set();
+    for(const view of VerifiedAgeViews.values())for(const photo of view.result.photos){
+        if(ids.has(photo.id)){clearVerifiedAgeViews();throw bad();}ids.add(photo.id);photos.push(photo);
+    }
+    const pages=Math.max(1,Math.ceil(photos.length/30));
+    return {result:{photos,total:photos.length,pages,page:pages,inventoryRevision:proof.inventory_revision,ageCounts:{...proof.age_counts},ageBatchSize:480,verifiedAgeDisplay:true},filter:{years,loadedYears:[...VerifiedAgeViews.keys()].sort((a,b)=>a-b),scopeKey:key,revision:proof.inventory_revision,sourceTotal:proof.source_total}};
+}
+function jumpToVerifiedLoadedAge(years,{closeMenu}){
+    if(TimelineState.searchQuery||document.getElementById('searchInput').value.trim()||!TimelineState.ageFilter)return false;
+    const view=VerifiedAgeViews.get(years),key=ageDisplayScopeKey();
+    if(!view||!key||view.key!==key||TimelineState.ageFilter.scopeKey!==key||TimelineState.inventoryRevision!==view.revision){if(view)clearVerifiedAgeViews();return false;}
+    const selected=TimelineState.photos.filter(photo=>calculateAge(JSON.parse(key).birthDate,photoCalendarDay(photo)).years===years),ids=new Set(selected.map(photo=>photo.id));
+    if(selected.length!==view.result.photos.length||ids.size!==selected.length||view.result.photos.some(photo=>!ids.has(photo.id))){clearVerifiedAgeViews();return false;}
+    const group=TimelineState.groupedPhotos.filter(group=>Math.floor(group.sortKey/100)===years).sort((a,b)=>a.sortKey-b.sortKey)[0];
+    if(!group||!document.getElementById(`age-${group.sortKey}`))return false;
+    cancelAgeNavigation();TimelineState.loadRequestId++;TimelineState.activeLoad=null;TimelineState.isLoading=false;
+    document.getElementById('loadingIndicator').style.display='none';if(!scrollToAgeGroup(group))return false;
+    VerifiedAgeViews.delete(years);VerifiedAgeViews.set(years,view);TimelineState.ageFilter.years=years;ageNavigationStatus('');
+    if(closeMenu){document.getElementById('timeTravelMenu').style.display='none';document.getElementById('timeTravelBtn').setAttribute('aria-expanded','false');document.getElementById('timeTravelBtn').focus({preventScroll:true});}
+    return true;
+}
+for(const event of ['pagehide','timehut-account-changed'])window.addEventListener(event,clearVerifiedAgeViews);
+let timelineReturnSequence = 0;
+function timelineReturnScope(index = TimelineState.currentChildIndex) {
+    const actor = window.TimehutAccounts?.status(), child = CONFIG.CHILDREN[index];
+    if (!actor?.authenticated || actor.unconfirmed || !actor.user?.id || !child?.albumId) return null;
+    return {owner:actor.user.id, album:child.albumId,
+        birthDate:(window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${index}_birthdate`) || child.birthDate,
+        timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone};
+}
+function readTimelineReturn() {
+    try {
+        const params = new URLSearchParams(location.search), token = params.get('returnTo');
+        if (!/^[a-f0-9-]{36}$/.test(token || '')) return null;
+        const value = JSON.parse(sessionStorage.getItem(TIMELINE_RETURN_KEY) || 'null');
+        const index = CONFIG.CHILDREN.findIndex(child => child.albumId === params.get('album'));
+        const scope = timelineReturnScope(index);
+        if (!value || !scope || value.token !== token || value.version !== 1 ||
+            !Object.keys(scope).every(key => value[key] === scope[key]) ||
+            !Number.isFinite(value.at) || Date.now() < value.at || Date.now() - value.at > 30 * 60 * 1000 ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(value.day) || !Number.isInteger(value.age) || value.age < 0 || value.age > 150 ||
+            calculateAge(scope.birthDate, value.day).years !== value.age ||
+            !Number.isFinite(value.top) || Math.abs(value.top) > 10000) return null;
+        return value;
+    } catch (_) { return null; }
+}
+function rememberTimelineReturn(momentData) {
+    try {
+        const scope = timelineReturnScope(), day = photoCalendarDay(momentData.photos[0]);
+        if (!scope || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+        const node = [...document.querySelectorAll('.moment-item')].find(el => el.dataset.timelineDay === day);
+        const value = {...scope,version:1,token:crypto.randomUUID(),at:Date.now(),day,
+            age:calculateAge(scope.birthDate,day).years,top:node?.getBoundingClientRect().top || 0};
+        sessionStorage.setItem(TIMELINE_RETURN_KEY, JSON.stringify(value));
+        const url = new URL(location.href);url.searchParams.set('album',scope.album);url.searchParams.set('returnTo',value.token);
+        history.replaceState(history.state, '', url);
+        return value.token;
+    } catch (_) { return null; }
+}
+
+// Keep only the original, scope-bound reading bookmark while live search changes the view.
+let searchNavigationOrigin = null;
+function clearSearchNavigationOrigin() { searchNavigationOrigin = null; }
+function currentSearchNavigationContext() {
+    if (!searchNavigationOrigin) return undefined;
+    const origin=searchNavigationOrigin, actor=window.TimehutAccounts?.status(), scope=timelineReturnScope();
+    if (!origin.context || !origin.scope || !scope || !actor?.authenticated || actor.unconfirmed ||
+        actor.generation !== origin.generation ||
+        !['owner','album','birthDate','timeZone'].every(key=>origin.scope[key]===scope[key])) return null;
+    const saved=readTimelineReturn();
+    return saved?.token===origin.context.token && saved.album===origin.context.album ? {...origin.context} : null;
+}
+function captureSearchNavigationOrigin() {
+    if (searchNavigationOrigin) return;
+    searchNavigationOrigin={scope:timelineReturnScope(),generation:window.TimehutAccounts?.status().generation,
+        context:rememberCurrentTimelineNavigation({ignoreSearchOrigin:true})};
+}
+
+function rememberCurrentTimelineNavigation({ignoreSearchOrigin=false}={}) {
+    if (!ignoreSearchOrigin) { const original=currentSearchNavigationContext();if (original!==undefined) return original; }
+    if (TimelineState.returnRestoring || TimelineState.ageNavigationBusy || TimelineState.currentPage < 1) return null;
+    const header = Math.max(0, document.querySelector('.header')?.getBoundingClientRect().bottom || 0);
+    const node = [...document.querySelectorAll('#timelineContainer .moment-item')].find(card => {
+        const r = card.getBoundingClientRect();return r.bottom > header && r.top < innerHeight;
+    });
+    const day = node?.dataset.timelineDay;
+    const photo = TimelineState.allPhotosFlat.find(item => photoCalendarDay(item) === day);
+    if (!photo) return null;
+    const scope = timelineReturnScope(), token = rememberTimelineReturn({photos:[photo]});
+    return scope && token ? {album:scope.album, token} : null;
+}
+
+function cancelTimelineReturn({retire=true}={}) {
+    timelineReturnSequence++;
+    if (TimelineState.returnRestoring && retire) {
+        TimelineState.ageNavigationRequest++;TimelineState.ageNavigationBusy=false;TimelineState.ageReadMode=null;resumeAgeImages();
+    }
+    TimelineState.returnRestoring = false;
+    document.getElementById('timelineReturnStatus')?.remove();
+    const container = document.getElementById('timelineContainer');
+    if (container) { container.style.visibility = ''; container.removeAttribute('aria-busy'); }
+}
+window.addEventListener('timehut-account-changed', () => {
+    cancelTimelineReturn();
+    try { sessionStorage.removeItem(TIMELINE_RETURN_KEY); } catch (_) { /* Optional bookmark. */ }
+});
+window.addEventListener('pagehide', cancelTimelineReturn);
+function bindTimelineReturnLinks() {
+    if (!location.pathname.endsWith('/album.html')) return;
+    // The album's authenticated context must match before its links carry a bookmark.
+    const saved = readTimelineReturn(), album = new URLSearchParams(location.search).get('album');
+    if (!CONFIG.CHILDREN.some(child => child.albumId === album)) return;
+    const url = new URL('timeline.html', location.href);url.searchParams.set('album',album);
+    if (saved) url.searchParams.set('returnTo',saved.token);
+    for (const link of document.querySelectorAll('a[href="timeline.html"]')) link.href = url.href;
+}
+async function restoreTimelineReturn(saved) {
+    const sequence = ++timelineReturnSequence, actor = TimehutAccounts.status();
+    const expectedAuthority = {owner:actor.user?.id,generation:actor.generation};
+    const current = () => {
+        const now = TimehutAccounts.status(), scope = timelineReturnScope();
+        return sequence === timelineReturnSequence && now.authenticated && !now.unconfirmed &&
+            now.user?.id === expectedAuthority.owner && now.generation === expectedAuthority.generation &&
+            scope && ['owner','album','birthDate','timeZone'].every(key => scope[key] === saved[key]);
+    };
+    const container = document.getElementById('timelineContainer');
+    TimelineState.returnRestoring = true;container.style.visibility = 'hidden';container.setAttribute('aria-busy','true');
+    const status = document.createElement('div');status.id = 'timelineReturnStatus';status.setAttribute('role','status');status.className = 'empty-state';
+    status.textContent = '正在回到上次閱讀的位置…';
+    const stop = document.createElement('button');stop.type = 'button';stop.className = 'btn-secondary';stop.textContent = '停止返回';stop.onclick = async () => {
+        const pending = TimelineState.activeLoad;
+        cancelTimelineReturn();const stoppedAt = timelineReturnSequence;
+        if (pending) await pending;
+        if (stoppedAt === timelineReturnSequence && currentScopeMatches(saved) && TimelineState.currentPage === 0) void loadPhotos(1);
+    };
+    status.append(stop);container.before(status);
+    let restored = false;
+    try {
+        const fresh = await TimehutAccounts.request('/api/accounts/me', {expectedAuthority});
+        if (!current() || fresh.user?.id !== saved.owner) return;
+        // An authenticated age destination does not need the unrelated newest page.
+        // The age reader retains its existing ordinary-query fallback when needed.
+        if (!(CONFIG.ACCOUNT_MODE && typeof FlickrAPI.seekAlbumAge === 'function')) {
+            if (!await loadPhotos(1, {ageGuard:current}) || !current()) return;
+        }
+        await scrollToAge(saved.age, {closeMenu:true,fromReturn:true,returnGuard:current});
+        if (!current()) return;
+        const hasAge = () => TimelineState.groupedPhotos.some(group => Math.floor(group.sortKey / 100) === saved.age);
+        const findDay = () => [...container.querySelectorAll('.moment-item')].find(el => el.dataset.timelineDay === saved.day);
+        // A year can span several ordinary pages. Re-read until the recorded day
+        // exists; never manufacture a card from cached private photo metadata.
+        const deadline = Date.now() + 30000;
+        while (!findDay() && hasAge() && current() && TimelineState.currentPage < TimelineState.totalPages && Date.now() < deadline) {
+            const previousPage = TimelineState.currentPage;
+            if (!await loadPhotos(previousPage + 1, {ageGuard:current}) || TimelineState.currentPage <= previousPage) break;
+        }
+        if (!current()) return;
+        const node = findDay();
+        if (node) {
+            // Remove the temporary block before measuring the final page layout.
+            // The timeline stays hidden until finally retires the restoration UI.
+            status.remove();
+            const headerBottom = Math.max(0,document.querySelector('.header')?.getBoundingClientRect().bottom || 0);
+            restoreTimelineAnchor({day:saved.day,top:Math.max(headerBottom,Math.min(saved.top,innerHeight / 2))});
+            restored = true;
+        }
+    } catch (_) { /* Preserve the fresh view; expose a failed return explicitly. */ }
+    finally {
+        if (sequence === timelineReturnSequence) {
+            cancelTimelineReturn({retire:false});
+            TimelinePreviewQueue.schedule();
+            if (!restored && currentScopeMatches(saved)) showToast('原本的閱讀位置尚未恢復，請重新選擇歲數。','warning');
+        }
+    }
+}
+function currentScopeMatches(saved) {
+    const scope = timelineReturnScope();
+    return scope && ['owner','album','birthDate','timeZone'].every(key => scope[key] === saved[key]);
+}
+
 /**
  * 導向搜尋結果頁面
  */
 function navigateToSearch() {
     const query = document.getElementById('searchInput').value.trim();
     if (query) {
-        window.location.href = `search.html?q=${encodeURIComponent(query)}`;
+        captureSearchNavigationOrigin();
+        clearTimeout(TimelineState.searchTimer);TimelineState.searchTimer=null;
+        const target = `search.html?q=${encodeURIComponent(query)}`;
+        window.location.href = window.TimehutEntry?.navigationDestination(target,rememberCurrentTimelineNavigation()) || target;
     }
 }
 
 /**
- * 導向相集詳情頁面
+ * 導向同日照片詳情頁面
  * @param {string} momentId - Moment 識別碼
  */
 function navigateToAlbum(momentId) {
@@ -55,8 +270,16 @@ function navigateToAlbum(momentId) {
         (window.TimehutStorage?.session || sessionStorage).setItem('albumDate', momentData.dateStr);
         (window.TimehutStorage?.session || sessionStorage).setItem('albumMomentId', momentId);
         const album = CONFIG.CHILDREN[TimelineState.currentChildIndex].albumId;
-        const date = momentData.photos[0].datetaken?.split(' ')[0] || new Date(momentData.timestamp).toISOString().slice(0, 10);
-        window.location.href = `album.html?${new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex })}`;
+        const date = photoCalendarDay(momentData.photos[0]);
+        const query = new URLSearchParams({ id: momentId, album, date, child: TimelineState.currentChildIndex });
+        const photoIds = momentData.photos.map(photo => String(photo.id));
+        // Carry only bounded identifiers, never private media URLs or credentials.
+        // The next page still reads through the authenticated album endpoint.
+        if (photoIds.length <= 200 && photoIds.every(id => /^[0-9]{1,32}$/.test(id)))
+            query.set('photos', [...new Set(photoIds)].join(','));
+        const returnToken = rememberTimelineReturn(momentData);
+        if (returnToken) query.set('returnTo', returnToken);
+        window.location.href = `album.html?${query}`;
     } else {
         console.error('Moment data not found:', momentId);
     }
@@ -65,7 +288,7 @@ function navigateToAlbum(momentId) {
 /**
  * 顯示 Toast 通知
  * @param {string} message - 訊息內容
- * @param {string} type - 類型 ('success' | 'error' | 'info')
+ * @param {string} type - 類型 ('success' | 'error' | 'warning' | 'info')
  */
 function showToast(message, type = 'success') {
     // Create container if not exists
@@ -77,13 +300,14 @@ function showToast(message, type = 'success') {
     }
     const viewer = document.querySelector('.photo-modal.active .modal-info');
     container.classList.toggle('viewer-toast', Boolean(viewer));
-    if (viewer) viewer.insertBefore(container, viewer.querySelector('.modal-actions'));
+    if (viewer) viewer.prepend(container);
     else document.body.appendChild(container);
 
     // Get icon based on type
     const icons = {
         success: '✅',
         error: '❌',
+        warning: '⚠️',
         info: 'ℹ️'
     };
     const icon = icons[type] || '✅';
@@ -95,11 +319,22 @@ function showToast(message, type = 'success') {
     toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
     container.replaceChildren(toast);
 
+    // Keep viewer feedback visible until the next action or photo. Moving to a
+    // different photo clears it, so an old failure cannot label the new media.
+    if (viewer) {
+        toast.scrollIntoView({block:'nearest',behavior:'instant'});
+        return;
+    }
+
     // Auto remove after 2.5s
     setTimeout(() => {
         toast.classList.add('hide');
         setTimeout(() => toast.remove(), 300);
     }, 2500);
+}
+
+function clearViewerFeedback() {
+    document.querySelector('.toast-container.viewer-toast')?.replaceChildren();
 }
 
 /**
@@ -114,44 +349,76 @@ function toggleTimeTravelMenu() {
         menu.style.display = 'none';
     }
     document.getElementById('timeTravelBtn').setAttribute('aria-expanded', String(menu.style.display !== 'none'));
+    if(menu.style.display==='none'){cancelAgeNavigation();document.getElementById('timeTravelBtn').focus({preventScroll:true});}
 }
 
 /**
  * 填充時光旅行選單
  */
 function populateTimeTravelMenu() {
-    const list = document.getElementById('timeTravelList');
-    if (!list) return;
-
-    list.innerHTML = '';
-
-    // groupedPhotos is an array of { label, sortKey, photos: [] }
-    if (TimelineState.groupedPhotos && TimelineState.groupedPhotos.length > 0) {
-        TimelineState.groupedPhotos.forEach(group => {
-            const photoCount = group.photos.filter(photo => photo.media !== 'video').length;
-            const videoCount = group.photos.length - photoCount;
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'time-travel-item';
-            item.innerHTML = `
-                <span class="age-label">${group.label}</span>
-                <span class="photo-count">${photoCount} 張照片${videoCount ? ` · ${videoCount} 部影片` : ''}</span>
-            `;
-            item.onclick = () => {
-                // Scroll to age section header
-                const header = document.querySelector(`[data-age-label="${group.label}"]`);
-                if (header) {
-                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-                toggleTimeTravelMenu();
-            };
-            list.appendChild(item);
-        });
+    const list=document.getElementById('timeTravelList');
+    if(!list)return;
+    const child=CONFIG.CHILDREN[TimelineState.currentChildIndex];
+    const birthDate=(window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)||child.birthDate;
+    const milestones=generateAgeNavigation(birthDate);
+    list.replaceChildren();
+    for(const item of milestones){
+        const groups=TimelineState.groupedPhotos.filter(group=>Math.floor(group.sortKey/100)===item.value);
+        const count=groups.reduce((total,group)=>total+group.photos.length,0);
+        const button=document.createElement('button');button.type='button';button.className='time-travel-item';button.dataset.age=String(item.value);
+        const label=document.createElement('span');label.className='age-label';label.textContent=item.label;
+        const amount=document.createElement('span');amount.className='photo-count';
+        amount.textContent=TimelineState.ageCounts?`${TimelineState.ageCounts[item.value]||0} 筆`:TimelineState.currentPage<TimelineState.totalPages?(count?`已載入 ${count} 筆`:'尚未載入'):`${count} 筆`;
+        button.append(label,amount);button.onclick=()=>scrollToAge(item.value,{closeMenu:true});list.append(button);
     }
+}
 
-    if (list.children.length === 0) {
-        list.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">尚未載入照片</p>';
+function ageNavigationStatus(text) {
+    let status=document.getElementById('ageNavigationStatus');
+    if(!status){status=document.createElement('p');status.id='ageNavigationStatus';status.setAttribute('role','status');document.getElementById('timeTravelList')?.before(status);}
+    status.textContent=text;
+}
+
+function cancelAgeNavigation() {
+    TimelineState.ageNavigationRequest++;
+    TimelineState.ageNavigationBusy=false;
+    TimelineState.ageReadMode=null;
+    resumeAgeImages({restartInitial:true});
+    ageNavigationStatus('');syncTimelineLoadMoreControl();
+}
+
+// Pause only images that have no decoded pixels yet. The already-visible old
+// view remains usable until a correctly scoped age response replaces it.
+let ageImagePause=null;
+function ageImageScopeMatches(pause){
+    const account=window.TimehutAccounts?.status();
+    return pause&&pause.view===TimelineState.listGeneration&&pause.child===TimelineState.currentChildIndex&&pause.album===CONFIG.CHILDREN[pause.child]?.albumId&&pause.account===account?.generation&&pause.owner===account?.user?.id;
+}
+function resumeAgeImages({restore=true,restartInitial=false}={}){
+    const pause=ageImagePause;ageImagePause=null;if(!pause)return;
+    const allowed=restore&&ageImageScopeMatches(pause);
+    if(allowed)TimelinePreviewQueue.resume();else TimelinePreviewQueue.clear();
+    for(const [img,source]of pause.images){
+        if(img.dataset.timehutAgePaused!==pause.token)continue;
+        delete img.dataset.timehutAgePaused;
+        if(allowed&&img.isConnected&&img.closest('#timelineContainer')&&!img.hasAttribute('src'))img.setAttribute('src',source);
     }
+    if(allowed&&restartInitial&&pause.initialLoad&&TimelineState.currentPage===0&&!TimelineState.activeLoad&&!TimelineState.isLoading)loadPhotos(1);
+}
+function pauseAgeImages(request){
+    TimelinePreviewQueue.pause();
+    if(ageImagePause&&!ageImageScopeMatches(ageImagePause))resumeAgeImages({restore:false});
+    if(!ageImagePause){const account=window.TimehutAccounts?.status();ageImagePause={view:TimelineState.listGeneration,child:TimelineState.currentChildIndex,album:CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId,account:account?.generation,owner:account?.user?.id,token:String(request),initialLoad:TimelineState.currentPage===0&&TimelineState.isLoading,images:new Map()};}
+    ageImagePause.request=request;
+    for(const img of document.querySelectorAll('#timelineContainer .moment-photo-container img')){
+        const source=img.getAttribute('src');if(!source||img.complete||img.naturalWidth>0)continue;
+        ageImagePause.images.set(img,source);img.dataset.timehutAgePaused=ageImagePause.token;img.removeAttribute('src');
+    }
+    // An admitted old pagination response must not create a fresh batch of old
+    // images while the age query is in flight. Its late result is discarded.
+    TimelineState.loadRequestId++;TimelineState.activeLoad=null;TimelineState.isLoading=false;
+    document.getElementById('loadingIndicator').style.display='none';
+    return ageImagePause;
 }
 
 /**
@@ -161,18 +428,33 @@ function populateTimeTravelMenu() {
  * 初始化時間軸頁面
  */
 async function initTimeline() {
-    if(window.TimehutPage?.empty())return;
+    if(!new URLSearchParams(location.search).has('album')&&window.TimehutPage?.empty())return;
     const profiles=document.querySelector('.child-profiles')||document.querySelector('.profile-btn')?.parentElement;
-    if(profiles&&CONFIG.ACCOUNT_MODE){profiles.replaceChildren(...CONFIG.CHILDREN.map((child,index)=>{const button=document.createElement('button');button.className='profile-btn';button.dataset.child=String(index);button.title=child.name;button.setAttribute('aria-label',`查看 ${child.name} 的相簿`);const emoji=document.createElement('span');emoji.textContent=child.emoji;button.append(emoji);return button;}));}
+    if(profiles&&CONFIG.ACCOUNT_MODE){profiles.replaceChildren(...CONFIG.CHILDREN.map((child,index)=>{const button=document.createElement('button');button.className='profile-btn';button.dataset.child=String(index);button.title=child.name;button.setAttribute('aria-label',`查看 ${child.name} 的相簿`);const emoji=document.createElement('span');emoji.className='profile-emoji';emoji.textContent=child.emoji;button.append(emoji);return button;}));}
     // Check for URL params (e.g. tag filter)
     const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
     const tagName = urlParams.get('tag_name');
     const q = urlParams.get('q');
 
     // Get selected child from localStorage (set by album sidebar)
-    const selectedChild = (window.TimehutStorage?.local || localStorage).getItem('timehut_current_child');
+    let selectedChild=null;try{selectedChild=(window.TimehutStorage?.local||localStorage).getItem('timehut_current_child');}catch(_){/* Preferences are optional. */}
     TimelineState.currentChildIndex = selectedChild !== null ? parseInt(selectedChild, 10) : 0;
     if(!CONFIG.CHILDREN[TimelineState.currentChildIndex])TimelineState.currentChildIndex=0;
+
+    // A deep link is an explicit destination, not an optional saved preference.
+    const requestedAlbum=new URLSearchParams(location.search).get('album');
+    if(requestedAlbum!==null){
+        const requiredIndex=CONFIG.CHILDREN.findIndex(child=>child.albumId===requestedAlbum);
+        if(requiredIndex<0){
+            document.getElementById('loadingIndicator').style.display='none';
+            const empty=document.getElementById('emptyState');empty.style.display='block';
+            empty.querySelector('h3').textContent='這本相簿尚未確認';
+            empty.querySelector('p').textContent='請重新載入確認相簿，或回到帳戶選擇其他相簿。';
+            const retry=document.createElement('button');retry.type='button';retry.className='btn-secondary';retry.textContent='重新載入';retry.onclick=()=>location.reload();empty.append(retry);return;
+        }
+        TimelineState.currentChildIndex=requiredIndex;
+        try{(window.TimehutStorage?.local||localStorage).setItem('timehut_current_child',String(requiredIndex));}catch(_){/* Selection remains valid without preferences. */}
+    }
 
     // Update UI with selected child
     updateChildDisplay();
@@ -192,6 +474,10 @@ async function initTimeline() {
 
     // Clear timeout when photos are loaded
     TimelineState.loadingTimeout = loadingTimeout;
+
+    // Load the authenticated return destination before exposing a fresh list.
+    const savedReturn = readTimelineReturn();
+    if (!tagName && !q && savedReturn) { await restoreTimelineReturn(savedReturn); return; }
 
     // Load initial data
     if (tagName) {
@@ -249,7 +535,7 @@ function setupEventListeners() {
     // Search input
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
-        searchInput.addEventListener('input', debounce(handleSearch, 500));
+        searchInput.addEventListener('input', event=>{if(event.target.value.trim())captureSearchNavigationOrigin();clearTimeout(TimelineState.searchTimer);TimelineState.searchTimer=setTimeout(()=>handleSearch(event),500);});
     }
 
     // Keyboard navigation for modal
@@ -277,37 +563,9 @@ function setupEventListeners() {
     // Infinite scroll
     window.addEventListener('scroll', throttle(handleScroll, 200));
 
-    // Touch swipe for photo navigation in modal
+    // Photo gestures are scoped to the image by photo-viewer-gestures.js.
     const modal = document.getElementById('photoModal');
-    if (modal) {
-        let touchStartX = 0;
-        let touchEndX = 0;
 
-        modal.addEventListener('touchstart', (e) => {
-            touchStartX = e.changedTouches[0].screenX;
-        }, { passive: true });
-
-        modal.addEventListener('touchend', (e) => {
-            touchEndX = e.changedTouches[0].screenX;
-            handleSwipe();
-        }, { passive: true });
-
-        function handleSwipe() {
-            const swipeThreshold = 50;
-            const diff = touchStartX - touchEndX;
-
-            if (Math.abs(diff) > swipeThreshold && modal.classList.contains('active')) {
-                if (diff > 0) {
-                    // Swipe left -> Next photo
-                    navigatePhoto(1);
-                } else {
-                    // Swipe right -> Previous photo
-                    navigatePhoto(-1);
-                }
-            }
-        }
-    }
-    
     // Fix: Click background to close photo modal
     if (modal) {
         modal.addEventListener('click', (e) => {
@@ -326,6 +584,7 @@ function setupEventListeners() {
  * @param {number} index - 小孩索引
  */
 async function switchChild(index) {
+    cancelTimelineReturn();
     if (!Number.isInteger(index) || !CONFIG.CHILDREN[index]) return;
     (window.TimehutStorage?.local || localStorage).setItem('timehut_current_child', String(index));
     (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', String(index));
@@ -333,13 +592,10 @@ async function switchChild(index) {
     if (SelectionState.isSelectMode) toggleSelectMode();
     if (MomentSelectionState.isSelectMode) window.toggleMomentSelectMode();
 
-    // A previous child's pending GET must not block or populate the next view.
-    TimelineState.loadRequestId++;
-    TimelineState.isLoading = false;
+    resetTimelineView();
     TimelineState.currentChildIndex = index;
-    TimelineState.currentPage = 1;
-    TimelineState.photos = [];
-    TimelineState.groupedPhotos = [];
+    TimelineState.searchQuery='';
+    document.getElementById('searchInput').value='';
 
     (window.TimehutStorage?.session || sessionStorage).setItem('selectedChild', index);
 
@@ -350,23 +606,125 @@ async function switchChild(index) {
 /**
  * 載入照片
  */
-async function loadPhotos() {
+function retireTimelineRequests() {
+    clearTimeout(TimelineState.searchTimer);TimelineState.searchTimer=null;
+    TimelineState.ageNavigationRequest++;TimelineState.ageNavigationBusy=false;TimelineState.ageReadMode=null;resumeAgeImages();ageNavigationStatus('');TimelineState.listGeneration++;TimelineState.loadRequestId++;
+    TimelineState.activeLoad=null;TimelineState.isLoading=false;
+}
+function resetTimelineView({preserveAgeViews=false,preserveSearchOrigin=false}={}) {
+    if(!preserveSearchOrigin)clearSearchNavigationOrigin();
+    if(!preserveAgeViews)clearVerifiedAgeViews();
+    TimelinePreviewQueue.clear();
+    TimelineState.programmaticScrollTop=undefined;
+    TimelineState.loadedAlbumPrefix=null;
+    TimelineState.inventoryRevision=null;
+    resumeAgeImages({restore:false});
+    retireTimelineRequests();TimelineState.loadFailed=false;TimelineState.failedPage=null;
+    TimelineState.currentPage=0;TimelineState.totalPages=1;syncTimelineLoadMoreControl();
+    TimelineState.photos=[];TimelineState.groupedPhotos=[];TimelineState.allPhotosFlat=[];TimelineState.momentData.clear();
+    TimelineState.ageFilter=null;TimelineState.ageCounts=null;document.getElementById('ageFilterSummary')?.remove();
+    const empty=document.getElementById('emptyState');if(empty?.dataset.ageDefaultTitle!==undefined){empty.querySelector('h3').textContent=empty.dataset.ageDefaultTitle;empty.querySelector('p').textContent=empty.dataset.ageDefaultText;}
+}
+// Retain the currently visible calendar card when a later upload is sorted
+// into an earlier age. Capture at commit time so manual scrolling wins.
+function captureTimelineAnchor() {
+    const top=Math.max(0,document.querySelector('.header')?.getBoundingClientRect().bottom||0);
+    const nodes=[...document.querySelectorAll('#timelineContainer .age-group-header,#timelineContainer .moment-item')];
+    const node=nodes.find(el=>{const r=el.getBoundingClientRect();return r.bottom>top&&r.top<innerHeight;});
+    if(!node)return null;
+    return {id:node.classList.contains('age-group-header')?node.id:null,day:node.dataset.timelineDay,top:node.getBoundingClientRect().top};
+}
+function restoreTimelineAnchor(anchor) {
+    if(!anchor)return;
+    const node=anchor.id?document.getElementById(anchor.id):[...document.querySelectorAll('#timelineContainer .moment-item')].find(el=>el.dataset.timelineDay===anchor.day);
+    if(!node)return;
+    window.scrollBy({top:node.getBoundingClientRect().top-anchor.top,behavior:'instant'});
+    TimelineState.programmaticScrollTop=window.scrollY;
+}
+function syncTimelineLoadMoreControl() {
+    const loader=document.getElementById('loadingIndicator');if(!loader)return;
+    let button=document.getElementById('loadingMoreButton');
+    if(!button){button=document.createElement('button');button.id='loadingMoreButton';button.type='button';button.className='btn-secondary timeline-load-more';button.style.margin='16px auto';button.style.minHeight='48px';button.addEventListener('click',()=>void loadMorePhotos());loader.after(button);}
+    const visible=!TimelineState.searchQuery&&!TimelineState.loadFailed&&!TimelineState.ageNavigationBusy&&TimelineState.currentPage>0&&TimelineState.currentPage<TimelineState.totalPages;
+    button.hidden=!visible;button.style.display=visible?'block':'none';button.disabled=TimelineState.isLoading;
+    button.textContent=TimelineState.isLoading?'正在讀取回憶…':'載入更多回憶';button.setAttribute('aria-busy',String(TimelineState.isLoading));
+}
+function commitTimelinePage(result,page,child) {
+    if(!Array.isArray(result.photos)||!Number.isInteger(result.pages)||result.pages<1)throw Error('照片頁面尚未確認');
+    const revision=result.inventoryRevision||null;
+    if(page===1)TimelineState.initialPageOnly=result.initialPageOnly===true;
+    if(page>1&&revision!==TimelineState.inventoryRevision)
+        throw Object.assign(new Error('相簿內容已更新，請重新載入。'),{inventoryChanged:true,ageReadIntegrity:true});
+    if(page===1)TimelineState.inventoryRevision=revision;
+    const container=document.getElementById('timelineContainer');
+    const anchor=page>1?captureTimelineAnchor():null;
+    if(page===1)Array.from(container.children).filter(el=>!el.id?.includes('loading')&&!el.id?.includes('empty')).forEach(el=>el.remove());
+    TimelineState.photos=page===1?result.photos:[...new Map([...TimelineState.photos,...result.photos].map(photo=>[String(photo.id),photo])).values()];
+    TimelineState.currentPage=page;TimelineState.totalPages=result.pages;
+    const actor=window.TimehutAccounts?.status(),prior=TimelineState.loadedAlbumPrefix;
+    const effectivePage=page===1&&Number.isSafeInteger(result.page)?result.page:page;
+    const continuous=page===1||prior&&prior.page===page-1&&prior.owner===actor?.user?.id&&prior.generation===actor?.generation&&prior.albumId===child.albumId&&prior.total===result.total&&prior.pages===result.pages;
+    TimelineState.loadedAlbumPrefix=!TimelineState.initialPageOnly&&continuous&&!TimelineState.searchQuery&&!TimelineState.ageFilter&&Number.isSafeInteger(result.total)&&result.total>=0&&effectivePage>0&&TimelineState.photos.length===Math.min(effectivePage*30,result.total)?{owner:actor?.user?.id,generation:actor?.generation,albumId:child.albumId,view:TimelineState.listGeneration,birthDate:(window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)||child.birthDate,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,batchSize:[240,480].includes(result.ageBatchSize)?result.ageBatchSize:30,inventoryRevision:revision,photos:TimelineState.photos,ids:TimelineState.photos.map(photo=>photo.id),total:result.total,pages:result.pages,page:effectivePage}:null;
+
+    if(TimelineState.ageFilter&&result.ageCounts)TimelineState.ageCounts=result.ageCounts;
+    document.getElementById('loadingIndicator').style.display='none';
+    const empty=document.getElementById('emptyState');empty.style.display=TimelineState.photos.length?'none':'block';
+    if(!TimelineState.photos.length&&TimelineState.ageFilter){if(empty.dataset.ageDefaultTitle===undefined){empty.dataset.ageDefaultTitle=empty.querySelector('h3').textContent;empty.dataset.ageDefaultText=empty.querySelector('p').textContent;}empty.querySelector('h3').textContent=`${TimelineState.ageFilter.years} 歲尚無照片或影片`;empty.querySelector('p').textContent='可以選擇其他年齡，或返回完整時間軸。';}
+    if(TimelineState.photos.length){
+        TimelineState.photoBatches=calculatePhotoBatches(TimelineState.photos);
+        const birthDate=(window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)||child.birthDate;
+        TimelineState.groupedPhotos=groupPhotosByAge(TimelineState.photos,birthDate);renderTimeline({preserveAgeViews:result.verifiedAgeDisplay===true});restoreTimelineAnchor(anchor);updateAgeNavCounts();
+        (window.TimehutStorage?.session||sessionStorage).setItem('allPhotos',JSON.stringify(TimelineState.photos));
+        (window.TimehutStorage?.session||sessionStorage).setItem('allPhotosChild',String(TimelineState.currentChildIndex));
+    }
+}
+function showAgeFilter(years,{loadedYears=[years]}={}) {
+    document.getElementById('ageFilterSummary')?.remove();
+    const summary=document.createElement('div');summary.id='ageFilterSummary';summary.className='age-filter-summary';
+    const label=document.createElement('p');label.textContent=`已載入 ${loadedYears.map(age=>age===0?'新生兒':`${age} 歲`).join('、')} 的回憶`;
+    const back=document.createElement('button');back.type='button';back.className='btn-secondary';back.textContent='返回完整時間軸';
+    back.onclick=()=>{resetTimelineView();loadPhotos(1);};summary.append(label,back);document.getElementById('timelineContainer').before(summary);
+}
+function bindTimelineFailedRetry() {
+    const failure=TimelineState.failedPage,button=document.querySelector('.timeline-load-error button'),view=TimelineState.listGeneration;
+    if(!failure||!button)return;
+    button.onclick=()=>{
+        if(TimelineState.failedPage!==failure||TimelineState.listGeneration!==view||TimelineState.currentChildIndex!==failure.childIndex||CONFIG.CHILDREN[failure.childIndex]?.albumId!==failure.albumId||window.TimehutAccounts?.status().generation!==failure.accountGeneration)return;
+        if(failure.inventoryChanged){location.reload();return;}
+        loadPhotos(failure.page);
+    };
+}
+function loadPhotos(page=Math.max(1,TimelineState.currentPage),{ageGuard=null,forceInventory=false}={}) {
+    if(ageGuard&&!ageGuard())return Promise.resolve(false);
+    if(TimelineState.ageReadMode==='accelerated')return Promise.resolve(false);
+    if(TimelineState.activeLoad)return TimelineState.activeLoad;
+    const pending=loadTimelinePage(page,{ageGuard,forceInventory});TimelineState.activeLoad=pending;
+    const clear=()=>{if(TimelineState.activeLoad===pending)TimelineState.activeLoad=null;};pending.then(clear,clear);
+    return pending;
+}
+
+async function loadTimelinePage(page,{ageGuard=null,forceInventory=false}={}) {
+    if(ageGuard&&!ageGuard())return false;
     const loadingEl = document.getElementById('loadingIndicator');
     const emptyEl = document.getElementById('emptyState');
     const containerEl = document.getElementById('timelineContainer');
 
     if (TimelineState.isLoading) return;
-    TimelineState.isLoading = true;
+    TimelineState.isLoading = true;TimelineState.loadFailed=false;TimelineState.failedPage=null;syncTimelineLoadMoreControl();
+    let succeeded=false;
     const requestId = ++TimelineState.loadRequestId;
-    const childIndex = TimelineState.currentChildIndex;
-    const isCurrentRequest = () => TimelineState.loadRequestId === requestId && TimelineState.currentChildIndex === childIndex;
+    const childIndex = TimelineState.currentChildIndex,albumId=CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId,view=TimelineState.listGeneration,account=window.TimehutAccounts?.status().generation;
+    const isCurrentView=()=>TimelineState.listGeneration===view&&TimelineState.currentChildIndex===childIndex&&CONFIG.CHILDREN[childIndex]?.albumId===albumId&&window.TimehutAccounts?.status().generation===account;
+    const isCurrentRequest = () => isCurrentView()&&TimelineState.loadRequestId === requestId&&(!ageGuard||ageGuard());
+    const retireAgeLoad=()=>{if(isCurrentView()&&TimelineState.loadRequestId===requestId){TimelineState.isLoading=false;loadingEl.style.display='none';}};
+    containerEl.querySelectorAll('.timeline-load-error').forEach(el=>el.remove());
 
     // Show loading, hide empty state
     loadingEl.style.display = 'block';
     emptyEl.style.display = 'none';
 
     // Clear existing photos if first page
-    if (TimelineState.currentPage === 1) {
+    if (page === 1) {
         // Remove photo cards but keep loading/empty elements
         Array.from(containerEl.children).forEach(child => {
             if (!child.id?.includes('loading') && !child.id?.includes('empty') && !child.classList.contains('age-group-header')) {
@@ -383,55 +741,32 @@ async function loadPhotos() {
 
         if (child.albumId) {
             // Load from specific album
-            result = await FlickrAPI.getAlbumPhotos(child.albumId, TimelineState.currentPage);
+            result = await FlickrAPI.getAlbumPhotos(child.albumId, page, CONFIG.PHOTOS_PER_PAGE, {expectedAuthority:{generation:account,owner:window.TimehutAccounts?.status().user?.id},initialTimeline:page===1&&!forceInventory&&!ageGuard&&!TimelineState.ageNavigationBusy&&!TimelineState.searchQuery&&!TimelineState.ageFilter});
         } else {
             // Load public photos
-            result = await FlickrAPI.getPublicPhotos(TimelineState.currentPage);
+            result = await FlickrAPI.getPublicPhotos(page);
         }
 
-        if (!isCurrentRequest()) return;
-        TimelineState.photos = [...TimelineState.photos, ...result.photos];
-        TimelineState.totalPages = result.pages;
-
-        // Hide loading
-        loadingEl.style.display = 'none';
-
-        if (TimelineState.photos.length === 0) {
-            // Show empty state
-            emptyEl.style.display = 'block';
-        } else {
-            // P0: Calculate photo batches
-            TimelineState.photoBatches = calculatePhotoBatches(TimelineState.photos);
-
-            // Get birthdate from localStorage or use default
-            const birthDate = (window.TimehutStorage?.local || localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)
-                || child.birthDate;
-
-            // Group photos by age and render
-            TimelineState.groupedPhotos = groupPhotosByAge(TimelineState.photos, birthDate);
-            renderTimeline();
-            updateAgeNavCounts();
-
-            // Sync photos to sessionStorage for search.html to use
-            (window.TimehutStorage?.session || sessionStorage).setItem('allPhotos', JSON.stringify(TimelineState.photos));
-            (window.TimehutStorage?.session || sessionStorage).setItem('allPhotosChild', String(TimelineState.currentChildIndex));
-        }
+        if (!isCurrentRequest()) {retireAgeLoad();return false;}
+        commitTimelinePage(result,page,child);
+        succeeded=true;
 
     } catch (error) {
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) {retireAgeLoad();return false;}
+        TimelineState.loadFailed=true;
+        TimelineState.failedPage={page,childIndex,albumId,accountGeneration:account,inventoryChanged:error.inventoryChanged===true};
         console.error('Error loading photos:', error);
         loadingEl.style.display = 'none';
 
         // Show error message
         const errorEl = document.createElement('div');
-        errorEl.className = 'empty-state';
-        errorEl.innerHTML = `
-            <div class="empty-icon">⚠️</div>
-            <h3>載入失敗</h3>
-            <p>${error.message || '無法連接到 Flickr'}</p>
-            <button class="upload-btn" onclick="loadPhotos()">重試</button>
-        `;
+        errorEl.className = 'empty-state timeline-load-error';
+        const heading=document.createElement('h3'),explanation=document.createElement('p'),retry=document.createElement('button');
+        heading.textContent=error.inventoryChanged?'相簿內容已更新':'載入失敗';explanation.textContent=error.inventoryChanged?'請重新載入，以顯示目前的相簿內容。':'照片尚未載入，請檢查連線後重試。';
+        retry.className='upload-btn';retry.textContent=error.inventoryChanged?'重新載入':'重試';
+        errorEl.append(heading,explanation,retry);
         containerEl.appendChild(errorEl);
+        bindTimelineFailedRetry();
     }
 
     // Clear loading timeout and hide reload button
@@ -442,7 +777,7 @@ async function loadPhotos() {
     const reloadBtn = document.getElementById('reloadBtn');
     if (reloadBtn) reloadBtn.style.display = 'none';
 
-    TimelineState.isLoading = false;
+    TimelineState.isLoading = false;syncTimelineLoadMoreControl();
 
     // Restore scroll position if returning from album page
     const savedScrollPosition = (window.TimehutStorage?.session || sessionStorage).getItem(TimelineState.SCROLL_POSITION_KEY);
@@ -452,12 +787,18 @@ async function loadPhotos() {
             (window.TimehutStorage?.session || sessionStorage).removeItem(TimelineState.SCROLL_POSITION_KEY);
         }, 100);
     }
+    return succeeded;
 }
 
 /**
  * 處理滾動事件（無限滾動載入更多）
  */
 function handleScroll() {
+    if (TimelineState.returnRestoring) return;
+    // Programmatic age/anchor movement must not start a pagination cascade.
+    // The visible load-more control also works when the destination is at the end.
+    if(TimelineState.programmaticScrollTop!==undefined){if(Math.abs(window.scrollY-TimelineState.programmaticScrollTop)<2)return;TimelineState.programmaticScrollTop=undefined;}
+    if(TimelineState.ageNavigationBusy||TimelineState.searchQuery||TimelineState.loadFailed)return;
     // Check if we're near the bottom of the page
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
     const scrollHeight = document.documentElement.scrollHeight;
@@ -472,13 +813,15 @@ function handleScroll() {
 /**
  * 載入更多照片（下一頁）
  */
-async function loadMorePhotos() {
-    if (TimelineState.isLoading) return;
-    if (TimelineState.currentPage >= TimelineState.totalPages) return;
-
-    TimelineState.currentPage++;
-    console.log(`[PAGINATION] Loading page ${TimelineState.currentPage} of ${TimelineState.totalPages}`);
-    await loadPhotos();
+async function loadMorePhotos({ageGuard=null}={}) {
+    if(TimelineState.isLoading||TimelineState.searchQuery||TimelineState.currentPage<1||TimelineState.currentPage>=TimelineState.totalPages)return false;
+    if(TimelineState.initialPageOnly){
+        const view=TimelineState.listGeneration,account=window.TimehutAccounts?.status().generation,album=CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId;
+        if(!await loadPhotos(1,{ageGuard,forceInventory:true}))return false;
+        if(view!==TimelineState.listGeneration||account!==window.TimehutAccounts?.status().generation||album!==CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId||TimelineState.initialPageOnly)return false;
+        if(TimelineState.currentPage>=TimelineState.totalPages)return true;
+    }
+    return loadPhotos(TimelineState.currentPage+1,{ageGuard});
 }
 
 /**
@@ -487,7 +830,9 @@ async function loadMorePhotos() {
 /**
  * 渲染時間軸 (Moment Card Layout)
  */
-function renderTimeline() {
+function renderTimeline({preserveAgeViews=false}={}) {
+    if(!preserveAgeViews)clearVerifiedAgeViews();
+    TimelinePreviewQueue.clear();
     const containerEl = document.getElementById('timelineContainer');
     const loadingEl = document.getElementById('loadingIndicator');
 
@@ -511,7 +856,7 @@ function renderTimeline() {
         groupHeader.setAttribute('data-age-label', group.label);
         const groupTitle = document.createElement('h2'); groupTitle.className = 'age-group-title'; groupTitle.textContent = group.label;
         const groupCount = document.createElement('span'); groupCount.className = 'age-group-summary';
-        groupCount.textContent = `${groupPhotosToMoments(group.photos).length} 個相集 · ${group.photos.filter(photo => photo.media !== 'video').length} 張照片 · ${group.photos.filter(photo => photo.media === 'video').length} 部影片`;
+        groupCount.textContent = `${groupPhotosToMoments(group.photos).length} 組同日照片 · ${group.photos.filter(photo => photo.media !== 'video').length} 張照片 · ${group.photos.filter(photo => photo.media === 'video').length} 部影片`;
         groupHeader.append(groupTitle, groupCount);
         containerEl.insertBefore(groupHeader, loadingEl);
 
@@ -529,11 +874,12 @@ function renderTimeline() {
         });
     });
     updateMomentClickHandlers();
+    syncTimelineLoadMoreControl();
 }
 
 /**
  * 將照片分組為 Moments (Batches)
- * 規則：同一拍攝日期的照片會合併為一個相集
+ * 規則：同一拍攝日期的照片會合併為一組同日照片
  */
 function groupPhotosToMoments(photos) {
     if (!photos || photos.length === 0) return [];
@@ -548,18 +894,12 @@ function groupPhotosToMoments(photos) {
         const uploader = uploaderTag ? uploaderTag.replace('uploader:', '') : '未知';
 
         // Use datetaken for grouping, fallback to dateupload
-        let dateKey;
-        if (photo.datetaken) {
-            dateKey = photo.datetaken.split(' ')[0]; // YYYY-MM-DD
-        } else {
-            const uploadTime = parseInt(photo.dateupload) * 1000;
-            dateKey = new Date(uploadTime).toISOString().split('T')[0];
-        }
+        const dateKey = photoCalendarDay(photo);
 
         if (!momentsByDate.has(dateKey)) {
-            const photoTime = photo.datetaken
-                ? new Date(photo.datetaken).getTime()
-                : parseInt(photo.dateupload) * 1000;
+            const photoTime = dateKey === 'unknown'
+                ? new Date(photo.datetaken || Number(photo.dateupload) * 1000).getTime()
+                : new Date(dateKey + 'T12:00:00').getTime();
 
             momentsByDate.set(dateKey, {
                 uploader: uploader,
@@ -584,6 +924,7 @@ function groupPhotosToMoments(photos) {
 function createMomentCard(moment, birthDate) {
     const card = document.createElement('div');
     card.className = 'moment-item';
+    card.dataset.timelineDay=moment.dateKey;
 
     const count = moment.photos.length;
     const firstPhoto = moment.photos[0];
@@ -594,7 +935,7 @@ function createMomentCard(moment, birthDate) {
     const monthStr = months[month - 1];
 
     // Calculate precise age
-    const ageObj = calculateAge(birthDate, moment.date.split(' ')[0]);
+    const ageObj = calculateAge(birthDate, moment.dateKey);
     const age = formatAgeString(ageObj.years, ageObj.months, ageObj.days);
 
     // Store moment data for album navigation
@@ -613,7 +954,8 @@ function createMomentCard(moment, birthDate) {
 
     // Grid Logic
     let gridHtml = '';
-    const displayPhotos = moment.photos.slice(0, 5); // Show max 5 in grid
+    // Management shows every loaded photo, while the ordinary timeline keeps its collage.
+    const displayPhotos = SelectionState.isSelectMode ? moment.photos : moment.photos.slice(0, 5);
     const remaining = count - 5;
 
     // Grid class based on count (capped at 5 for layout logic)
@@ -628,7 +970,7 @@ function createMomentCard(moment, birthDate) {
         const flatIndex = moment.flatStartIndex + idx;
 
         let overlayHtml = '';
-        if (isLast && remaining > 0) {
+        if (!SelectionState.isSelectMode && isLast && remaining > 0) {
             overlayHtml = `<div class="moment-overlay" onclick="openBatchView(TimelineState.photoBatches.get('${firstPhoto.id}'))">+${remaining + 1}</div>`;
         }
 
@@ -638,7 +980,7 @@ function createMomentCard(moment, birthDate) {
         // User HTML implies "Enter Album" is a separate button at bottom.
         // Clicking images usually opens lightbox.
 
-        const clickAttr = `onclick="openModal(${flatIndex})"`;
+        const clickAttr = SelectionState.isSelectMode ? `onclick="togglePhotoSelection('${photo.id}')"` : `onclick="openModal(${flatIndex})"`;
 
         gridHtml += `
             <div class="moment-photo-container">
@@ -654,7 +996,7 @@ function createMomentCard(moment, birthDate) {
     // "Enter Album" button if count > 1 (or always? User HTML always has it)
     // Use momentDataId already declared above
     const enterAlbumHtml = count > 1 ?
-        `<div class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">進入相集 ></div>` : '';
+        `<div class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">進入同日照片 ></div>` : '';
 
     // Stats
     const photoCount = moment.photos.filter(p => !p.media || p.media === 'photo').length;
@@ -679,15 +1021,10 @@ function createMomentCard(moment, birthDate) {
             ${gridHtml}
             
             <div class="moment-footer">
-                <div class="moment-actions">
-                    <span class="moment-icon">❤️</span>
-                    <span class="moment-count">0</span>
-                    <span class="moment-icon" style="margin-left: 20px;">💬</span>
-                    <span class="moment-count">0</span>
-                </div>
+                
                 <div class="moment-stats-right">
                     <span>${statsText}</span>
-                    ${count > 1 ? `<span class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">· 進入相集 ></span>` : ''}
+                    ${count > 1 ? `<span class="moment-album-link" onclick="navigateToAlbum('${momentDataId}')">· 進入同日照片 ></span>` : ''}
                 </div>
             </div>
         </div>
@@ -712,7 +1049,7 @@ function createMomentCard(moment, birthDate) {
     const title = document.createElement('h3'); title.className = 'moment-title'; title.textContent = moment.photos[0].title || '我們的小日常';
     card.querySelector('.moment-grid').after(title);
     card.querySelectorAll('.moment-photo-container img').forEach((img, index) => {
-        img.src = FlickrAPI.getPhotoUrl(displayPhotos[index], 'm');
+        bindTimelinePreview(img,displayPhotos[index],moment.flatStartIndex+index);
         img.tabIndex = 0; img.setAttribute('role', 'button');
         img.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); img.click(); } });
         const photoId = String(displayPhotos[index].id), cell = img.parentElement;
@@ -728,6 +1065,54 @@ function createMomentCard(moment, birthDate) {
 
     return card;
 }
+
+// Only near-screen previews enter the network, with two complete preview
+// journeys at a time. Medium/large/expired-ticket fallbacks share that slot.
+const TimelinePreviewQueue={
+    jobs:new Map(),active:new Set(),observer:null,paused:false,scheduled:false,
+    clear(){
+        this.paused=true;this.observer?.disconnect();this.observer=null;
+        for(const job of this.jobs.values())this.cancel(job);
+        this.jobs.clear();this.active.clear();this.paused=false;
+    },
+    cancel(job){
+        const loading=job.state==='active';job.state='queued';job.cleanup?.();job.cleanup=null;
+        if(loading)job.img.removeAttribute('src');this.active.delete(job);
+    },
+    pause(){this.paused=true;for(const job of [...this.active])this.cancel(job);},
+    resume(){this.paused=false;this.schedule();},
+    schedule(){
+        if(this.scheduled||this.paused)return;this.scheduled=true;
+        requestAnimationFrame(()=>{this.scheduled=false;this.drain();});
+    },
+    drain(){
+        if(this.paused)return;
+        const top=Math.max(0,document.querySelector('.header')?.getBoundingClientRect().bottom||0);
+        const near=job=>{const r=job.img.getBoundingClientRect();return job.img.isConnected&&r.bottom>top-200&&r.top<innerHeight+200;};
+        const visible=job=>{const r=job.img.getBoundingClientRect();return r.bottom>top&&r.top<innerHeight;};
+        const waiting=[...this.jobs.values()].filter(job=>job.state==='queued'&&near(job));
+        waiting.sort((a,b)=>Number(visible(b))-Number(visible(a))||Math.abs(a.img.getBoundingClientRect().top-top)-Math.abs(b.img.getBoundingClientRect().top-top));
+        for(const job of waiting){
+            if(this.active.size>=2)break;
+            job.state='active';this.active.add(job);job.img.loading='eager';
+            const view=TimelineState.listGeneration;
+            job.cleanup=FlickrAPI.bindPhotoPreview(job.img,job.photo,{
+                isCurrent:()=>view===TimelineState.listGeneration&&this.jobs.get(job.img)===job&&job.state!=='queued'&&String(TimelineState.allPhotosFlat[job.flatIndex]?.id)===String(job.photo.id),
+                onOpen:()=>openModal(job.flatIndex),
+                onSettled:()=>{if(job.state==='active'){job.state='done';this.active.delete(job);this.schedule();}}
+            });
+        }
+    },
+    add(img,photo,flatIndex){
+        const job={img,photo,flatIndex,state:'queued',cleanup:null};this.jobs.set(img,job);
+        if(!this.observer&&typeof IntersectionObserver==='function')this.observer=new IntersectionObserver(()=>this.schedule(),{rootMargin:'200px 0px'});
+        this.observer?.observe(img);this.schedule();
+    }
+};
+window.addEventListener('scroll',()=>TimelinePreviewQueue.schedule(),{passive:true});
+window.addEventListener('resize',()=>TimelinePreviewQueue.schedule());
+for(const event of ['pagehide','timehut-account-changed'])window.addEventListener(event,()=>TimelinePreviewQueue.clear());
+function bindTimelinePreview(img,photo,flatIndex) {TimelinePreviewQueue.add(img,photo,flatIndex);}
 
 function createSelectionOverlay(photoId) {
     const isSelected = SelectionState.selectedPhotos.has(photoId);
@@ -794,6 +1179,7 @@ function buildAgeNavigation(birthDate) {
  * 更新年齡導航的照片數量
  */
 function updateAgeNavCounts() {
+    if(TimelineState.ageCounts){document.querySelectorAll('.age-count').forEach(item=>{item.textContent=String(TimelineState.ageCounts[item.id.replace('age-count-','')]||0);});return;}
     document.querySelectorAll('.age-count').forEach(item => { item.textContent = '0'; });
     TimelineState.groupedPhotos.forEach(group => {
         // Extract years from sortKey
@@ -806,47 +1192,223 @@ function updateAgeNavCounts() {
     });
 }
 
+// Both age controls use the actual destination group for the selected year.
+function scrollToAgeGroup(group) {
+    const headerEl = document.getElementById(`age-${group.sortKey}`);
+    if (!headerEl) return false;
+    headerEl.scrollIntoView({ behavior: 'instant', block: 'start' });
+    TimelineState.programmaticScrollTop=window.scrollY;
+    const years = Math.floor(group.sortKey / 100);
+    document.querySelectorAll('.age-item').forEach(item => {
+        item.classList.toggle('active', parseInt(item.dataset.age, 10) === years);
+    });
+    return true;
+}
+
 /**
  * 滾動到指定年齡
  * @param {number} years - 年齡（年）
  */
-function scrollToAge(years) {
-    // Find the closest matching age group
-    const targetSortKey = years * 100;
-    let closestGroup = TimelineState.groupedPhotos[0];
-    let closestDiff = Infinity;
+function currentAlbumPrefix() {
+    const prefix=TimelineState.loadedAlbumPrefix,actor=window.TimehutAccounts?.status();
+    if(!prefix||TimelineState.searchQuery||TimelineState.ageFilter||prefix.view!==TimelineState.listGeneration||prefix.birthDate!==((window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${TimelineState.currentChildIndex}_birthdate`)||CONFIG.CHILDREN[TimelineState.currentChildIndex]?.birthDate)||prefix.timeZone!==Intl.DateTimeFormat().resolvedOptions().timeZone||prefix.albumId!==CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId||prefix.owner!==actor?.user?.id||prefix.generation!==actor?.generation||prefix.photos!==TimelineState.photos||prefix.ids.length!==TimelineState.photos.length||prefix.ids.some((id,index)=>id!==TimelineState.photos[index]?.id))return null;
+    return {...prefix,photos:prefix.photos.slice()};
+}
+function jumpToLoadedAge(years,{closeMenu}) {
+    if(jumpToVerifiedLoadedAge(years,{closeMenu}))return true;
+    if(TimelineState.searchQuery||TimelineState.ageFilter||document.getElementById('searchInput').value.trim())return false;
+    const prefix=currentAlbumPrefix();if(!prefix||prefix.photos.length!==prefix.total||prefix.page!==prefix.pages)return false;
+    const group=TimelineState.groupedPhotos.filter(group=>Math.floor(group.sortKey/100)===years).sort((a,b)=>a.sortKey-b.sortKey)[0];
+    if(!group||!document.getElementById(`age-${group.sortKey}`))return false;
+    cancelAgeNavigation();TimelineState.loadRequestId++;TimelineState.activeLoad=null;TimelineState.isLoading=false;
+    document.getElementById('loadingIndicator').style.display='none';
+    if(!scrollToAgeGroup(group))return false;
+    ageNavigationStatus('');
+    if(closeMenu){document.getElementById('timeTravelMenu').style.display='none';document.getElementById('timeTravelBtn').setAttribute('aria-expanded','false');document.getElementById('timeTravelBtn').focus({preventScroll:true});}
+    return true;
+}
+// Show stable, localized guidance; native transport errors may contain hostnames.
+// Error classification and authority/fallback decisions remain in the reader.
+function ageReadFailureMessage(error) {
+    if(error?.unauthorized||error?.accountChanged||error?.status===401)return '登入狀態已變更，請重新登入後再試。';
+    if(error?.status===403||error?.status===404)return '相簿目前無法讀取，請重新整理或確認存取權限。';
+    if(error?.ageReadIntegrity)return '照片清單尚未完整確認，請重新整理後再選擇歲數。';
+    if(error?.ageReadBudgetExpired)return '讀取時間較長，請再次選擇歲數重試。';
+    if(error?.status===429)return '讀取次數較多，請稍候再試。';
+    return '照片暫時無法讀取，請確認網路連線後，再選擇歲數重試。';
+}
 
-    TimelineState.groupedPhotos.forEach(group => {
-        const diff = Math.abs(group.sortKey - targetSortKey);
-        if (diff < closestDiff) {
-            closestDiff = diff;
-            closestGroup = group;
+async function scrollToAge(years,{closeMenu=true,fromReturn=false,returnGuard=null}={}) {
+    if (!fromReturn) cancelTimelineReturn();
+    if(!Number.isInteger(years)||years<0)return;
+    clearSearchNavigationOrigin();
+    clearTimeout(TimelineState.searchTimer);TimelineState.searchTimer=null;
+    if(jumpToLoadedAge(years,{closeMenu}))return;
+    if(CONFIG.ACCOUNT_MODE&&typeof FlickrAPI.seekAlbumAge==='function'){
+        const request=++TimelineState.ageNavigationRequest,childIndex=TimelineState.currentChildIndex,child=CONFIG.CHILDREN[childIndex],view=TimelineState.listGeneration,account=window.TimehutAccounts?.status().generation;
+        const birthDate=(window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${childIndex}_birthdate`)||child.birthDate;
+        const timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone,deadline=Date.now()+90000;
+        const current=()=>(!returnGuard||returnGuard())&&request===TimelineState.ageNavigationRequest&&view===TimelineState.listGeneration&&childIndex===TimelineState.currentChildIndex&&child?.albumId===CONFIG.CHILDREN[childIndex]?.albumId&&account===window.TimehutAccounts?.status().generation&&birthDate===((window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${childIndex}_birthdate`)||child.birthDate)&&timeZone===Intl.DateTimeFormat().resolvedOptions().timeZone;
+        TimelineState.ageNavigationBusy=true;TimelineState.ageReadMode='accelerated';syncTimelineLoadMoreControl();
+        ageNavigationStatus(`正在前往 ${years} 歲的回憶…`);
+        const paused=pauseAgeImages(request);
+        let useFallback=false;
+        try{
+            const result=await FlickrAPI.seekAlbumAge(child.albumId,years,birthDate,{prefix:currentAlbumPrefix(),perPage:currentAlbumPrefix()?.batchSize||30,isCurrent:current,deadline,onProgress:({completed,pages})=>{
+                if(current())ageNavigationStatus(`正在尋找 ${years} 歲的照片，已讀取 ${completed} / ${pages} 頁；關閉選單即可停止。`);
+            }});
+            if(!current())return;
+            // A fresh complete zero leaves the previously displayed age usable.
+            // Empty/unknown destinations never enter the positive display cache.
+            if(result.ageSelection&&!result.found){ageNavigationStatus(`${years} 歲尚無照片或影片。`);return;}
+            const selectedDisplay=result.ageSelection?prepareVerifiedAgeDisplay(years,result):null;
+            if(SelectionState.isSelectMode)toggleSelectMode();if(MomentSelectionState.isSelectMode)window.toggleMomentSelectMode();
+            resumeAgeImages({restore:false});resetTimelineView({preserveAgeViews:!!selectedDisplay});TimelineState.searchQuery='';document.getElementById('searchInput').value='';
+            if(selectedDisplay){TimelineState.ageFilter=selectedDisplay.filter;showAgeFilter(years,{loadedYears:selectedDisplay.filter.loadedYears});}
+            const display=selectedDisplay?.result||result;
+            commitTimelinePage(display,1,child);TimelineState.currentPage=display.page;
+            const group=TimelineState.groupedPhotos.filter(group=>Math.floor(group.sortKey/100)===years).sort((a,b)=>a.sortKey-b.sortKey)[0];
+            if(!result.found){ageNavigationStatus(`${years} 歲尚無照片或影片。`);return;}
+            if(!group||!scrollToAgeGroup(group)){ageNavigationStatus('照片尚未顯示，請稍後再試。');return;}
+            ageNavigationStatus('');
+            if(closeMenu){document.getElementById('timeTravelMenu').style.display='none';document.getElementById('timeTravelBtn').setAttribute('aria-expanded','false');document.getElementById('timeTravelBtn').focus({preventScroll:true});}
+        }catch(error){
+            if(!current()||error.cancelled)return;
+            // Authentication/ownership failures must remain failures. Only a
+            // read-only transient or paging failure may use the original seek.
+            if(error.unauthorized||error.accountChanged||[401,403,404].includes(error.status)){
+                ageNavigationStatus(ageReadFailureMessage(error));
+            }else if(FlickrAPI.canFallbackAgeRead(error)){useFallback=true;ageNavigationStatus('正在使用原查詢尋找回憶…');}
+            else ageNavigationStatus(ageReadFailureMessage(error));
+        }finally{
+            if(request===TimelineState.ageNavigationRequest){TimelineState.ageNavigationBusy=false;TimelineState.ageReadMode=null;syncTimelineLoadMoreControl();if(!current())ageNavigationStatus('');if(ageImagePause===paused&&paused.request===request)resumeAgeImages({restartInitial:!useFallback});}
         }
-    });
-
-    if (closestGroup) {
-        const headerEl = document.getElementById(`age-${closestGroup.sortKey}`);
-        if (headerEl) {
-            headerEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        if(useFallback&&current())return scrollToAgeLegacy(years,{closeMenu,deadline,requireFreshScan:true,returnGuard});
+        return;
     }
+    return scrollToAgeLegacy(years,{closeMenu,returnGuard});
+}
 
-    // Update active state
-    document.querySelectorAll('.age-item').forEach(item => {
-        item.classList.toggle('active', parseInt(item.dataset.age, 10) === years);
-    });
+async function scrollToAgeLegacy(years,{closeMenu=true,deadline=Date.now()+90000,requireFreshScan=false,returnGuard=null}={}) {
+    // An accelerated read failure must not turn an old exhausted cursor into a negative result.
+    if(requireFreshScan)resetTimelineView();
+    if(TimelineState.searchQuery||document.getElementById('searchInput').value.trim()){resetTimelineView();TimelineState.searchQuery='';document.getElementById('searchInput').value='';}
+    const request=++TimelineState.ageNavigationRequest,child=TimelineState.currentChildIndex,album=CONFIG.CHILDREN[child]?.albumId,view=TimelineState.listGeneration;
+    const accountGeneration=window.TimehutAccounts?.status().generation;
+    const current=()=>(!returnGuard||returnGuard())&&request===TimelineState.ageNavigationRequest&&view===TimelineState.listGeneration&&child===TimelineState.currentChildIndex&&album===CONFIG.CHILDREN[child]?.albumId&&accountGeneration===window.TimehutAccounts?.status().generation;
+    const birthDate=(window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${child}_birthdate`)||CONFIG.CHILDREN[child]?.birthDate,timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const contextCurrent=()=>birthDate===((window.TimehutStorage?.local||localStorage).getItem(`timehut_child_${child}_birthdate`)||CONFIG.CHILDREN[child]?.birthDate)&&timeZone===Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const ageGuard=()=>current()&&contextCurrent()&&Date.now()<=deadline;
+    TimelineState.ageNavigationBusy=true;syncTimelineLoadMoreControl();
+    const feedback=text=>{if(text){document.getElementById('timeTravelMenu').style.display='block';document.getElementById('timeTravelBtn').setAttribute('aria-expanded','true');}ageNavigationStatus(text);};
+    const target=()=>TimelineState.groupedPhotos.filter(group=>Math.floor(group.sortKey/100)===years).sort((a,b)=>a.sortKey-b.sortKey)[0];
+    try{
+        if(!ageGuard()){if(current())feedback('尋找已停止，請再次選擇歲數重試。');return;}
+        if(TimelineState.activeLoad){const loaded=await TimelineState.activeLoad;if(!loaded){if(current())feedback('照片尚未載入，請檢查連線後重試。');return;}}
+        if(!ageGuard())return;
+        if(current()&&TimelineState.currentPage===0){const loaded=await loadPhotos(1,{ageGuard});if(!loaded){if(current())feedback('照片尚未載入，請檢查連線後重試。');return;}}
+        while(ageGuard()&&!target()&&TimelineState.currentPage<TimelineState.totalPages){
+            if(Date.now()>deadline){feedback('尋找時間較長，請再次選擇歲數重試。');return;}
+            feedback(`正在尋找 ${years} 歲的照片，已讀取 ${TimelineState.currentPage} / ${TimelineState.totalPages} 頁；關閉選單即可停止。`);
+            if(!await loadMorePhotos({ageGuard})){if(ageGuard())feedback('照片尚未載入完成，請再次點選年齡重試。');return;}
+        }
+        if(!current())return;
+        if(!ageGuard())return;
+        const group=target();
+        if(!group){
+            // A negative result needs a complete, contiguous, count-consistent scan.
+            const proof=currentAlbumPrefix();
+            const complete=proof&&proof.page===proof.pages&&proof.pages===Math.max(1,Math.ceil(proof.total/30))&&proof.photos.length===proof.total&&new Set(proof.ids).size===proof.total;
+            feedback(complete?`${years} 歲尚無照片或影片。`:'照片尚未完整讀取，請再次點選年齡重試。');return;
+        }
+        if(!scrollToAgeGroup(group)){feedback('照片尚未顯示，請稍後再試。');return;}feedback('');
+        if(closeMenu){document.getElementById('timeTravelMenu').style.display='none';document.getElementById('timeTravelBtn').setAttribute('aria-expanded','false');document.getElementById('timeTravelBtn').focus({preventScroll:true});}
+    }catch(error){if(current())feedback('照片尚未載入完成，請再次點選年齡重試。');}
+    finally{if(request===TimelineState.ageNavigationRequest){TimelineState.ageNavigationBusy=false;syncTimelineLoadMoreControl();if(!contextCurrent()||Date.now()>deadline)ageNavigationStatus('尋找已停止，請再次選擇歲數重試。');}}
 }
 
 /**
  * 打開照片 Modal
  * @param {number} index - 照片索引
  */
+const ViewerTagState = {view:0, authority:0, pending:new Map(), observed:new WeakSet()};
+const ViewerNavigationState = {transitionTimer:null, cleanupTimer:null};
+function cancelViewerNavigation() {
+    clearTimeout(ViewerNavigationState.transitionTimer);
+    clearTimeout(ViewerNavigationState.cleanupTimer);
+    ViewerNavigationState.transitionTimer = ViewerNavigationState.cleanupTimer = null;
+    document.getElementById('modalImage')?.classList.remove('swipe-left-exit','swipe-right-exit','swipe-left-enter','swipe-right-enter');
+}
+function viewerTagOwner() {
+    return window.TimehutAccounts?.status?.().user?.id || (CONFIG.ACCOUNT_MODE ? null : `legacy:${CONFIG.FLICKR_USER_ID}`);
+}
+function viewerTagKey(owner, id) { return JSON.stringify([ViewerTagState.authority, owner, String(id)]); }
+function syncViewerTagButton() {
+    const button=document.querySelector('.save-tags-btn'),input=document.getElementById('editTagsInput');
+    if (!button || !input) return;
+    const photo=TimelineState.allPhotosFlat[TimelineState.currentModalIndex],owner=viewerTagOwner();
+    const pending=photo&&owner&&ViewerTagState.pending.has(viewerTagKey(owner,photo.id));
+    button.disabled=Boolean(pending)||!owner;
+    button.textContent=pending?'⏳':'儲存標籤';
+    button.setAttribute('aria-label',pending?'正在確認標籤儲存':'儲存標籤');
+    if (!ViewerTagState.observed.has(input)) {
+        ViewerTagState.observed.add(input);
+        input.addEventListener('input',()=>{clearViewerFeedback();syncViewerTagButton();});
+    }
+}
+for (const event of ['timehut-account-changed','pagehide']) window.addEventListener(event,()=>{
+    if(event==='timehut-account-changed')resetTimelineView();
+    else {
+        // History may keep this document and its already-rendered card handlers.
+        // Retire pending responses while preserving their committed model.
+        retireTimelineRequests();
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+    }
+    cancelViewerNavigation();clearViewerFeedback();
+    ViewerTagState.authority++;ViewerTagState.view++;ViewerTagState.pending.clear();
+});
+let previewRestoreSequence=0;
+for(const event of ['pagehide','timehut-account-changed'])window.addEventListener(event,()=>previewRestoreSequence++);
+async function restoreTimelinePreviewsAfterHistory() {
+    if(TimelineState.currentPage<1||!TimelineState.groupedPhotos.length)return;
+    const state=window.TimehutAccounts?.status(),owner=state?.user?.id,generation=state?.generation;
+    const sequence=++previewRestoreSequence,view=TimelineState.listGeneration,album=CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId;
+    if(CONFIG.ACCOUNT_MODE){
+        if(!state?.authenticated||state.unconfirmed||!owner)return;
+        let fresh;try{fresh=await TimehutAccounts.request('/api/accounts/me',{expectedAuthority:{owner,generation}});}catch(_){return;}
+        const now=TimehutAccounts.status();
+        if(fresh?.user?.id!==owner||!now.authenticated||now.unconfirmed||now.user?.id!==owner||now.generation!==generation)return;
+    }
+    if(sequence!==previewRestoreSequence||view!==TimelineState.listGeneration||album!==CONFIG.CHILDREN[TimelineState.currentChildIndex]?.albumId)return;
+    // Rebind the retained DOM only. Pagination failure/retry, selection, focus
+    // and the exact viewport remain in place; history never retries metadata.
+    const indexes=new Map(TimelineState.allPhotosFlat.map((photo,index)=>[String(photo.id),index]));
+    for(const img of document.querySelectorAll('#timelineContainer .moment-photo-container img')){
+        const index=indexes.get(img.closest('.moment-photo-container')?.dataset.photoId);
+        if(index!==undefined)bindTimelinePreview(img,TimelineState.allPhotosFlat[index],index);
+    }
+    if(TimelineState.loadFailed&&TimelineState.failedPage)bindTimelineFailedRetry();
+}
+window.addEventListener('pageshow',event=>{
+    if(!event.persisted)return;
+    void restoreTimelinePreviewsAfterHistory();
+    const input=document.getElementById('searchInput');
+    if(!input)return;
+    if(input.value.trim()!==TimelineState.searchQuery||TimelineState.searchQuery&&!TimelineState.groupedPhotos.length)handleSearch({target:input});
+    else if(TimelineState.loadFailed&&TimelineState.failedPage)bindTimelineFailedRetry();
+    else if(TimelineState.currentPage===0&&!TimelineState.searchQuery)loadPhotos(1);
+});
+
 function openModal(index) {
     TimelineState.currentModalIndex = index;
     const photo = TimelineState.allPhotosFlat[index];
 
     if (!photo) return;
     if (SelectionState.isSelectMode) { togglePhotoSelection(String(photo.id)); return; }
+    ViewerTagState.view++;
+
+    cancelViewerNavigation();clearViewerFeedback();
 
     const modal = document.getElementById('photoModal');
     const modalImg = document.getElementById('modalImage');
@@ -855,7 +1417,7 @@ function openModal(index) {
     const modalAge = document.getElementById('modalAge');
 
     // Use larger image for modal
-    modalImg.src = FlickrAPI.getPhotoUrl(photo, 'l') || FlickrAPI.getPhotoUrl(photo, 'm');
+    // The shared renderer owns pixels and async image identity.
     modalImg.alt = photo.title || '照片';
 
     modalTitle.textContent = photo.title || '未命名';
@@ -900,16 +1462,24 @@ function openModal(index) {
     videoLink.href = `https://www.flickr.com/photos/${encodeURIComponent(CONFIG.FLICKR_USER_ID)}/${encodeURIComponent(photo.id)}`;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
-    window.TimehutViewerMedia?.show(photo);
+    window.TimehutViewerMedia?.show(photo,{photos:TimelineState.allPhotosFlat,index});
+    window.TimehutViewerOverview?.set({photos:TimelineState.allPhotosFlat,index,select:id=>{
+        const target = TimelineState.allPhotosFlat.findIndex(item=>String(item.id)===id);
+        if (target >= 0) openModal(target);
+    }});
+    syncViewerTagButton();
 }
 
 /**
  * 關閉 Modal
  */
 function closeModal() {
+    ViewerTagState.view++;
+    cancelViewerNavigation();clearViewerFeedback();
+    window.TimehutViewerOverview?.clear();
     window.TimehutViewerMedia?.stop();
     const modal = document.getElementById('photoModal');
-    modal.classList.remove('active');
+    modal?.classList.remove('active');
     document.body.style.overflow = '';
 }
 
@@ -918,30 +1488,11 @@ function closeModal() {
  * @param {number} direction - 方向 (-1: 上一張, 1: 下一張)
  */
 function navigatePhoto(direction) {
+    const modal = document.getElementById('photoModal');
+    if (!modal?.classList.contains('active')) return;
+    cancelViewerNavigation();
     const newIndex = TimelineState.currentModalIndex + direction;
-
-    if (newIndex >= 0 && newIndex < TimelineState.allPhotosFlat.length) {
-        // Add swipe animation
-        const modalImage = document.getElementById('modalImage');
-        if (modalImage) {
-            const exitClass = direction > 0 ? 'swipe-left-exit' : 'swipe-right-exit';
-            const enterClass = direction > 0 ? 'swipe-left-enter' : 'swipe-right-enter';
-
-            modalImage.classList.add(exitClass);
-
-            setTimeout(() => {
-                openModal(newIndex);
-                modalImage.classList.remove(exitClass);
-                modalImage.classList.add(enterClass);
-
-                setTimeout(() => {
-                    modalImage.classList.remove(enterClass);
-                }, 300);
-            }, 150);
-        } else {
-            openModal(newIndex);
-        }
-    }
+    if (newIndex >= 0 && newIndex < TimelineState.allPhotosFlat.length) openModal(newIndex);
 }
 
 /**
@@ -973,13 +1524,20 @@ function handleKeyboard(event) {
  * @param {Event} event - 輸入事件
  */
 async function handleSearch(event) {
-    const query = event.target.value.trim();
+    const query = event.target.value.trim(),cached=TimelineState.photos;
+    if(query)captureSearchNavigationOrigin();
+    // Keep only the already-authorized current reading set for inline filtering.
+    // Account-wide network search runs on explicit Search/Enter, never each keystroke.
+    const localSource = CONFIG.ACCOUNT_MODE && !currentSearchNavigationContext() ? [] : cached;
+    cancelTimelineReturn();
+    resetTimelineView({preserveSearchOrigin:!!query});TimelineState.searchQuery=query;
+    if(CONFIG.ACCOUNT_MODE && query) TimelineState.photos=localSource;
+    const view=TimelineState.listGeneration,childIndex=TimelineState.currentChildIndex,account=window.TimehutAccounts?.status().generation;
+    const current=()=>view===TimelineState.listGeneration&&childIndex===TimelineState.currentChildIndex&&account===window.TimehutAccounts?.status().generation;
 
     if (!query) {
         // Reset to normal view
-        TimelineState.currentPage = 1;
-        TimelineState.photos = [];
-        await loadPhotos();
+        await loadPhotos(1);
         return;
     }
 
@@ -1002,8 +1560,8 @@ async function handleSearch(event) {
         // First, try to filter locally loaded photos (instant results)
         let filteredPhotos = [];
 
-        if (TimelineState.photos.length > 0) {
-            filteredPhotos = FlickrAPI.filterPhotosLocally(TimelineState.photos, query);
+        if (localSource.length > 0) {
+            filteredPhotos = FlickrAPI.filterPhotosLocally(localSource, query);
         }
 
         // If local filter found results, show them
@@ -1014,8 +1572,17 @@ async function handleSearch(event) {
             return;
         }
 
+        if(CONFIG.ACCOUNT_MODE){
+            loadingEl.style.display='none';
+            document.getElementById('emptyState').style.display='block';
+            document.querySelector('#emptyState h3').textContent='搜尋更多回憶';
+            document.querySelector('#emptyState p').textContent='按上方「搜尋」，尋找其他日期的照片與回憶。';
+            return;
+        }
+
         // Fallback to API search for broader results
         const result = await FlickrAPI.searchPhotos(query);
+        if(!current())return;
 
         if (result.photos.length === 0) {
             loadingEl.style.display = 'none';
@@ -1030,6 +1597,7 @@ async function handleSearch(event) {
         }
 
     } catch (error) {
+        if(!current())return;
         console.error('Search error:', error);
         loadingEl.style.display = 'none';
     }
@@ -1047,36 +1615,7 @@ async function handleSearch(event) {
  * @returns {Promise<boolean>}
  */
 function showConfirmModal(title, message, confirmText = '確認') {
-    return new Promise((resolve) => {
-        const modal = document.getElementById('confirmModal');
-        const titleEl = document.getElementById('confirmTitle');
-        const msgEl = document.getElementById('confirmMessage');
-        const okBtn = document.getElementById('confirmOkBtn');
-        const cancelBtn = document.getElementById('confirmCancelBtn');
-
-        titleEl.textContent = title;
-        msgEl.textContent = message;
-        msgEl.style.whiteSpace = 'pre-line';
-        okBtn.textContent = confirmText;
-
-        modal.classList.remove('hidden');
-
-        const cleanup = () => {
-            modal.classList.add('hidden');
-            okBtn.onclick = null;
-            cancelBtn.onclick = null;
-        };
-
-        okBtn.onclick = () => {
-            cleanup();
-            resolve(true);
-        };
-
-        cancelBtn.onclick = () => {
-            cleanup();
-            resolve(false);
-        };
-    });
+    return TimehutDialogs.confirm(message,{title,confirmText,danger:/刪除|移除/.test(title+confirmText),dialogId:'confirmModal',okId:'confirmOkBtn',cancelId:'confirmCancelBtn'}).then(value=>value===true);
 }
 
 /**
@@ -1098,6 +1637,7 @@ function toggleSelectMode() {
         });
     }
 
+    renderTimeline();
     updateSelectionUI();
 }
 
@@ -1350,10 +1890,11 @@ async function batchAddTags() {
         succeeded.forEach(id => SelectionState.selectedPhotos.delete(id));
         updateSelectionUI();
         if (failed.length) {
-            alert(`成功為 ${succeeded.length}/${photoIds.length} 張照片加上標籤；${failed.length} 張尚未完成，已保留選取供重試`);
+            const status = succeeded.length ? '標籤部分完成' : '標籤尚未完成';
+            showToast(`${status}：已完成 ${succeeded.length}/${photoIds.length} 張；${failed.length} 張尚未完成，已保留選取供重試`, succeeded.length ? 'warning' : 'error');
             return;
         }
-        alert(result.message || '操作完成');
+        showToast(result.message || '操作完成', 'success');
 
         // Reload to update UI
         SelectionState.selectedPhotos.clear();
@@ -1362,7 +1903,7 @@ async function batchAddTags() {
         TimelineState.currentPage = 1;
         loadPhotos();
     } catch (error) {
-        alert('加標籤失敗: ' + error.message);
+        showToast('加標籤失敗: ' + error.message, 'error');
     } finally {
         btn.disabled = SelectionState.selectedPhotos.size === 0;
         btn.textContent = '🏷️ 加標籤';
@@ -1377,6 +1918,9 @@ async function batchAddToAlbum() {
     const count = SelectionState.selectedPhotos.size;
     if (count === 0) return alert('請先選擇照片');
 
+    let albumId,targetAuthority;
+    if(CONFIG.ACCOUNT_MODE){const chosen=await TimehutDialogs.chooseAlbum({title:'加入相簿',message:`將 ${count} 張照片加入一本相簿；原本的相簿與原圖會保留。`,confirmText:'加入所選相簿'});if(!chosen)return;albumId=chosen.id;targetAuthority=chosen.authority;}
+    else {
     // Simple prompts for selection
     let albumList = "選擇目標相簿：\n";
     CONFIG.CHILDREN.forEach((child, index) => {
@@ -1386,7 +1930,7 @@ async function batchAddToAlbum() {
     const input = await TimehutDialogs.album(albumList);
     if (!input) return;
 
-    let albumId = input.trim();
+    albumId = input.trim();
     // Check if user entered encoded index (1, 2)
     const index = parseInt(input) - 1;
     if (!isNaN(index) && CONFIG.CHILDREN[index]) {
@@ -1394,6 +1938,8 @@ async function batchAddToAlbum() {
     }
 
     if (!albumId) return alert('無效的相簿 ID');
+
+    }
 
     const photoIds = Array.from(SelectionState.selectedPhotos);
     const btn = document.getElementById('batchAlbumBtn');
@@ -1403,6 +1949,7 @@ async function batchAddToAlbum() {
     try {
         const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${albumId}/add_photos`, {
             method: 'POST',
+            expectedAuthority:targetAuthority,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
         });
@@ -1431,6 +1978,7 @@ window.batchAddToAlbum = batchAddToAlbum;
 
 // Initialize when DOM is ready
 (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))( () => {
+    bindTimelineReturnLinks();
     if (document.getElementById('timelineContainer')) {
         initTimeline();
     }
@@ -1450,7 +1998,11 @@ window.scrollToAge = scrollToAge;
  */
 async function savePhotoTags() {
     const photo = TimelineState.allPhotosFlat[TimelineState.currentModalIndex];
-    if (!photo) return;
+    const owner=viewerTagOwner();
+    if (!photo || !owner || !document.getElementById('photoModal')?.classList.contains('active')) return;
+    const key=viewerTagKey(owner,photo.id);
+    if (ViewerTagState.pending.has(key)) return;
+    clearViewerFeedback();
 
     const editTagsInput = document.getElementById('editTagsInput');
     const newTags = editTagsInput ? editTagsInput.value.trim() : '';
@@ -1462,12 +2014,13 @@ async function savePhotoTags() {
     // Combine uploader tag with new user tags
     const finalTags = uploaderTag ? `${uploaderTag} ${newTags}` : newTags;
 
-    const saveBtn = document.querySelector('.save-tags-btn');
-    const originalEmoji = saveBtn ? saveBtn.textContent : '💾';
-
+    const entry={owner,photoId:String(photo.id),authority:ViewerTagState.authority,view:ViewerTagState.view};
+    const sameAuthority=()=>entry.authority===ViewerTagState.authority&&entry.owner===viewerTagOwner();
+    const samePhoto=()=>sameAuthority()&&document.getElementById('photoModal')?.classList.contains('active')&&String(TimelineState.allPhotosFlat[TimelineState.currentModalIndex]?.id)===entry.photoId;
+    const sameView=()=>samePhoto()&&entry.view===ViewerTagState.view;
+    let succeeded=false,errorMessage='儲存結果尚未確認';
+    ViewerTagState.pending.set(key,entry);syncViewerTagButton();
     try {
-        if (saveBtn) saveBtn.textContent = '⏳';
-
         const response = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/photo/${photo.id}/tags`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1476,22 +2029,34 @@ async function savePhotoTags() {
 
         const result = await response.json();
 
-        if (response.ok && result.success) {
+        if (response.ok && result?.success===true && (result.tags===undefined||typeof result.tags==='string')) {
             // Update local photo object
             const savedTags = typeof result.tags === 'string' ? result.tags : finalTags;
-            photo.tags = savedTags;
-            TimehutResults.invalidateAlbumCache();
-            TimelineState.photos.filter(item => item.id === photo.id).forEach(item => { item.tags = savedTags; });
-            if (saveBtn) saveBtn.textContent = '✅';
-            showToast('標籤已儲存！', 'success');
-            setTimeout(() => { if (saveBtn) saveBtn.textContent = originalEmoji; }, 1500);
+            if(sameAuthority()){
+                photo.tags = savedTags;
+                TimehutResults.invalidateAlbumCache();
+                TimelineState.photos.filter(item => String(item.id)===entry.photoId).forEach(item => { item.tags = savedTags; });
+            }
+            succeeded=true;
         } else {
-            throw new Error(result.error || '儲存失敗');
+            throw new Error(typeof result?.error==='string'&&result.error?result.error:'儲存結果尚未確認');
         }
     } catch (error) {
         console.error('Save tags error:', error);
-        showToast('儲存標籤失敗：' + error.message, 'error');
-        if (saveBtn) saveBtn.textContent = originalEmoji;
+        errorMessage=error instanceof SyntaxError||error instanceof TypeError?'目前無法確認儲存結果，請重新載入後確認':error.message||errorMessage;
+    } finally {
+        if(ViewerTagState.pending.get(key)===entry)ViewerTagState.pending.delete(key);
+        if(samePhoto())syncViewerTagButton();
+    }
+    if(!sameView())return;
+    if(succeeded){
+        if(editTagsInput.value.trim()===newTags){
+            const button=document.querySelector('.save-tags-btn');
+            if(button){button.textContent='✅';button.setAttribute('aria-label','標籤已儲存');}
+            showToast('標籤已儲存！','success');
+        }else showToast('先前內容已儲存，目前的新內容尚未儲存。','info');
+    }else{
+        showToast('儲存標籤失敗：'+errorMessage,'error');
     }
 }
 
@@ -1499,7 +2064,7 @@ async function savePhotoTags() {
 window.savePhotoTags = savePhotoTags;
 
 // =====================================================
-// P0: PHOTO BATCH GROUPING (進入相集)
+// P0: PHOTO BATCH GROUPING (進入同日照片)
 // =====================================================
 
 /**
@@ -1578,7 +2143,7 @@ function findUploaderTag(tags) {
 }
 
 /**
- * 顯示批次相集視圖
+ * 顯示批次同日照片視圖
  */
 function openBatchView(batchInfo) {
     const photos = batchInfo.batchPhotoIds.map(id =>
@@ -1594,7 +2159,7 @@ function openBatchView(batchInfo) {
         <div class="batch-view-overlay" onclick="closeBatchView()"></div>
         <div class="batch-view-content">
             <button class="batch-view-close" onclick="closeBatchView()">✕</button>
-            <h3>📷 ${batchInfo.uploader}的相集 (${photos.length}張)</h3>
+            <h3>📷 ${batchInfo.uploader}的同日照片 (${photos.length}張)</h3>
             <div class="batch-gallery">
                 ${photos.map((p, idx) => `
                     <img src="${FlickrAPI.getPhotoUrl(p, 'm')}" 
@@ -1633,7 +2198,10 @@ const UploadState = {
 async function openUploadModal() {
     const capabilities=await window.TimehutTransfers?.ready;
     if(capabilities?.nativeError){showToast(capabilities.nativeError,'error');return;}
-    if (capabilities?.nativeBackgroundUpload) { location.href = 'transfer.html'; return; }
+    if (capabilities?.nativeBackgroundUpload) {
+        const context = rememberCurrentTimelineNavigation();
+        location.href = window.TimehutEntry?.navigationDestination('transfer.html',context) || 'transfer.html';return;
+    }
     const modal = document.getElementById('uploadModal');
     modal.style.removeProperty('display');
     modal.classList.add('active');
@@ -1945,6 +2513,7 @@ function initSwipeGesture() {
     }, { passive: true });
 
     document.addEventListener('touchend', (e) => {
+        if(document.getElementById('photoModal')?.classList.contains('active'))return;
         touchEndX = e.changedTouches[0].screenX;
         const touchEndY = e.changedTouches[0].screenY;
 
@@ -2042,15 +2611,19 @@ window.switchAlbum = switchAlbum;
 
 // Save scroll position when leaving the page
 window.addEventListener('beforeunload', () => {
-    (window.TimehutStorage?.session || sessionStorage).setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
+    // Account redirects may leave before context is ready; scroll restoration is optional.
+    if (typeof window.TimehutPage?.owner === 'function' && !window.TimehutPage.owner()) return;
+    try {
+        (window.TimehutStorage?.session || sessionStorage).setItem(TimelineState.SCROLL_POSITION_KEY, window.scrollY.toString());
+    } catch (_) { /* An unavailable scroll cache must not interrupt navigation. */ }
 });
 
 // =====================================================
-// MOMENT BATCH OPERATIONS (相集批量操作)
+// MOMENT BATCH OPERATIONS (同日照片批量操作)
 // =====================================================
 
 /**
- * 切換相集選擇模式
+ * 切換同日照片選擇模式
  */
 window.toggleMomentSelectMode = function toggleMomentSelectMode() {
     if (!MomentSelectionState.isSelectMode && SelectionState.isSelectMode) toggleSelectMode();
@@ -2074,7 +2647,7 @@ window.toggleMomentSelectMode = function toggleMomentSelectMode() {
 }
 
 /**
- * 更新相集點擊事件
+ * 更新同日照片點擊事件
  */
 function updateMomentClickHandlers() {
     document.querySelectorAll('.moment-item').forEach(item => {
@@ -2088,7 +2661,7 @@ function updateMomentClickHandlers() {
         }
         header.tabIndex = MomentSelectionState.isSelectMode ? 0 : -1;
         header.setAttribute('role', 'button');
-        header.setAttribute('aria-label', '選取此相集');
+        header.setAttribute('aria-label', '選取此同日照片');
         header.setAttribute('aria-pressed', String(MomentSelectionState.selectedMoments.has(id)));
         header.onkeydown = event => {
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleMomentSelection(item); }
@@ -2106,7 +2679,7 @@ function updateMomentClickHandlers() {
 }
 
 /**
- * 切換相集選擇狀態
+ * 切換同日照片選擇狀態
  */
 function toggleMomentSelection(momentItem) {
     if (!MomentSelectionState.isSelectMode) return;
@@ -2131,7 +2704,7 @@ function toggleMomentSelection(momentItem) {
 }
 
 /**
- * 更新相集選擇 UI
+ * 更新同日照片選擇 UI
  */
 function updateMomentSelectionUI() {
     const count = MomentSelectionState.selectedMoments.size;
@@ -2146,7 +2719,7 @@ function updateMomentSelectionUI() {
 }
 
 /**
- * 取得所有選中相集的照片ID
+ * 取得所有選中同日照片的照片ID
  */
 function getSelectedMomentPhotoIds() {
     const photoIds = [];
@@ -2161,16 +2734,16 @@ function getSelectedMomentPhotoIds() {
 }
 
 /**
- * 批量刪除相集
+ * 批量刪除同日照片
  */
 window.batchMomentDelete = async function batchMomentDelete() {
     const count = MomentSelectionState.selectedMoments.size;
-    if (count === 0) return alert('請先選擇相集');
+    if (count === 0) return alert('請先選擇同日照片');
 
     const photoIds = getSelectedMomentPhotoIds();
     const photoCount = photoIds.length;
 
-    if (!await TimehutDialogs.confirm(`確定要永久刪除 ${count} 個相集（共 ${photoCount} 張照片）嗎？\n此操作無法復原！\n手機已保存的檔案仍會保留。`, {title:'永久刪除照片',confirmText:'永久刪除',danger:true})) return;
+    if (!await TimehutDialogs.confirm(`確定要永久刪除 ${count} 組同日照片（共 ${photoCount} 張照片）嗎？\n此操作無法復原！\n手機已保存的檔案仍會保留。`, {title:'永久刪除照片',confirmText:'永久刪除',danger:true})) return;
 
     // Hand off to background worker
     if (typeof BackgroundWorker !== 'undefined') {
@@ -2226,14 +2799,14 @@ window.batchMomentDelete = async function batchMomentDelete() {
 }
 
 /**
- * 批量為相集加標籤
+ * 批量為同日照片加標籤
  */
 window.batchMomentAddTags = async function batchMomentAddTags() {
     const count = MomentSelectionState.selectedMoments.size;
-    if (count === 0) return alert('請先選擇相集');
+    if (count === 0) return alert('請先選擇同日照片');
 
     const photoIds = getSelectedMomentPhotoIds();
-    const tags = await TimehutDialogs.tags(`為 ${count} 個相集（${photoIds.length} 張照片）增加標籤（以空格分隔）:`);
+    const tags = await TimehutDialogs.tags(`為 ${count} 組同日照片（${photoIds.length} 張照片）增加標籤（以空格分隔）:`);
     if (!tags) return;
 
     const btn = document.getElementById('momentBatchTagBtn');
@@ -2280,11 +2853,11 @@ window.batchMomentAddTags = async function batchMomentAddTags() {
 }
 
 /**
- * 批量移動相集到其他時間點（合併相集）- 視覺化 Modal 版
+ * 批量移動同日照片到其他時間點（合併同日照片）- 視覺化 Modal 版
  */
 window.batchMomentMoveCollection = async function batchMomentMoveCollection() {
     const count = MomentSelectionState.selectedMoments.size;
-    if (count === 0) return alert('請先選擇相集');
+    if (count === 0) return alert('請先選擇同日照片');
 
     // Get photos to move
     const photoIds = getSelectedMomentPhotoIds();
@@ -2295,16 +2868,19 @@ window.batchMomentMoveCollection = async function batchMomentMoveCollection() {
 }
 
 /**
- * 批量移動相集到其他相簿
+ * 批量移動同日照片到其他相簿
  */
 window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
     const count = MomentSelectionState.selectedMoments.size;
-    if (count === 0) return alert('請先選擇相集');
+    if (count === 0) return alert('請先選擇同日照片');
 
     const photoIds = getSelectedMomentPhotoIds();
     const sourceChildIndex = TimelineState.currentChildIndex;
     const sourceAlbumId = CONFIG.CHILDREN[sourceChildIndex].albumId;
 
+    let targetChild,targetAuthority;
+    if(CONFIG.ACCOUNT_MODE){const chosen=await TimehutDialogs.chooseAlbum({title:'移動到其他相簿',message:`將 ${count} 組同日照片（${photoIds.length} 張）移到所選相簿，並從原相簿移出；照片原檔會保留。`,confirmText:'移動到所選相簿',excludedAlbumId:sourceAlbumId});if(!chosen)return;targetChild={albumId:chosen.id,name:chosen.title};targetAuthority=chosen.authority;}
+    else {
     // Build album selection options
     let albumList = '選擇目標相簿：\n\n';
     CONFIG.CHILDREN.forEach((child, index) => {
@@ -2324,10 +2900,13 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
         return alert('照片已在此相簿中');
     }
 
-    const targetChild = CONFIG.CHILDREN[targetIdx];
-    const targetAlbumId = targetChild.albumId;
+    targetChild = CONFIG.CHILDREN[targetIdx];
 
-    if (!await TimehutDialogs.confirm(`確定要將 ${count} 個相集（${photoIds.length} 張照片）移動到「${targetChild.name}」的相簿嗎？`, {title:'移動相簿',confirmText:'確認移動'})) return;
+
+    if (!await TimehutDialogs.confirm(`確定要將 ${count} 組同日照片（${photoIds.length} 張照片）移動到「${targetChild.name}」的相簿嗎？`, {title:'移動相簿',confirmText:'確認移動'})) return;
+
+    }
+    const targetAlbumId=targetChild.albumId;
 
     const btn = document.getElementById('momentMoveAlbumBtn');
     btn.disabled = true;
@@ -2337,6 +2916,7 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
         // First add photos to new album
         const addResponse = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${targetAlbumId}/add_photos`, {
             method: 'POST',
+            expectedAuthority:targetAuthority,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
         });
@@ -2356,6 +2936,7 @@ window.batchMomentMoveAlbum = async function batchMomentMoveAlbum() {
         // The user may switch children while the destination request is pending.
         const removeResponse = await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/album/${sourceAlbumId}/remove_photos`, {
             method: 'POST',
+            expectedAuthority:targetAuthority,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ photoIds })
         });
@@ -2412,8 +2993,7 @@ function refreshMoveCollectionDateCounts(succeeded, targetDate) {
     const groups = new Map();
     for (const [id, photo] of photos) {
         if (done.has(id)) photo.datetaken = targetDate;
-        const uploadedAt = new Date(Number(photo.dateupload) * 1000);
-        const date = photo.datetaken?.split(' ')[0] || (Number.isNaN(uploadedAt.valueOf()) ? 'unknown' : uploadedAt.toISOString().slice(0, 10));
+        const date = photoCalendarDay(photo);
         if (!groups.has(date)) groups.set(date, {...previous.get(date), date, photos: []});
         groups.get(date).photos.push(photo);
     }
@@ -2424,7 +3004,7 @@ function refreshMoveCollectionDateCounts(succeeded, targetDate) {
 }
 
 /**
- * 批量移動單獨選取的照片到其他相集（改變拍攝日期）- 視覺化 Modal 版
+ * 批量移動單獨選取的照片到其他同日照片（改變拍攝日期）- 視覺化 Modal 版
  */
 async function batchMoveToCollection() {
     const count = SelectionState.selectedPhotos.size;
@@ -2435,11 +3015,11 @@ async function batchMoveToCollection() {
 }
 
 /**
- * 顯示移動相集 Modal
+ * 顯示移動同日照片 Modal
  */
 async function showMoveCollectionModal(count, photoIds) {
     document.getElementById('moveCollectionCount').textContent = count;
-    document.getElementById('collectionSelectionPrompt').textContent = '請先選擇目的相集。';
+    document.getElementById('collectionSelectionPrompt').textContent = '請先選擇目的同日照片。';
     document.getElementById('moveCollectionModal').classList.remove('hidden');
     document.getElementById('collectionListLoading').style.display = 'block';
     document.getElementById('collectionList').style.display = 'none';
@@ -2452,14 +3032,14 @@ async function showMoveCollectionModal(count, photoIds) {
 
     if (moments.length < 2) {
         document.getElementById('collectionListLoading').innerHTML =
-            '<div style="color: var(--color-danger);">需要至少兩個相集才能移動</div>';
+            '<div style="color: var(--color-danger);">需要至少兩組同日照片才能移動</div>';
         return;
     }
 
     // Build collections list from momentData
     const collections = moments.map(([id, data]) => ({
         id: id,
-        date: data.photos[0]?.datetaken?.split(' ')[0] || 'unknown',
+        date: photoCalendarDay(data.photos[0]),
         label: data.dateStr,
         photos: data.photos,
         timestamp: data.timestamp
@@ -2470,18 +3050,18 @@ async function showMoveCollectionModal(count, photoIds) {
 }
 
 /**
- * 渲染相集列表
+ * 渲染同日照片列表
  */
 function renderCollectionList(collections) {
     const listEl = document.getElementById('collectionList');
 
     if (collections.length === 0) {
-        listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted);">無可用的相集</div>';
+        listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted);">無可用的同日照片</div>';
     } else {
         listEl.innerHTML = collections.map((col, idx) => `
             <button type="button" class="collection-item" aria-pressed="false" data-date="${col.date}" data-label="${col.label}" onclick="selectCollection(this)">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <img src="${FlickrAPI.getPhotoUrl(col.photos[0], 'sq')}" 
+                    <img src="${FlickrAPI.getPhotoUrl(col.photos[0], 'm')}" 
                          style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">
                     <div class="collection-text">
                         <strong class="collection-title">${col.label.split(' - ')[0]}</strong>
@@ -2499,7 +3079,7 @@ function renderCollectionList(collections) {
 }
 
 /**
- * 選擇相集
+ * 選擇同日照片
  */
 function selectCollection(element) {
     // 移除其他選取
@@ -2521,7 +3101,7 @@ function selectCollection(element) {
 }
 
 /**
- * 關閉移動相集 Modal
+ * 關閉移動同日照片 Modal
  */
 function closeMoveCollectionModal() {
     document.getElementById('moveCollectionModal').classList.add('hidden');
@@ -2529,7 +3109,7 @@ function closeMoveCollectionModal() {
 }
 
 /**
- * 確認移動相集
+ * 確認移動同日照片
  */
 async function confirmMoveCollection() {
     if (!moveCollectionState.targetDate) return;
@@ -2539,7 +3119,7 @@ async function confirmMoveCollection() {
     const targetLabel = moveCollectionState.targetLabel;
     const targetDate = moveCollectionState.targetDate + ' 12:00:00';
 
-    if (!await TimehutDialogs.confirm(`將 ${count} 張照片合併至「${targetLabel}」。\n拍攝日時會改為 ${targetDate}，照片原檔不變。`, {title:'確認修改拍攝日時',confirmText:'修改日期並合併'})) return;
+    // The picker already names the selected date and consequences; its explicit action is the confirmation.
 
     const btn = document.getElementById('moveCollectionConfirmBtn');
     btn.disabled = true;
@@ -2588,7 +3168,7 @@ async function confirmMoveCollection() {
         alert('移動失敗: ' + error.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = '確認移動';
+        btn.textContent = '修改日期並合併';
     }
 }
 

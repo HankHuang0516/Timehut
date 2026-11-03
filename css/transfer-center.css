@@ -1,0 +1,70 @@
+/* Transfer center: quiet surfaces, readable state, one primary action. */
+.storybook-page.transfer-page.transfer-minimal{background:#f2f2f7;color:#1c1c1e;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Noto Sans TC",sans-serif;font-size:15px;line-height:1.5}
+.transfer-minimal .settings-container{width:100%;max-width:720px;margin:0 auto;padding:20px 20px 40px;box-sizing:border-box}
+.storybook-page.transfer-minimal .settings-header{display:block;min-height:0;background:none;border:0;padding:0;margin:0 0 24px}
+.transfer-minimal .transfer-back{display:inline-flex;align-items:center;min-height:44px;color:#0064d8;text-decoration:none;font-size:15px;margin-left:-2px}
+.transfer-minimal .settings-header h1{font-size:32px;line-height:1.2;font-weight:700;letter-spacing:-1px;margin:8px 0 6px;color:#1c1c1e}
+.transfer-minimal .transfer-subtitle{color:#636366;margin:0;font-size:14px}
+.storybook-page.transfer-minimal .settings-section{background:#fff;border:0;border-radius:18px;box-shadow:none;padding:18px;margin:0 0 20px}
+.transfer-minimal .transfer-intro .dialog-art{display:none}
+.transfer-minimal #transferCapability{font-size:14px;color:#3a3a3c;line-height:1.6;margin:0 0 16px}
+.transfer-minimal .transfer-intro>.storybook-note{font-size:12px;color:#6c6c70;line-height:1.6;margin:0 0 16px}
+.storybook-page.transfer-minimal .transfer-setup{display:block;margin:0}
+.transfer-minimal label{font-size:13px;color:#636366;line-height:1.5}
+.transfer-minimal select,.transfer-minimal input:not([type=checkbox]){font:inherit;color:#1c1c1e;background:#f2f2f7;border:1px solid transparent;border-radius:10px;min-height:44px;padding:10px 12px;box-sizing:border-box;width:100%;margin-top:6px}
+.transfer-minimal input:focus,.transfer-minimal select:focus{outline:2px solid #007aff;outline-offset:2px}
+.transfer-minimal .transfer-default-tags{margin-top:14px;border-top:1px solid #ededf0;padding-top:4px}
+.transfer-minimal .transfer-default-tags summary{font-size:14px;font-weight:500;padding:12px 0;min-height:20px;color:#3a3a3c}
+.transfer-minimal .transfer-default-tags[open] label{margin-top:12px}
+.transfer-minimal .transfer-notification-settings{border-color:#ededf0}
+.transfer-minimal .transfer-notification-option input{accent-color:#007aff}
+.transfer-minimal .storybook-install{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 0}
+.transfer-minimal button{font-family:inherit;font-size:14px;font-weight:500;min-height:44px;line-height:1.4;cursor:pointer;border:0;box-sizing:border-box;transition:background .15s}
+.transfer-minimal button:disabled{opacity:.42;cursor:default}
+.transfer-minimal button:focus-visible,.transfer-minimal a:focus-visible{outline:3px solid #007aff;outline-offset:3px}
+.transfer-minimal .btn-tag{background:#007aff;color:white;border:0;border-radius:11px;padding:11px 16px;box-shadow:none}
+.transfer-minimal .btn-secondary{background:#f2f2f7;color:#0064d8;border:0;border-radius:11px;padding:11px 14px;box-shadow:none}
+.transfer-minimal #nativePickButton{flex:1 1 180px}
+.transfer-minimal #refreshTransfers{background:transparent;padding:11px 4px}
+.transfer-minimal .queue-section-heading{display:flex;justify-content:space-between;align-items:baseline;margin:26px 2px 10px;gap:12px}
+.transfer-minimal .queue-section-heading h2{font-size:20px;letter-spacing:-.4px;font-weight:650;margin:0}
+.transfer-minimal .transfer-summary{font-size:12px;font-weight:400;color:#636366;margin:0 2px 14px;line-height:1.7}
+.transfer-minimal .queue-batch-actions{display:flex;gap:10px;margin:0 0 12px}
+.transfer-minimal .queue-batch-actions button{flex:1;background:#fff;color:#0064d8;border-radius:11px;padding:10px;font-size:13px}
+.transfer-minimal #removeQueue{color:#c9342c}
+.transfer-minimal .queue-action-status{font-size:13px;line-height:1.6;color:#636366;margin:0 2px 12px}
+.transfer-minimal .queue-action-status:empty{display:none}
+.transfer-minimal .transfer-filters{display:flex;flex-wrap:nowrap;gap:2px;background:#e5e5ea;padding:3px;border-radius:10px;margin-bottom:14px}
+.transfer-minimal .transfer-filters button{flex:1;min-width:0;min-height:44px;padding:7px 3px;border:0;border-radius:8px;font-size:12px;color:#636366;background:transparent;white-space:nowrap}
+.transfer-minimal .transfer-filters [aria-pressed=true]{background:#fff;color:#1c1c1e;box-shadow:0 1px 3px #0000000d}
+.storybook-page.transfer-minimal .transfer-task{padding:16px;background:#fff;border:0;border-radius:16px;margin:0 0 10px;box-shadow:none}
+.storybook-page.transfer-minimal .transfer-task-overview{display:grid;grid-template-columns:48px minmax(0,1fr);gap:12px;align-items:center}
+.storybook-page.transfer-minimal .transfer-thumbnail{height:48px;width:48px;border:0;border-radius:10px;background:#f2f2f7;color:#8e8e93}
+.transfer-minimal .transfer-thumbnail-kind{display:none}
+.storybook-page.transfer-minimal .transfer-task h3{font-size:14px;font-weight:600;margin:0 0 3px;line-height:1.45;overflow-wrap:anywhere}
+.transfer-minimal .transfer-task p{font-size:12px;color:#636366;margin:4px 0;line-height:1.5}
+.transfer-minimal .transfer-stage{background:transparent!important;color:#636366;padding:0;border-radius:0;font-size:12px}
+.transfer-minimal .transfer-task[data-stage=failed] .transfer-stage{color:#c9342c}
+.transfer-minimal .transfer-task[data-stage=completed] .transfer-stage,.transfer-minimal .transfer-task[data-stage=saved] .transfer-stage{color:#248a3d}
+.transfer-minimal .transfer-task[data-stage=transferring] .transfer-stage{color:#0064d8}
+.transfer-minimal .transfer-task .transfer-destination{font-size:12px;font-weight:400;margin:12px 0 0}
+.transfer-minimal .transfer-progress{height:5px;appearance:none;border:0;border-radius:5px;overflow:hidden;background:#e5e5ea;accent-color:#007aff;margin:12px 0 2px}
+.transfer-minimal .transfer-progress::-webkit-progress-bar{background:#e5e5ea;border-radius:5px}
+.transfer-minimal .transfer-progress::-webkit-progress-value{background:#007aff;border-radius:5px}
+.transfer-minimal .transfer-task button{font-size:12px;min-height:44px;padding:8px 12px;background:#f2f2f7;color:#0064d8;border-radius:9px;margin:12px 6px 0 0}
+.transfer-minimal .transfer-empty{text-align:center;background:#fff;border-radius:16px;color:#8e8e93;line-height:1.8;padding:36px 24px;font-size:14px}
+.transfer-minimal .install-actions{margin:24px 0;text-align:center}
+.transfer-minimal .install-actions a{font-size:13px;background:transparent;color:#636366;text-decoration:none}
+.queue-confirm{position:fixed;inset:0;margin:auto;max-height:calc(100dvh - 48px);overflow:auto;width:min(340px,calc(100vw - 48px));border:0;border-radius:22px;padding:24px;background:#fff;color:#1c1c1e;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif}
+.queue-confirm::backdrop{background:#0005}
+.queue-confirm h2{font-size:19px;text-align:center;margin:0 0 12px;letter-spacing:-.4px}
+.queue-confirm p{font-size:14px;line-height:1.7;color:#636366;text-align:center;margin:0 0 22px}
+.queue-confirm-actions{display:flex;gap:10px}
+.queue-confirm-actions button{flex:1;min-height:44px;border:0;border-radius:10px;font:500 14px -apple-system,BlinkMacSystemFont,sans-serif;background:#f2f2f7;color:#0064d8;padding:10px}
+.queue-confirm-actions .queue-destructive{background:#fff0ee;color:#c9342c}
+@media(min-width:700px){.transfer-minimal .settings-container{padding-top:32px}.transfer-minimal .settings-header h1{font-size:36px}.transfer-minimal .transfer-task{padding:20px}}
+@media(prefers-reduced-motion:reduce){.transfer-minimal *{transition:none!important}}
+
+.transfer-minimal .transfer-load-more{display:block;width:100%;min-height:44px;margin:16px 0}
+
+.transfer-minimal .transfer-default-tags>.storybook-note{font-size:12px;line-height:1.6;color:#6c6c70;margin:14px 0 0}

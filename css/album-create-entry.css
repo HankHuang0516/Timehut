@@ -1,0 +1,31 @@
+.album-create-entry {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    box-sizing: border-box;
+    max-width: 100%;
+    padding: 10px 16px;
+    border: 1px solid #d6b65d;
+    border-radius: 14px;
+    background: #fff0b0;
+    color: #624626;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.4;
+    text-align: center;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.album-create-entry[hidden] { display: none !important; }
+.album-create-entry:hover { background: #ffe69a; }
+.album-create-entry:focus-visible,
+#create-album-title:focus { outline: 3px solid #795431; outline-offset: 4px; }
+.album-create-home-entry { margin: 0 auto 20px; }
+.album-create-sidebar-entry {
+    flex: 0 0 auto;
+    margin: 12px 16px max(16px, env(safe-area-inset-bottom));
+}
+.storybook-page .timeline-header .album-create-entry { margin-top: 12px; margin-bottom: 0; }
+#create-album { scroll-margin-top: 24px; }

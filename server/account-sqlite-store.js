@@ -4,6 +4,8 @@
 const fs=require('node:fs'),path=require('node:path');
 const {AccountStore}=require('./account-store');
 class SQLiteAccountStore extends AccountStore {
+ #readCache=null;
+ #stampStatement=null;
  constructor(directory,now=Date.now){
   super(directory,now);const initial=structuredClone(this.state),file=path.join(directory,'accounts.sqlite');this.sqliteFile=file;
   try{
@@ -19,7 +21,27 @@ class SQLiteAccountStore extends AccountStore {
    Object.defineProperty(this,'state',{get:()=>this.readState()});this.readState();
   }catch(error){this.error=error;try{this.database?.close();}catch(_){}throw new Error('Account database unavailable; existing files preserved');}
  }
- readState(){if(this.error)throw new Error('Account database unavailable');try{const row=this.database.prepare('SELECT payload FROM account_snapshot WHERE id=1').get();if(!row||Buffer.byteLength(row.payload)>16*1024*1024)throw new Error('Invalid account snapshot');const state=JSON.parse(row.payload);this.validate(state);return state;}catch(error){this.error=error;throw new Error('Account database read unavailable; no cached authorization');}}
+ readState(){
+  if(this.error)throw new Error('Account database unavailable');
+  try{
+   // Recheck SQLite on every read, including unchanged revisions: external
+   // commits and same-connection writes must invalidate the validated view.
+   this.#stampStatement??=this.database.prepare('SELECT revision,(SELECT data_version FROM pragma_data_version) AS dataVersion,total_changes() AS localChanges FROM account_snapshot WHERE id=1');
+   const stamp=this.#stampStatement.get();
+   if(!stamp||!Number.isSafeInteger(stamp.revision)||stamp.revision<0)throw new Error('Invalid account revision');
+   // Transaction-local views must never survive ROLLBACK or ROLLBACK TO.
+   // An unavailable transaction indicator also disables reuse conservatively.
+   const cacheable=this.database.isTransaction===false;
+   if(!cacheable)this.#readCache=null;
+   const cached=cacheable?this.#readCache:null;
+   if(cached&&cached.revision===stamp.revision&&cached.dataVersion===stamp.dataVersion&&cached.localChanges===stamp.localChanges)return cached.state;
+   const row=this.database.prepare('SELECT revision,payload FROM account_snapshot WHERE id=1').get();
+   if(!row||Buffer.byteLength(row.payload)>16*1024*1024)throw new Error('Invalid account snapshot');
+   const state=JSON.parse(row.payload);this.validate(state);
+   const freeze=value=>{if(value&&typeof value==='object'){for(const item of Object.values(value))freeze(item);Object.freeze(value);}return value;};
+   freeze(state);if(cacheable)this.#readCache={...stamp,revision:row.revision,state};return state;
+  }catch(error){this.#readCache=null;this.error=error;throw new Error('Account database read unavailable; no cached authorization');}
+ }
  commit(change){
   if(this.error)throw new Error('Account database unavailable');let transaction=false,writing=false;
   try{this.database.exec('BEGIN IMMEDIATE;');transaction=true;const candidate=structuredClone(this.readState()),value=change(candidate);this.validate(candidate);const bytes=JSON.stringify(candidate);if(Buffer.byteLength(bytes)>16*1024*1024)throw new Error('Account capacity reached');writing=true;
@@ -36,7 +58,7 @@ class SQLiteAccountStore extends AccountStore {
   this.database.exec('BEGIN IMMEDIATE;');try{
    if(this.readState().deletions?.[userId]?.status!=='scrubbing')throw new Error('Deletion storage phase changed');
    if(fs.existsSync(this.file+'.new'))throw new Error('Migration source commit requires recovery');
-   if(fs.existsSync(this.file)){const legacy=JSON.parse(fs.readFileSync(this.file,'utf8'));this.validate(legacy);for(const table of ['sessions','nativeLogins','albums','media','receipts','admissions','photoMutations','photoDeletes'])for(const [id,row]of Object.entries(legacy[table]||{}))if(row.userId===userId)delete legacy[table][id];delete legacy.users[userId];if(legacy.deletions)delete legacy.deletions[userId];this.validate(legacy);const fd=fs.openSync(this.file+'.new','wx',0o600);try{fs.writeFileSync(fd,JSON.stringify(legacy));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(this.file+'.new',this.file);}
+   if(fs.existsSync(this.file)){const legacy=JSON.parse(fs.readFileSync(this.file,'utf8'));this.validate(legacy);const feedbackIds=new Set(Object.values(legacy.feedback||{}).filter(row=>row.userId===userId).map(row=>row.id));for(const release of Object.values(legacy.bugReleases||{}))release.fixes=release.fixes.filter(id=>!feedbackIds.has(id));for(const table of ['sessions','nativeLogins','albums','media','receipts','admissions','photoMutations','photoDeletes','feedback','bugNotifications','rememberDevices','emailActions'])for(const [id,row]of Object.entries(legacy[table]||{}))if(row.userId===userId)delete legacy[table][id];if(legacy.emailRates)delete legacy.emailRates[userId];delete legacy.users[userId];if(legacy.deletions)delete legacy.deletions[userId];this.validate(legacy);const fd=fs.openSync(this.file+'.new','wx',0o600);try{fs.writeFileSync(fd,JSON.stringify(legacy));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(this.file+'.new',this.file);}
    this.database.exec('COMMIT;');
   }catch(error){this.database.exec('ROLLBACK;');throw error;}
   this.compactDeletedAccountDatabase();

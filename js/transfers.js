@@ -4,7 +4,19 @@ window.TimehutTransfers = (() => {
     let plugin = null;
     let webPoll = null;
     const drafts = new Map();
-    const labels = {preparing:'準備檔案',queued:'等待送出',transferring:'手機傳輸中',waiting_network:'等待網路',waiting_wifi:'等待 Wi-Fi',waiting_system:'等待手機系統',server_accepted:'伺服器已收到',server_processing:'Flickr 處理中',file_ready:'已下載至 App',saving:'保存至手機相簿',saved:'已保存至手機相簿',completed:'Flickr 已完成',photo_deleted:'照片已刪除',failed:'未完成',cancelled:'手機傳輸已停止'};
+    function friendlyTransferMessage(row={}) {
+        if(row.requiresReselection)return "原檔尚未準備完成，請重新選取原檔；原任務紀錄會保留。";
+        if(row.duplicateOf)return "已依先前完成紀錄略過此原檔，沒有再次傳送。";
+        if(row.stage==='completed')return "照片已保存成功。";
+        if(row.retryBlocked)return '上傳結果仍在確認中，請保留原檔；請勿重複上傳。';
+        if(['waiting_wifi','waiting_network'].includes(row.stage))return '正在等待可用網路，原檔會保留。';
+        if(row.stage==='cancelled')return '已停止這次傳輸，已完成的照片仍保留。';
+        if(row.direction==='download')return '照片尚未下載或保存完成，請查看狀態後重試。';
+        if(row.stage==='waiting_account')return '請確認已登入原帳戶後按重試；原檔與收據保留。';
+        if(row.stage==='waiting_system')return row.waitReason||'手機系統尚未接受傳輸，請回到 App 後按重試；原檔與收據保留。';
+        return '這次傳輸尚未完成，原檔會保留。請確認網路後使用下方操作繼續。';
+    }
+    const labels = {preparing:'準備檔案',queued:'等待送出',transferring:'手機傳輸中',waiting_network:'等待網路',waiting_wifi:'等待 Wi-Fi',waiting_system:'等待手機系統',waiting_account:'等待原帳戶確認',server_accepted:'照片已送達，正在處理',server_processing:'照片處理中',file_ready:'已下載至 App',saving:'保存至手機相簿',saved:'已保存至手機相簿',completed:'已完成',photo_deleted:'照片已刪除',failed:'未完成',cancelled:'手機傳輸已停止'};
     const webCapabilities = {nativeBackgroundUpload:false,nativeBackgroundDownload:false,photoLibrarySave:false,completionNotifications:false,localThumbnails:false,platform:'web'};
     const ready = (async () => {
         const cap = window.Capacitor;
@@ -14,12 +26,12 @@ window.TimehutTransfers = (() => {
             plugin = cap.registerPlugin('TimehutTransfer');
             const capabilities=await plugin.capabilities();
             if(cap.getPlatform?.()==='android') {
-                const raw=plugin,owned=new Set(['list','thumbnail','prepareUpload','enqueueUpload','enqueueDownload','cancel','retry','saveToPhotos']);
+                const raw=plugin,owned=new Set(['list','thumbnail','prepareUpload','enqueueUpload','enqueueDownload','cancel','retry','retryMany','removeMany','saveToPhotos','deviceMediaStatus','deviceMediaAlbums','requestDeviceMedia','openDeviceMediaSettings','deviceMediaList','deviceMediaReconcile','deviceMediaThumbnail','uploadDeviceMedia']);
                 plugin=new Proxy(raw,{get(target,name){return owned.has(name)?options=>window.TimehutAccounts.transfer(name,options):Reflect.get(target,name);}});
             }
             return capabilities;
         }
-        catch (error) { plugin = null; return {...webCapabilities,platform:cap.getPlatform?.() || 'native',nativeError:error.message || String(error)}; }
+        catch (error) { plugin = null; return {...webCapabilities,platform:cap.getPlatform?.() || 'native',nativeError:'手機傳輸功能暫時無法啟動，請重新開啟 App；原有紀錄會保留。'}; }
     })();
     // Small previews live only in this page's memory. No arbitrary image URL or private path is loaded.
     const thumbnailCache = new Map(), thumbnailQueue = [];
@@ -204,7 +216,7 @@ window.TimehutTransfers = (() => {
     async function initCenter() {
         const listEl = document.getElementById('transferList'); if (!listEl) return;
         const capabilities = await ready;
-        document.getElementById('transferCapability').textContent = capabilities.nativeError || (capabilities.nativeBackgroundUpload ? '傳輸交由手機系統處理，可回桌面，稍後確認完成結果。' : '目前為網頁版。送出期間請保持頁面開啟；伺服器收到後會繼續處理 Flickr。');
+        document.getElementById('transferCapability').textContent = capabilities.nativeError || (capabilities.nativeBackgroundUpload ? '選取後會先準備檔案與交接排程；顯示系統已接手後，即可切換 App。' : '目前為網頁版。送出期間請保持頁面開啟；照片送達後，服務會繼續整理。');
         document.getElementById('nativePickButton').hidden = !capabilities.nativeBackgroundUpload;
         const notificationToggle=document.getElementById('completionNotifications'), notificationStatus=document.getElementById('notificationStatus');
         const supportsCompletion=!!plugin && capabilities.completionNotifications===true;
@@ -268,20 +280,25 @@ window.TimehutTransfers = (() => {
         }else networkStatus.textContent=plugin?'此 App 版本尚不支援 Wi-Fi 限制；請勿依此頁假設已限制網路。':'網頁版無法限制傳輸網路；請先確認手機的 Wi-Fi 連線。';
         const album = document.getElementById('transferAlbum');
         CONFIG.CHILDREN.forEach(child => album.add(new Option(child.name, child.albumId)));
+        const chosenChild = Number((window.TimehutStorage?.local || localStorage).getItem('timehut_current_child'));
+        if (Number.isInteger(chosenChild) && CONFIG.CHILDREN[chosenChild]) album.value = CONFIG.CHILDREN[chosenChild].albumId;
         const previewObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries=>{
             entries.forEach(entry=>{if(entry.isIntersecting){previewObserver.unobserve(entry.target);entry.target.loadPreview?.();}});
         },{rootMargin:'160px 0px'}) : null;
+        const previewFrames=new Map();
         function previewFor(row) {
+            const key=thumbnailKey(row),existing=previewFrames.get(key);
+            if(existing){if(existing.dataset.previewState!=='ready')previewObserver?.observe(existing);return existing;}
             const video=row.mediaType==='video', kind=video?'影片':row.mediaType==='photo'?'照片':'檔案';
-            const frame=document.createElement('div');frame.className='transfer-thumbnail';frame.dataset.previewState='unavailable';frame.setAttribute('role','img');frame.setAttribute('aria-label',`${kind}：${row.filename}，暫無本機預覽`);
+            const frame=document.createElement('div');frame.className='transfer-thumbnail';frame.dataset.previewState='unavailable';frame.setAttribute('role','img');frame.setAttribute('aria-label',`${kind}：${row.filename}，暫無本機預覽`);previewFrames.set(key,frame);
             const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('transfer-thumbnail-symbol');
             const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',video?'M4 5h11v14H4z M15 9l5-3v12l-5-3':'M3 4h18v16H3z M4 17l5-6 4 4 3-3 5 6 M15 8h.01');svg.append(path);
             const caption=document.createElement('span');caption.className='transfer-thumbnail-kind';caption.textContent=kind;frame.append(svg,caption);
             const local= row.direction==='upload' ? row.sourceReference : ['file_ready','saving','saved'].includes(row.stage) ? row.destinationReference : '';
             if(!plugin || capabilities.localThumbnails!==true || !local || !['photo','video'].includes(row.mediaType)) return frame;
             frame.loadPreview=async()=>{
-                if(!frame.isConnected)return;
-                frame.dataset.previewState='loading';
+                if(!frame.isConnected||frame.previewRequested)return;
+                frame.previewRequested=true;frame.dataset.previewState='loading';
                 const data=await localThumbnail(row);if(!frame.isConnected)return;
                 if(!data){frame.dataset.previewState='unavailable';return;}
                 const img=document.createElement('img');img.alt='';img.decoding='async';
@@ -296,37 +313,120 @@ window.TimehutTransfers = (() => {
             if(previewObserver)previewObserver.observe(frame);else queueMicrotask(()=>frame.loadPreview());
             return frame;
         }
-        let filter = 'all';
+        let filter = 'all',renderLimit=50;let queueActions=null,reselectButton=null;
         const isComplete = row => ['saved','completed','photo_deleted'].includes(row.stage);
-        const albumName = id => CONFIG.CHILDREN.find(child => String(child.albumId) === String(id))?.name || '尚未確認相簿';
+        const albumNames = new Map(CONFIG.CHILDREN.map(child => [String(child.albumId), child.name]));
+        const nameOwner = window.TimehutAccounts?.status(), nameInFlight = new Set(), nameRetryAfter = new Map();
+        let namePageActive = true, renderGeneration = 0, composingEditor = null;
+        const taskEditor = node => !!node?.closest?.('.transfer-task') && node.matches('input,select,textarea,[contenteditable=true]');
+        listEl.addEventListener('compositionstart',event=>{if(taskEditor(event.target))composingEditor=event.target;});
+        listEl.addEventListener('compositionend',event=>{if(composingEditor===event.target)composingEditor=null;});
+        const sameNameOwner = () => {
+            const current = window.TimehutAccounts?.status();
+            return current?.authenticated && current.user?.id === nameOwner?.user?.id && current.generation === nameOwner?.generation;
+        };
+        const currentNameOwner = () => namePageActive && sameNameOwner();
+        const albumName = id => albumNames.get(String(id)) || '尚未確認相簿';
+        function resolveAlbumNames(rows) {
+            if (!CONFIG.ACCOUNT_MODE || !currentNameOwner()) return;
+            const ids = [...new Set(rows.filter(row => row.direction === 'upload').map(row => String(row.albumId || '')))];
+            for (const id of ids) {
+                if (nameInFlight.size >= 3) break;
+                if (!/^[A-Za-z0-9_-]{1,128}$/.test(id) || albumNames.has(id) || nameInFlight.has(id) || (nameRetryAfter.get(id) || 0) > Date.now()) continue;
+                nameInFlight.add(id);
+                window.TimehutAccounts.request('/api/accounts/context?album=' + encodeURIComponent(id)).then(context => {
+                    if (!currentNameOwner() || context.user?.id !== nameOwner.user.id || !Array.isArray(context.children)) return;
+                    const child = context.children.find(child => child?.albumId === id);
+                    if (!child || typeof child.name !== 'string' || !child.name) return;
+                    albumNames.set(id, child.name);
+                    listEl.querySelectorAll('[data-destination-album]').forEach(node => {
+                        if (node.dataset.destinationAlbum === id) node.textContent = '上傳至：' + child.name;
+                    });
+                }).catch(() => {}).finally(() => {
+                    nameInFlight.delete(id);
+                    if (sameNameOwner() && !albumNames.has(id)) nameRetryAfter.set(id, Date.now() + 15000);
+                });
+            }
+        }
+        window.addEventListener('pagehide', () => { namePageActive = false; renderGeneration++; composingEditor=null; });
+        window.addEventListener('pageshow', event => { if (event.persisted) namePageActive = true; });
+        window.addEventListener('timehut-account-changed', () => { namePageActive = false; renderGeneration++; composingEditor=null; previewFrames.clear();listEl.replaceChildren();albumNames.clear(); nameRetryAfter.clear(); });
         const sizeText = bytes => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${(bytes / 1024).toFixed(1)} KiB`;
         album.addEventListener('change', () => {
-            listEl.querySelectorAll('[data-upload-destination]').forEach(node => { node.textContent = '上傳至：' + albumName(album.value); });
+            listEl.querySelectorAll('[data-upload-destination]').forEach(node => { node.dataset.destinationAlbum = album.value; node.textContent = '上傳至：' + albumName(album.value); });
         });
-        async function render() {
-            if (document.activeElement?.closest('.transfer-task') && document.activeElement.matches('input,select')) return;
-            const rows = await list(); previewObserver?.disconnect();listEl.replaceChildren();
+        const enqueueStarting=new Set();
+        async function enqueuePrepared(row,tagValue,destination) {
+            if(enqueueStarting.has(row.id))throw new Error('這個檔案正在加入佇列，請稍候。');
+            if(CONFIG.ACCOUNT_MODE&&!currentNameOwner())throw new Error('帳戶已變更，請重新開啟傳輸中心；原檔會保留。');
+            if(!CONFIG.CHILDREN.some(child=>String(child.albumId)===destination))throw new Error('請先確認上傳相簿。');
+            const actor=window.TimehutAccounts?.status().user;
+            if(CONFIG.ACCOUNT_MODE&&!actor?.username)throw new Error('請先登入帳戶');
+            const uploader=CONFIG.ACCOUNT_MODE?actor.username:CONFIG.FAMILY_MEMBERS?.[0]?.name;
+            const tags=[uploader?`uploader:${uploader}`:'',String(tagValue).trim()].filter(Boolean).join(' ');
+            enqueueStarting.add(row.id);
+            try {
+                const fresh=(await list()).find(item=>item.id===row.id);
+                if(!fresh||fresh.direction!=='upload'||fresh.stage!=='queued'||fresh.endpoint)throw new Error('這個檔案已送出或狀態已變更，請核對下方任務。');
+                if(stopBusy||(batchBusy&&cancelPicked))throw new Error('已要求停止這次選取，尚未送出的原檔會保留。');
+                if(CONFIG.ACCOUNT_MODE&&!currentNameOwner())throw new Error('帳戶已變更，未送出的原檔會保留。');
+                await plugin.enqueueUpload({id:row.id,endpoint:CONFIG.UPLOAD_API_URL,albumId:destination,tags,skipUploaded:document.getElementById("skipUploaded").checked});drafts.delete(row.id);
+            }
+            finally { enqueueStarting.delete(row.id); }
+        }
+        let renderFlight=null,renderAgain=false,renderTimer=null;
+        function queueRender(){
+            if(document.visibilityState!=='visible'||renderTimer!==null)return;
+            renderTimer=setTimeout(()=>{renderTimer=null;render().catch(()=>{});},150);
+        }
+        async function render(){
+            if(renderFlight){renderAgain=true;return renderFlight;}
+            renderFlight=renderRows();
+            try{return await renderFlight;}finally{renderFlight=null;if(renderAgain){renderAgain=false;queueRender();}}
+        }
+        async function renderRows() {
+            const generation=++renderGeneration;
+            const ownsRender=()=>generation===renderGeneration&&namePageActive&&(!CONFIG.ACCOUNT_MODE||sameNameOwner());
+            const editing=()=>taskEditor(document.activeElement)||composingEditor!==null;
+            if(!ownsRender()||editing())return;
+            const before=window.TimehutAccounts.status();let rows=await list();const after=window.TimehutAccounts.status();
+            if(!ownsRender()||editing())return;
+            if(CONFIG.ACCOUNT_MODE&&(!after.authenticated||before.generation!==after.generation||before.user?.id!==after.user?.id))return;
+            if(reselectButton)reselectButton.hidden=!rows.some(row=>row.requiresReselection&&row.assetIdentifier);queueActions?.observe(rows); previewObserver?.disconnect();listEl.replaceChildren();
+            const latestBatch=rows.filter(row=>row.batchId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime())[0]?.batchId;
+            if(latestBatch){
+                const batch=rows.filter(row=>row.batchId===latestBatch),stopped=batch.filter(row=>row.stage==='cancelled').length,done=batch.filter(row=>row.stage==='completed').length;
+                const preparing=batch.filter(row=>!['cancelled','photo_deleted'].includes(row.stage)),prepared=preparing.filter(row=>row.sourceReady).length;
+                const unscheduled=batch.filter(row=>row.errorCode==='schedule_not_accepted'||(['queued','waiting_system'].includes(row.stage)&&row.scheduleAccepted===false));
+                const attention=batch.filter(row=>['failed','waiting_account','waiting_system'].includes(row.stage)).length;
+                const handingOff=capabilities.platform==='ios'&&batch.some(row=>!['completed','cancelled','failed','waiting_system','photo_deleted'].includes(row.stage)&&row.scheduleAccepted!==true);
+                document.getElementById('transferCapability').textContent=batch.some(row=>row.requiresReselection)?'部分原檔尚未完成準備；請重新選取未準備完成的原檔，原任務紀錄仍保留。':handingOff?`已保留 ${batch.length} 個選取紀錄，正在準備 ${prepared}／${batch.length}。請保持此畫面開啟，等候手機系統接手。`:stopped===batch.length?'這批已停止手機傳輸；手機原檔與雲端照片保留。':done===batch.length?`這批已完成 ${done}／${batch.length}。`:unscheduled.length?`${batch.length} 個選取紀錄已保留，${unscheduled.length} 個尚未交給系統。請留在此畫面按重試。`:attention?`已完成 ${done}／${batch.length}；${attention} 個項目需要處理，請查看下方狀態。`:prepared<preparing.length?`手機系統已接手，可切換 App。正在準備 ${prepared}／${preparing.length}。`:`手機系統已接手，可切換 App。已完成 ${done}／${batch.length}`+(stopped?`，已停止 ${stopped} 個。`:'，其餘仍在傳輸或確認中。');
+            }
+            const retainedHistoryCount=rows.length;
+            rows=rows.filter(row=>filter==='removed'?queueActions?.isRemoved(row):!queueActions?.isRemoved(row));
             const active = rows.filter(row => ['preparing','transferring','saving'].includes(row.stage)).length;
-            const attention = rows.filter(row => ['failed','cancelled','file_ready'].includes(row.stage)).length;
+            const attention = rows.filter(row => row.canRetryQueued||['failed','cancelled','file_ready','waiting_system','waiting_account'].includes(row.stage)).length;
             const completed = rows.filter(isComplete).length;
             document.getElementById('transferSummary').textContent = `進行中 ${active} · 等待 ${rows.length-active-attention-completed} · 需處理 ${attention} · 已完成 ${completed}`;
-            const visibleRows = rows.filter(row => filter === 'all' || (filter === 'completed' ? isComplete(row) : row.direction === filter));
-            if (!visibleRows.length) { const empty = document.createElement('p'); empty.className='transfer-empty'; empty.textContent=rows.length?'目前沒有這類傳輸任務。':'還沒有傳輸任務，下一段小回憶從一張照片開始。'; listEl.append(empty); }
-            for (const row of visibleRows) {
+            const visibleRows = rows.filter(row => filter === 'removed' || filter === 'all' || (filter === 'attention' ? row.retryBlocked||row.canRetryQueued||['failed','cancelled','waiting_system','waiting_account'].includes(row.stage) : filter === 'completed' ? isComplete(row) : row.direction === filter)).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()||(a.selectionIndex||0)-(b.selectionIndex||0));
+            if (!visibleRows.length) { const empty = document.createElement('p'); empty.className='transfer-empty'; empty.textContent=rows.length?'目前沒有這類傳輸任務。':retainedHistoryCount?'目前清單沒有項目，可查看「已移除」紀錄或選擇新的照片。':'還沒有傳輸任務，下一段小回憶從一張照片開始。'; listEl.append(empty); }
+            const previewKeys=new Set(visibleRows.slice(0,renderLimit).map(thumbnailKey));for(const key of previewFrames.keys())if(!previewKeys.has(key))previewFrames.delete(key);
+            for (const row of visibleRows.slice(0,renderLimit)) {
                 const card = document.createElement('article'); card.className = 'transfer-task';
                 const title = document.createElement('h3'); title.textContent = row.filename;
                 card.dataset.stage = row.stage;card.dataset.taskId=row.id;
-                const status = document.createElement('p'); status.className='transfer-stage'; status.textContent = `${row.direction === 'download' ? '↓ 下載' : '↑ 上傳'} · ${row.stage==='photo_deleted' ? labels.photo_deleted : row.retryBlocked ? '需要核對上傳結果' : labels[row.stage] || '等待確認'}`;
-                const detail = document.createElement('p'); detail.className='storybook-note'; detail.textContent = [row.errorCode,row.waitReason].filter(Boolean).join('；') || (row.flickrPhotoId ? `Flickr 照片 ${row.flickrPhotoId}` : Number.isFinite(row.byteSize) && row.byteSize > 0 ? `檔案大小 ${sizeText(row.byteSize)}` : '尚未取得檔案總量');
+                const status = document.createElement('p'); status.className='transfer-stage'; status.textContent = row.duplicateOf?"✓ 先前已上傳 · 未重複傳送":`${row.direction === 'download' ? '↓ 下載' : '↑ 上傳'} · ${row.stage==='photo_deleted' ? labels.photo_deleted : row.retryBlocked ? '需要核對上傳結果' : labels[row.stage] || '等待確認'}`;
+                const detail = document.createElement('p'); detail.className='storybook-note'; detail.textContent = row.errorCode||row.waitReason ? friendlyTransferMessage(row) : Number.isFinite(row.byteSize) && row.byteSize > 0 ? `檔案大小 ${sizeText(row.byteSize)}` : '正在確認檔案大小';
                 const overview=document.createElement('div');overview.className='transfer-task-overview';const meta=document.createElement('div');meta.className='transfer-task-meta';meta.append(title,status,detail);overview.append(previewFor(row),meta);card.append(overview);
                 if (row.retryBlocked) {
                     const note=document.createElement('p');note.className='transfer-review-note storybook-note';
-                    note.textContent=row.stage==='photo_deleted'?'照片已刪除；原上傳收據保留，不會再次上傳。手機已保存的檔案仍保留。':'先核對 Flickr 的上傳結果，再決定後續處理。';card.append(note);
+                    note.textContent=row.stage==='photo_deleted'?'照片已刪除；原上傳收據保留，不會再次上傳。手機已保存的檔案仍保留。':'上傳結果仍在確認，請先更新狀態，避免重複上傳。';card.append(note);
                 }
                 if (row.direction === 'upload') {
                     const destination = document.createElement('p'); destination.className='transfer-destination';
                     if (row.stage === 'queued' && !row.endpoint) destination.dataset.uploadDestination = '';
-                    destination.textContent = '上傳至：' + albumName(row.albumId || (row.stage === 'queued' && !row.endpoint ? album.value : null));
+                    destination.dataset.destinationAlbum = String(row.albumId || (row.stage === 'queued' && !row.endpoint ? album.value : ''));
+                    destination.textContent = '上傳至：' + albumName(destination.dataset.destinationAlbum);
                     card.append(destination);
                 }
                 if (['transferring','waiting_network','waiting_wifi'].includes(row.stage)) {
@@ -338,24 +438,21 @@ window.TimehutTransfers = (() => {
                     card.append(progress,amount);
                 }
                 if (plugin) {
-                    const add = (label, action) => { const button=document.createElement('button'); button.className='btn-tag'; button.type='button'; button.textContent=label; button.addEventListener('click',async()=>{button.disabled=true;try{await action();await render();}catch(error){detail.textContent=error.message||String(error);}finally{button.disabled=false;}});card.append(button); };
-                    if (row.direction==='upload' && row.stage==='queued' && !row.endpoint) {
+                    const add = (label, action) => { const button=document.createElement('button'); button.className='btn-tag'; button.type='button'; button.textContent=label; button.addEventListener('click',async()=>{if(queueActions?.busy)return;button.disabled=true;try{await action();await render();}catch(error){detail.textContent='操作暫時未完成，請重新整理狀態後再試。';}finally{button.disabled=false;}});card.append(button); };
+                    if(row.requiresReselection&&row.assetIdentifier&&!queueActions?.isRemoved(row))add('重新選取原檔',()=>plugin.prepareUpload({resumeIds:[row.id],endpoint:row.endpoint,albumId:row.albumId,tags:row.tags,skipUploaded:row.skipUploaded===true}));
+                    if(queueActions?.isRemoved(row)){status.textContent='已移出佇列 · 原任務收據保留';add('放回清單',()=>queueActions.restore(row.id));}
+                    else if (row.direction==='upload' && row.stage==='queued' && !row.endpoint) {
                         const label=document.createElement('label'); label.textContent='這個檔案的標籤';
                         const input=document.createElement('input'); input.className='upload-input'; input.value=drafts.get(row.id) ?? document.getElementById('transferTags').value.trim(); input.placeholder='例如：公園 家人 開心';
-                        input.addEventListener('input',()=>drafts.set(row.id,input.value));label.append(input);card.append(label);
-                        add('開始上傳',()=>{
-                            const actor=window.TimehutAccounts?.status().user;
-                            if(CONFIG.ACCOUNT_MODE&&!actor?.username)throw new Error('請先登入帳戶');
-                            const uploader=CONFIG.ACCOUNT_MODE?actor.username:CONFIG.FAMILY_MEMBERS?.[0]?.name;
-                            const tags=[uploader?`uploader:${uploader}`:'',input.value.trim()].filter(Boolean).join(' ');
-                            return plugin.enqueueUpload({id:row.id,endpoint:CONFIG.UPLOAD_API_URL,albumId:album.value,tags});
-                        });
+                        input.dataset.uploadTags='';input.disabled=batchBusy||enqueueStarting.has(row.id);input.addEventListener('input',()=>drafts.set(row.id,input.value));label.append(input);card.append(label);
+                        add('開始上傳這個檔案',()=>{if(batchBusy||stopBusy)throw new Error('正在開始或停止這次選取，請稍候。');return enqueuePrepared(row,input.value.trim(),album.value);});
+                        add('停止手機傳輸',()=>plugin.cancel({id:row.id}));
                     }
                     else if (['queued','transferring','waiting_network','waiting_wifi'].includes(row.stage)) add('停止手機傳輸',()=>plugin.cancel({id:row.id}));
-                    if (['failed','cancelled','waiting_network','waiting_wifi','waiting_system'].includes(row.stage) && row.endpoint && !row.networkPolicyPending) add('重試',()=>plugin.retry({id:row.id}));
-                    if (row.stage==='file_ready' && capabilities.photoLibrarySave) add('保存至手機相簿',()=>plugin.saveToPhotos({id:row.id}));
+                    if (!row.requiresReselection && !queueActions?.isRemoved(row) && (row.canRetryQueued || ['failed','cancelled','waiting_network','waiting_wifi','waiting_system','waiting_account'].includes(row.stage)) && !row.scheduleAccepted && row.endpoint && !row.networkPolicyPending) add('重試',()=>plugin.retry({id:row.id}));
+                    if (!queueActions?.isRemoved(row) && row.stage==='file_ready' && capabilities.photoLibrarySave) add('保存至手機相簿',()=>plugin.saveToPhotos({id:row.id}));
                 } else if(row.stage==='failed' && row.serverReceiptId && !row.retryBlocked && !row.waitReason && !capabilities.nativeError) {
-                    const retry=document.createElement('button');retry.className='btn-tag';retry.textContent='重試 Flickr 處理';
+                    const retry=document.createElement('button');retry.className='btn-tag';retry.textContent='重試照片處理';
                     retry.addEventListener('click',async()=>{retry.disabled=true;try{
                         const response=await (window.TimehutAPI?.fetch.bind(window.TimehutAPI) || fetch)(`${CONFIG.UPLOAD_API_URL}/api/uploads/retry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({localIds:[row.serverReceiptId]})});
                         if(response.status===409) {
@@ -364,31 +461,104 @@ window.TimehutTransfers = (() => {
                             await render();return;
                         }
                         if(!response.ok)throw new Error('Flickr 處理重試未被接受');await render();
-                    }catch(error){detail.textContent=error.message;}finally{retry.disabled=false;}});card.append(retry);
+                    }catch(error){detail.textContent='操作暫時未完成，請重新整理狀態後再試。';}finally{retry.disabled=false;}});card.append(retry);
                 }
                 listEl.append(card);
             }
+            if(visibleRows.length>renderLimit){const more=document.createElement('button');more.type='button';more.className='btn-secondary transfer-load-more';more.id='transferLoadMore';more.textContent=`再顯示 ${Math.min(50,visibleRows.length-renderLimit)} 個（還有 ${visibleRows.length-renderLimit} 個）`;more.addEventListener('click',()=>{renderLimit+=50;render().catch(()=>{});});listEl.append(more);}
+            resolveAlbumNames(rows);
         }
-        document.getElementById('nativePickButton').addEventListener('click',async()=>{try{const result=await plugin.prepareUpload();if(result.errors?.length)document.getElementById('transferCapability').textContent=result.errors.join('；');await render();}catch(error){document.getElementById('transferCapability').textContent=error.message;}});
-        document.getElementById('refreshTransfers').addEventListener('click',render);
+        const pickButton=document.getElementById('nativePickButton'), capabilityText=document.getElementById('transferCapability');
+        let pickBusy=false, batchBusy=false, stopBusy=false, cancelPicked=false, pickedActor=null;
+        reselectButton=document.createElement('button');reselectButton.type='button';reselectButton.className='btn-secondary';reselectButton.textContent='重新選取未準備完成的原檔';reselectButton.hidden=true;pickButton.after(reselectButton);
+        reselectButton.addEventListener('click',async()=>{if(pickBusy||stopBusy||queueActions?.busy)return;pickBusy=true;reselectButton.disabled=true;try{const pending=(await list()).filter(row=>row.requiresReselection&&row.assetIdentifier);if(!pending.length)return;await plugin.prepareUpload({resumeIds:pending.map(row=>row.id),endpoint:CONFIG.UPLOAD_API_URL,albumId:album.value,tags:'',skipUploaded:true});await render();}catch(_){capabilityText.textContent='重新選取尚未確認，原任務仍保留；請確認選取原來的照片後再試。';}finally{pickBusy=false;reselectButton.disabled=false;}});
+
+        window.addEventListener('timehut-account-changed',()=>{cancelPicked=true;pickedActor=null;drafts.clear();pickedIds.clear();startBatch.hidden=true;});
+        const pickedIds=new Set(), stopPicked=document.createElement('button');
+        stopPicked.type='button';stopPicked.className='btn-secondary';stopPicked.textContent='停止這次選取的傳輸';stopPicked.hidden=true;const startBatch=document.createElement('button');startBatch.type='button';startBatch.className='btn-tag';startBatch.textContent='開始這次選取的上傳';startBatch.hidden=true;pickButton.after(startBatch,stopPicked);
+        stopPicked.addEventListener('click',async()=>{
+            if(stopBusy||CONFIG.ACCOUNT_MODE&&TimehutAccounts.status().user?.id!==pickedActor)return;
+            const stoppingActor=pickedActor,stoppingIds=new Set(pickedIds);stopBusy=true;cancelPicked=true;stopPicked.disabled=true;pickButton.disabled=true;
+            let stopped=0;const failures=[];
+            try{
+                const rows=await list();
+                if(CONFIG.ACCOUNT_MODE&&TimehutAccounts.status().user?.id!==stoppingActor)return;
+                for(const row of rows.filter(row=>stoppingIds.has(row.id)&&!['completed','photo_deleted','saved','cancelled'].includes(row.stage)))
+                    try{if(CONFIG.ACCOUNT_MODE&&TimehutAccounts.status().user?.id!==stoppingActor)throw Error('帳戶已變更，停止操作尚未確認');await plugin.cancel({id:row.id});stopped++;}catch(error){failures.push(error.message);}
+                capabilityText.textContent=failures.length?'部分停止結果尚未確認，請核對下方任務後重試。':`已停止 ${stopped} 個未完成傳輸；已完成的照片仍會保留。`;
+                await render();
+            }catch(error){capabilityText.textContent='操作結果尚未確認，請更新下方狀態；請勿重複加入檔案。';}
+            finally{stopBusy=false;stopPicked.disabled=false;if(!pickBusy&&!batchBusy)pickButton.disabled=false;}
+        });
+        startBatch.addEventListener('click',async()=>{
+            if(queueActions?.busy||pickBusy||batchBusy||stopBusy||cancelPicked)return;
+            if(CONFIG.ACCOUNT_MODE&&!currentNameOwner()){capabilityText.textContent='帳戶已變更，請重新開啟傳輸中心。';return;}
+            batchBusy=true;startBatch.disabled=true;pickButton.disabled=true;album.disabled=true;document.getElementById('transferTags').disabled=true;
+            listEl.querySelectorAll('[data-upload-tags]').forEach(input=>{input.disabled=true;});
+            const destination=album.value,ids=new Set(pickedIds);let accepted=0;const errors=[];
+            try {
+                const rows=(await list()).filter(row=>ids.has(row.id)&&row.direction==='upload'&&row.stage==='queued'&&!row.endpoint);
+                const pending=rows.map(row=>({row,tags:drafts.get(row.id)??document.getElementById('transferTags').value.trim()}));
+                for(const item of pending){
+                    if(cancelPicked)break;
+                    if(CONFIG.ACCOUNT_MODE&&!currentNameOwner())throw new Error('帳戶已變更，未送出的原檔會保留。');
+                    try{await enqueuePrepared(item.row,item.tags,destination);accepted++;}catch(error){errors.push(`${item.row.filename||'檔案'}：${error.message||'加入佇列尚未確認'}`);}
+                    capabilityText.textContent=`已加入 ${accepted}／${pending.length} 個上傳佇列。`;
+                }
+                capabilityText.textContent=cancelPicked?'已要求停止這次選取，請核對下方任務狀態。':errors.length?`已加入 ${accepted} 個；${errors.join('；')}`:accepted?`已加入 ${accepted} 個上傳佇列，請在下方查看完成結果。`:'這次選取沒有尚待送出的檔案，請核對下方狀態。';
+            }catch(error){capabilityText.textContent=error.message||'加入佇列尚未確認，原檔會保留。';}
+            finally{batchBusy=false;startBatch.disabled=false;pickButton.disabled=stopBusy;album.disabled=false;document.getElementById('transferTags').disabled=false;listEl.querySelectorAll('[data-upload-tags]').forEach(input=>{input.disabled=false;});await render().catch(error=>{capabilityText.textContent='操作結果尚未確認，請更新下方狀態；請勿重複加入檔案。';});}
+        });
+        pickButton.textContent='選擇照片／影片';
+        pickButton.addEventListener('click',async()=>{
+            if(queueActions?.busy||pickBusy||batchBusy||stopBusy)return;
+            const destination=album.value, actor=window.TimehutAccounts?.status().user;
+            if(!CONFIG.CHILDREN.some(child=>String(child.albumId)===destination)||(CONFIG.ACCOUNT_MODE&&!actor?.id)){
+                capabilityText.textContent='請先登入並選擇上傳相簿。';return;
+            }
+            const defaultTags=document.getElementById('transferTags').value.trim();const uploader=CONFIG.ACCOUNT_MODE?actor.username:CONFIG.FAMILY_MEMBERS?.[0]?.name;const tags=[uploader?`uploader:${uploader}`:'',defaultTags].filter(Boolean).join(' ');
+            pickBusy=true;pickButton.disabled=true;album.disabled=true;document.getElementById('transferTags').disabled=true;
+            cancelPicked=false;pickedIds.clear();pickedActor=actor?.id;stopPicked.hidden=true;startBatch.hidden=true;
+            let accepted=0;const errors=[];
+            try{
+                capabilityText.textContent='請選取照片／影片。確認後請稍等排程、留在此畫面；顯示系統已接手後即可切換 App。';
+                const result=await plugin.prepareUpload({endpoint:CONFIG.UPLOAD_API_URL,albumId:destination,tags,skipUploaded:document.getElementById("skipUploaded").checked}),seen=new Set();
+                if(result.nativeBatch){accepted=(result.tasks||[]).filter(row=>row.errorCode!=='schedule_not_accepted'&&row.scheduleAccepted!==false).length;capabilityText.textContent=accepted===result.tasks.length?`手機系統已接手 ${accepted} 個檔案，可切換 App。準備與上傳進度請看下方。`:(capabilities.platform==='ios'?'選取紀錄已保留，正在準備檔案與交接排程；請保持此畫面開啟。':'選取紀錄已保留，尚未交給系統；請留在此畫面並按重試。');await render();return;}
+                errors.push(...(result.errors||[]));
+                for(const row of result.tasks||[])if(typeof row.id==='string')pickedIds.add(row.id);
+                stopPicked.hidden=pickedIds.size===0;startBatch.hidden=pickedIds.size===0;
+                for(const row of result.tasks||[]){
+                    if(typeof row.id!=='string'||seen.has(row.id))continue;seen.add(row.id);
+                    if(CONFIG.ACCOUNT_MODE&&window.TimehutAccounts?.status().user?.id!==actor.id)throw new Error('帳戶已變更，未送出的原檔會保留在原帳戶。');
+                    if(cancelPicked){await plugin.cancel({id:row.id});continue;}
+                    drafts.set(row.id,defaultTags);accepted++;
+                }
+                capabilityText.textContent=cancelPicked?'已要求停止這次選取，請核對下方任務狀態。':errors.length?`已準備 ${accepted} 個；${errors.join('；')}`:accepted?`已準備 ${accepted} 個檔案。請逐檔確認標籤，再開始這次選取的上傳，或單獨上傳各檔案。`:'未選取檔案，沒有新增上傳。';
+                await render();
+            }catch(error){capabilityText.textContent='選取結果尚未確認，請更新下方狀態；請勿重複加入檔案。';}
+            finally{pickBusy=false;pickButton.disabled=stopBusy;album.disabled=false;document.getElementById('transferTags').disabled=false;}
+        });
+        document.getElementById('refreshTransfers').addEventListener('click',()=>{nameRetryAfter.clear();render().catch(error=>{capabilityText.textContent='操作結果尚未確認，請更新下方狀態；請勿重複加入檔案。';});});
         document.querySelectorAll('[data-transfer-filter]').forEach(button => button.addEventListener('click', () => {
-            filter=button.dataset.transferFilter;
+            filter=button.dataset.transferFilter;renderLimit=50;
             document.querySelectorAll('[data-transfer-filter]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-            render().catch(error => { document.getElementById('transferCapability').textContent=error.message; });
+            render().catch(error => { document.getElementById('transferCapability').textContent='暫時無法讀取傳輸狀態，請稍後更新狀態。'; });
         }));
-        if (plugin && capabilities.platform === 'ios') await plugin.addListener('transferChanged',()=>{render().catch(()=>{});if(networkState?.applying)refreshNetworkSettings();});
+        if (plugin && capabilities.platform === 'ios') await plugin.addListener('transferChanged',()=>{queueRender();if(networkState?.applying)refreshNetworkSettings();});
+        queueActions=window.TimehutQueueActions.create({plugin,list,actor:()=>window.TimehutAccounts.status(),render,isEditing:()=>pickBusy||batchBusy||stopBusy||taskEditor(document.activeElement)||composingEditor!==null,retryMany:capabilities.nativeBatchRetry?ids=>plugin.retryMany({ids}):null,removeMany:capabilities.nativeBatchRemove?ids=>plugin.removeMany({ids}):null});
+        window.TimehutDevicePicker?.attach({plugin,capabilities,render,isBusy:()=>pickBusy||batchBusy||stopBusy||queueActions?.busy});
         const timer = setInterval(()=>{if(document.visibilityState==='visible')render().catch(()=>{});},3000);
-        window.addEventListener('pagehide',()=>{clearInterval(timer);previewObserver?.disconnect();},{once:true});
+        window.addEventListener('pagehide',()=>{clearInterval(timer);clearTimeout(renderTimer);renderTimer=null;previewObserver?.disconnect();},{once:true});
         document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')render().catch(()=>{});});
         await render();
     }
     function initDeviceSettings() {
         const section=document.querySelector('.device-settings');if(!section)return;
-        const appStatus=document.getElementById('deviceAppStatus'),notificationStatus=document.getElementById('deviceNotificationStatus'),photoStatus=document.getElementById('devicePhotoStatus');
+        const appStatus=document.getElementById('deviceAppStatus'),notificationStatus=document.getElementById('deviceNotificationStatus')||{textContent:''},photoStatus=document.getElementById('devicePhotoStatus');
         const displayMode=matchMedia('(display-mode: standalone)');let installedEvent=false,generation=0,disposed=false;
         function openedAsNative(){try{return window.Capacitor?.isNativePlatform?.()===true;}catch{return false;}}
         function renderOpenState(){
-            appStatus.textContent=openedAsNative()?'目前使用手機 App；此版本仍在驗證，尚未公開發布。':displayMode.matches||navigator.standalone===true?'目前已以獨立網頁 App 視窗開啟；背景長時間傳輸仍須使用手機 App。':installedEvent?'已收到網頁 App 安裝完成通知；請從主畫面開啟，確認獨立 App 視窗。':'目前在瀏覽器中開啟；此畫面無法判定是否已在其他地方安裝，請查看安裝方式。';
+            appStatus.textContent=openedAsNative()?'目前使用手機 App，可在傳輸中心查看上傳、下載與保存結果。':displayMode.matches||navigator.standalone===true?'目前已以獨立網頁 App 視窗開啟；背景長時間傳輸仍須使用手機 App。':installedEvent?'已收到網頁 App 安裝完成通知；請從主畫面開啟，確認獨立 App 視窗。':'目前在瀏覽器中開啟；此畫面無法判定是否已在其他地方安裝，請查看安裝方式。';
         }
         function bounded(request){return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('timeout')),8000);Promise.resolve().then(request).then(resolve,reject).finally(()=>clearTimeout(timer));});}
         function notificationText(value){
@@ -427,7 +597,7 @@ window.TimehutTransfers = (() => {
                 catch{if(!disposed&&current===generation)target.textContent='狀態暫時無法確認；請更新手機狀態，或回傳輸中心查看。';}
             };
             await Promise.all([
-                read(capabilities.completionNotifications===true,'notificationSettings',notificationStatus,notificationText,'此 App 版本尚不支援完成通知狀態；請回傳輸中心查看結果。'),
+                
                 read(capabilities.photoLibraryStatus===true,'photoLibrarySettings',photoStatus,value=>photoText(value,capabilities.platform),'此 App 版本尚無法讀取照片權限；下載後請到傳輸中心查看保存結果。')
             ]);
         }
@@ -441,6 +611,6 @@ window.TimehutTransfers = (() => {
     }
     (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(initDeviceSettings);
     (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(initQueueEntry);
-    (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(()=>initCenter().catch(error=>{const e=document.getElementById('transferCapability');if(e)e.textContent='傳輸狀態暫時無法讀取：'+error.message;}));
+    (window.TimehutPage?.onReady || (fn => document.addEventListener('DOMContentLoaded',fn)))(()=>initCenter().catch(error=>{const e=document.getElementById('transferCapability');if(e)e.textContent='暫時無法讀取傳輸狀態，請稍後更新狀態。';}));
     return {ready,trackReceipt,list,mediaUrl,download,downloadMany,confirmDownloads};
 })();

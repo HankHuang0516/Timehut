@@ -1,0 +1,5 @@
+/* Public destination chrome stays put. Private rows wait for account admission. */
+html[data-timehut-loading] body:has([data-public-page-shell]){visibility:visible!important}
+html[data-timehut-loading] [data-public-page-shell] [data-account-private]{visibility:hidden;pointer-events:none}
+.page-loading-status{color:var(--app-muted,#636366);font-size:14px;margin:12px 0}
+.page-loading-status[hidden]{display:none}
